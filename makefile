@@ -14,7 +14,7 @@ SRC_DIR  := ./src
 OBJ_DIR  := ./obj
 # OBJ_DIR  := .
 # BUILD_DIR  := ./build
-BUILD_DIR  := .
+BUILD_DIR  := ./hlibpro_python_wrapper
 
 LDFLAGS  = -shared -L$(HLIBPRO_LIB)
 CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++11
