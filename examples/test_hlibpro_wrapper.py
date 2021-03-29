@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.sparse as sps
 import fenics
-import hlibpro_wrapper as hpro
+import hlibpro_python_wrapper as hpro
 
 
 ########    SETUP    ########
