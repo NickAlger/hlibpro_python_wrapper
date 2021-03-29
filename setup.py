@@ -29,7 +29,7 @@ LIBS = ['-lhpro', '-Wl,-rpath,' + HLIBPRO_LIB]
 
 LD_FLAGS  = ['-shared', '-L'+HLIBPRO_LIB]
 
-INCLUDE_COMMANDS = ['-I'+HLIBPRO_INCLUDE, '-I'+EIGEN_INCLUDE]
+# INCLUDE_COMMANDS = ['-I'+HLIBPRO_INCLUDE, '-I'+EIGEN_INCLUDE]
 
 # ALL_COMPILE_STUFF = CXX_FLAGS + HLIBPRO_FLAGS + PY_FLAGS + INCLUDE_COMMANDS + LD_FLAGS + LIBS
 
@@ -39,6 +39,7 @@ extra_compile_args = CXX_FLAGS + HLIBPRO_FLAGS + PY_FLAGS + LD_FLAGS + LIBS
 extra_link_args = extra_compile_args
 
 _hlibpro_bindings = Extension('_hlibpro_bindings',
+                              # include_dirs = [HLIBPRO_INCLUDE],
                               include_dirs = [HLIBPRO_INCLUDE, EIGEN_INCLUDE],
                               # libraries = ['hpro'],
                               # library_dirs = [HLIBPRO_LIB],
