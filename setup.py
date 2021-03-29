@@ -1,19 +1,18 @@
-from distutils.core import setup, Extension
+# from distutils.core import setup, Extension
 import subprocess
 import os
-import sysconfig
 
-# os.environ["OPT"] = ""
-# os.environ["LDFLAGS"] = ""
-# os.environ["CFLAGS"] = ""
+from setuptools import setup, Extension, find_packages
+import glob
 
-os.environ["CC"] = "g++"
-os.environ["CXX"] = "g++"
 
 HLIBPRO_DIR = '/home/nick/hlibpro-2.8.1'
 EIGEN_INCLUDE = '/home/nick/anaconda3/envs/fenics3/include/eigen3'
-
 MARCH_FLAG = '-march=x86-64'
+
+
+os.environ["CC"] = "g++"
+os.environ["CXX"] = "g++"
 
 HLIBPRO_LIB = HLIBPRO_DIR + '/lib'
 HLIBPRO_INCLUDE = HLIBPRO_DIR + '/include'
@@ -32,58 +31,39 @@ LD_FLAGS  = ['-shared', '-L'+HLIBPRO_LIB]
 
 INCLUDE_COMMANDS = ['-I'+HLIBPRO_INCLUDE, '-I'+EIGEN_INCLUDE]
 
-ALL_COMPILE_STUFF = CXX_FLAGS + HLIBPRO_FLAGS + PY_FLAGS + INCLUDE_COMMANDS + LD_FLAGS + LIBS
+# ALL_COMPILE_STUFF = CXX_FLAGS + HLIBPRO_FLAGS + PY_FLAGS + INCLUDE_COMMANDS + LD_FLAGS + LIBS
 
-extra_compile_args = ALL_COMPILE_STUFF
-# extra_compile_args = CXX_FLAGS + HLIBPRO_FLAGS + PY_FLAGS + LD_FLAGS + LIBS
-extra_link_args = LIBS
+# extra_compile_args = ALL_COMPILE_STUFF
+extra_compile_args = CXX_FLAGS + HLIBPRO_FLAGS + PY_FLAGS + LD_FLAGS + LIBS
+# extra_link_args = LIBS
+extra_link_args = extra_compile_args
 
-hlibpro_bindings = Extension('hlibpro_bindings',
-                             # include_dirs = [HLIBPRO_INCLUDE, EIGEN_INCLUDE],
-                             # libraries = ['hpro'],
-                             # library_dirs = [HLIBPRO_LIB],
-                             # runtime_library_dirs=[HLIBPRO_LIB],
-                             sources = ['src/grid_interpolate.cpp',
-                                        'src/product_convolution_hmatrix.cpp',
-                                        'src/hlibpro_bindings.cpp',
-                                        ],
-                             language='c++',
-                             extra_compile_args=extra_compile_args,
-                             # extra_link_args=extra_link_args,
-                            extra_link_args=extra_compile_args,
-                             )
-
-
-
-# extra_link_args.append('-Wl,-rpath,'+HLIBPRO_LIB)
-# if platform.system() == 'Darwin':
-#     extra_link_args.append('-Wl,-rpath,'+HLIBPRO_LIB)
+_hlibpro_bindings = Extension('_hlibpro_bindings',
+                              include_dirs = [HLIBPRO_INCLUDE, EIGEN_INCLUDE],
+                              # libraries = ['hpro'],
+                              # library_dirs = [HLIBPRO_LIB],
+                              # runtime_library_dirs=[HLIBPRO_LIB],
+                              sources = ['src/grid_interpolate.cpp',
+                                         'src/product_convolution_hmatrix.cpp',
+                                         'src/hlibpro_bindings.cpp',
+                                         ],
+                              language='c++',
+                              extra_compile_args=extra_compile_args,
+                              # extra_link_args=extra_link_args,
+                              extra_link_args=extra_link_args,
+                              )
 
 
-
-setup (name = 'HlibproPythonWrapper',
+setup (name = 'hlibpro_python_wrapper',
        version = '0.1dev',
        description = 'Python wrapper for HLIBPro',
        author = 'Nick Alger (HLIBPro by Dr. Ronald Kriemann)',
        author_email = 'nalger225@gmail.com',
        url = 'https://github.com/NickAlger/hlibpro_python_wrapper',
        long_description = '''
-       HLIBPro is a high quality C++ hierarchical matrix package written by Dr. Ronald Kriemann. 
+       HLIBPro is a C++ hierarchical matrix package written by Dr. Ronald Kriemann. 
        This library provides a (very incomplete) set of bindings and helper functions 
        for using HLIBPro from within python. 
        ''',
-       ext_modules = [hlibpro_bindings])
-
-# from distutils.core import setup
-#
-# setup(
-#     name='hlibpro_python_wrapper',
-#     version='0.1dev',
-#     packages=['hlibpro_python_wrapper',],
-#     license='MIT',
-#     author='Nick Alger',
-#     py_modules = ["hlibpro_bindings"],
-#     package_data={'': ['hlibpro_bindings.so']},
-#     include_package_data=True,
-#     # long_description=open('README.txt').read(),
-# )
+       packages = find_packages(),
+       ext_modules = [_hlibpro_bindings])
