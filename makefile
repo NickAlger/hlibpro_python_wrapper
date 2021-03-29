@@ -25,7 +25,8 @@ ALL_COMPILE_STUFF = $(CXXFLAGS) $(HLIBPRO_FLAGS) $(PYFLAGS) \
 					-I $(HLIBPRO_INCLUDE) -I$(EIGEN_INCLUDE) \
 					$(LDFLAGS) $(LIBS)
 
-HLIBPRO_BINDINGS_TARGET = $(addsuffix $(PYSUFFIX), hlibpro_bindings)
+# HLIBPRO_BINDINGS_TARGET = $(addsuffix $(PYSUFFIX), hlibpro_bindings)
+HLIBPRO_BINDINGS_TARGET = hlibpro_bindings.so
 
 
 all: $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET)
@@ -41,6 +42,7 @@ $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET): $(OBJ_DIR)/hlibpro_bindings.o $(OBJ_DIR
 $(OBJ_DIR)/hlibpro_bindings.o: $(SRC_DIR)/hlibpro_bindings.cpp
 	@echo 'Building target: $@'
 	g++ -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
+# 	cc -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -53,6 +55,7 @@ $(OBJ_DIR)/product_convolution_hmatrix.o: $(SRC_DIR)/product_convolution_hmatrix
 $(OBJ_DIR)/grid_interpolate.o: $(SRC_DIR)/grid_interpolate.cpp
 	@echo 'Building target: $@'
 	g++ -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
+# 	cc -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
