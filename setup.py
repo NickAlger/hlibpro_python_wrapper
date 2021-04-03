@@ -1,18 +1,22 @@
-# from distutils.core import setup, Extension
-import subprocess
-import os
-
-from setuptools import setup, Extension, find_packages
-import glob
-
+###################  VVV  EDIT THESE BEFORE INSTALLING  VVV  ###################
 
 HLIBPRO_DIR = '/home/nick/hlibpro-2.8.1'
 EIGEN_INCLUDE = '/home/nick/anaconda3/envs/fenics3/include/eigen3'
+
+################################################################################
+
+import os
+
+#You may need to edit these too:
 MARCH_FLAG = '-march=x86-64'
-
-
 os.environ["CC"] = "g++"
 os.environ["CXX"] = "g++"
+
+################################################################################
+
+
+from setuptools import setup, Extension, find_packages
+import subprocess
 
 HLIBPRO_LIB = HLIBPRO_DIR + '/lib'
 HLIBPRO_INCLUDE = HLIBPRO_DIR + '/include'
@@ -42,6 +46,7 @@ _hlibpro_bindings = Extension('_hlibpro_bindings',
                               # include_dirs = [HLIBPRO_INCLUDE],
                               include_dirs = [HLIBPRO_INCLUDE, EIGEN_INCLUDE],
                               # libraries = ['hpro'],
+                              # libraries = ['eigen3'],
                               # library_dirs = [HLIBPRO_LIB],
                               # runtime_library_dirs=[HLIBPRO_LIB],
                               sources = ['src/grid_interpolate.cpp',
