@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.io import savemat
-import hlibpro_bindings as hpro_cpp
+from . import hlibpro_bindings as hpro_cpp
 
 default_rtol = 1e-7
 default_atol = 1e-12

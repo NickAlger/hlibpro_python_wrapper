@@ -1,7 +1,11 @@
 default: all
 
+##################    VVVV    Change these    VVVV    ##################
+
 HLIBPRO_DIR := /home/nick/hlibpro-2.8.1
-EIGEN_INCLUDE := /home/nick/anaconda3/envs/fenics2/include/eigen3
+EIGEN_INCLUDE := /home/nick/anaconda3/envs/fenics3/include/eigen3
+
+########################################################################
 
 HLIBPRO_LIB := $(HLIBPRO_DIR)/lib
 HLIBPRO_INCLUDE := $(HLIBPRO_DIR)/include
