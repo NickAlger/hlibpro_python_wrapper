@@ -21,7 +21,7 @@ OBJ_DIR  := ./obj
 BUILD_DIR  := ./hlibpro_python_wrapper
 
 LDFLAGS  = -shared -L$(HLIBPRO_LIB)
-CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++11
+CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++14
 
 LIBS := -lhpro -Wl,-rpath,$(HLIBPRO_LIB)
 

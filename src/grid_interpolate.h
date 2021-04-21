@@ -4,7 +4,6 @@
 #include <Eigen/LU>
 //#include <Eigen/CXX11/Tensor>
 
-
 using namespace Eigen;
 
 double grid_interpolate_at_one_point(const VectorXd p,
