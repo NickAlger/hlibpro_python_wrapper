@@ -490,5 +490,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("grid_interpolate", &grid_interpolate);
     m.def("grid_interpolate_vectorized", &grid_interpolate_vectorized);
     m.def("point_is_in_ellipsoid", &point_is_in_ellipsoid);
+
+//    m.def("bilinear_interpolation_periodic", &bilinear_interpolation_periodic);
+//    m.def("points_in_box_2d", &points_in_box_2d);
 }
 
