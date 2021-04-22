@@ -9,8 +9,8 @@ hcpp = hpw.hpro_cpp
 make_plots=False
 
 d=2
-num_pts = int(1e6)
-grid_shape = (146,147)
+num_pts = int(1e2)
+grid_shape = (246,247)
 box_min = np.array([-0.631, -0.424])
 box_max = np.array([1.411, 1.105])
 pp = np.random.randn(num_pts, d)
@@ -50,21 +50,29 @@ def bilinear_interpolation(pp, box_min, box_max, F):
 
 t = time()
 ff = hcpp.bilinear_interpolation_periodic(pp, box_min, box_max, F)
-dt_cpp = time() - t
-print('dt_cpp=', dt_cpp)
+dt_cpp_periodic = time() - t
+print('dt_cpp_periodic=', dt_cpp_periodic)
 
 t = time()
 ff2 = interpn((xx,yy),F,pp, bounds_error=False, fill_value=0.0)
-dt_scipy = time() - t
-print('dt_scipy=', dt_scipy)
+dt_scipy_fillzero = time() - t
+print('dt_scipy_fillzero=', dt_scipy_fillzero)
 
 t = time()
 ff3 = hcpp.bilinear_interpolation_periodic(pp, box_min, box_max, F)
-dt_numpy = time() - t
-print('dt_numpy=', dt_numpy)
+dt_numpy_periodic = time() - t
+print('dt_numpy_periodic=', dt_numpy_periodic)
 
-err_cpp_vs_numpy = np.linalg.norm(ff3 - ff)
-print('err_cpp_vs_numpy=', err_cpp_vs_numpy)
+t = time()
+ff4 = hcpp.grid_interpolate(pp, box_min[0], box_max[0], box_min[1], box_max[1], F)
+dt_cpp_fillzero = time() - t
+print('dt_cpp_fillzero=', dt_cpp_fillzero)
+
+err_cpp_vs_numpy_periodic = np.linalg.norm(ff3 - ff)
+print('err_cpp_vs_numpy_periodic=', err_cpp_vs_numpy_periodic)
+
+err_cpp_vs_numpy_fillzero = np.linalg.norm(ff4 - ff2)
+print('err_cpp_vs_numpy_fillzero=', err_cpp_vs_numpy_fillzero)
 
 if make_plots:
     plt.figure()
