@@ -48,8 +48,6 @@ def numpy_periodic_bilinear_interpolation_regular_grid(pp, box_min, box_max, F):
 # pp_C = pp.astype(pp.dtype, order='F')
 # F_C = F.astype(F.dtype, order='F')
 
-
-
 t = time()
 ff_SCIPY = interpn((xx, yy), F, pp, bounds_error=False, fill_value=0.0)
 dt_SCIPY_interpn = time() - t
@@ -60,10 +58,7 @@ ff_NUMPY = numpy_periodic_bilinear_interpolation_regular_grid(pp, box_min, box_m
 dt_NUMPY_periodic = time() - t
 print('dt_NUMPY_periodic=', dt_NUMPY_periodic)
 
-t = time()
-ff_CPP_for_loop = hcpp.grid_interpolate(pp, box_min[0], box_max[0], box_min[1], box_max[1], F)
-dt_CPP_for_loop = time() - t
-print('dt_CPP_for_loop=', dt_CPP_for_loop)
+hcpp.bilinear_interpolation_regular_grid(pp, box_min, box_max, F) # dummy (first cpp call is slower for some reason)
 
 t = time()
 ff_CPP = hcpp.bilinear_interpolation_regular_grid(pp, box_min, box_max, F)
@@ -74,6 +69,11 @@ t = time()
 ff_CPP_periodic = hcpp.periodic_bilinear_interpolation_regular_grid(pp, box_min, box_max, F)
 dt_CPP_periodic = time() - t
 print('dt_CPP_periodic=', dt_CPP_periodic)
+
+t = time()
+ff_CPP_for_loop = hcpp.grid_interpolate(pp, box_min[0], box_max[0], box_min[1], box_max[1], F)
+dt_CPP_for_loop = time() - t
+print('dt_CPP_for_loop=', dt_CPP_for_loop)
 
 err_NUMPY_vs_CPP_periodic = np.linalg.norm(ff_NUMPY - ff_CPP_periodic)
 print('err_NUMPY_vs_CPP_periodic=', err_NUMPY_vs_CPP_periodic)
