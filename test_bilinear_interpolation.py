@@ -9,17 +9,17 @@ hcpp = hpw.hpro_cpp
 make_plots=False
 
 d=2
-num_pts = int(1e6)
+num_pts = int(1e3)
 grid_shape = (246,247)
 box_min = np.array([-0.631, -0.424])
 box_max = np.array([1.411, 1.105])
 pp = np.random.randn(num_pts, d)
-ff = np.zeros(num_pts)
+ff_CPP_periodic = np.zeros(num_pts)
 (xx, yy), (X, Y) = make_regular_grid(box_min, box_max, grid_shape)
 F = np.sin(2 * 2 * np.pi * np.sqrt(X**2 + Y**2))
 
 
-def bilinear_interpolation(pp, box_min, box_max, F):
+def numpy_periodic_bilinear_interpolation_regular_grid(pp, box_min, box_max, F):
     grid_shape = np.array(F.shape)
     hh = (box_max - box_min) / (grid_shape - 1)
     grid_coords = (pp - box_min) / hh
@@ -48,31 +48,41 @@ def bilinear_interpolation(pp, box_min, box_max, F):
 # pp_C = pp.astype(pp.dtype, order='F')
 # F_C = F.astype(F.dtype, order='F')
 
-t = time()
-ff = hcpp.bilinear_interpolation_periodic(pp, box_min, box_max, F)
-dt_cpp_periodic = time() - t
-print('dt_cpp_periodic=', dt_cpp_periodic)
+
 
 t = time()
-ff2 = interpn((xx,yy),F,pp, bounds_error=False, fill_value=0.0)
-dt_scipy_fillzero = time() - t
-print('dt_scipy_fillzero=', dt_scipy_fillzero)
+ff_SCIPY = interpn((xx, yy), F, pp, bounds_error=False, fill_value=0.0)
+dt_SCIPY_interpn = time() - t
+print('dt_SCIPY_interpn=', dt_SCIPY_interpn)
 
 t = time()
-ff3 = hcpp.bilinear_interpolation_periodic(pp, box_min, box_max, F)
-dt_numpy_periodic = time() - t
-print('dt_numpy_periodic=', dt_numpy_periodic)
+ff_NUMPY = numpy_periodic_bilinear_interpolation_regular_grid(pp, box_min, box_max, F)
+dt_NUMPY_periodic = time() - t
+print('dt_NUMPY_periodic=', dt_NUMPY_periodic)
 
 t = time()
-ff4 = hcpp.grid_interpolate(pp, box_min[0], box_max[0], box_min[1], box_max[1], F)
-dt_cpp_fillzero = time() - t
-print('dt_cpp_fillzero=', dt_cpp_fillzero)
+ff_CPP_for_loop = hcpp.grid_interpolate(pp, box_min[0], box_max[0], box_min[1], box_max[1], F)
+dt_CPP_for_loop = time() - t
+print('dt_CPP_for_loop=', dt_CPP_for_loop)
 
-err_cpp_vs_numpy_periodic = np.linalg.norm(ff3 - ff)
-print('err_cpp_vs_numpy_periodic=', err_cpp_vs_numpy_periodic)
+t = time()
+ff_CPP = hcpp.bilinear_interpolation_regular_grid(pp, box_min, box_max, F)
+dt_CPP = time() - t
+print('dt_CPP=', dt_CPP)
 
-err_cpp_vs_numpy_fillzero = np.linalg.norm(ff4 - ff2)
-print('err_cpp_vs_numpy_fillzero=', err_cpp_vs_numpy_fillzero)
+t = time()
+ff_CPP_periodic = hcpp.periodic_bilinear_interpolation_regular_grid(pp, box_min, box_max, F)
+dt_CPP_periodic = time() - t
+print('dt_CPP_periodic=', dt_CPP_periodic)
+
+err_NUMPY_vs_CPP_periodic = np.linalg.norm(ff_NUMPY - ff_CPP_periodic)
+print('err_NUMPY_vs_CPP_periodic=', err_NUMPY_vs_CPP_periodic)
+
+err_CPP_vs_SCIPY = np.linalg.norm(ff_CPP - ff_SCIPY)
+print('err_CPP_vs_SCIPY=', err_CPP_vs_SCIPY)
+
+err_CPP_for_loop_vs_CPP = np.linalg.norm(ff_CPP_for_loop - ff_CPP)
+print('err_CPP_for_loop_vs_CPP=', err_CPP_for_loop_vs_CPP)
 
 if make_plots:
     plt.figure()
@@ -80,9 +90,9 @@ if make_plots:
     plt.colorbar()
 
     plt.figure()
-    plt.scatter(pp[:,0], pp[:,1], c=ff, s=3)
+    plt.scatter(pp[:,0], pp[:,1], c=ff_CPP_periodic, s=3)
     plt.colorbar()
 
     plt.figure()
-    plt.scatter(pp[:,0], pp[:,1], c=ff2, s=3)
+    plt.scatter(pp[:,0], pp[:,1], c=ff_SCIPY, s=3)
     plt.colorbar()

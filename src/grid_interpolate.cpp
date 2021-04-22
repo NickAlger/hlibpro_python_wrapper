@@ -11,10 +11,27 @@
 using namespace Eigen;
 using namespace std;
 
-VectorXd bilinear_interpolation_periodic(const Array<double, Dynamic, 2> & pp,
-                                         const Vector2d & box_min,
-                                         const Vector2d & box_max,
-                                         const MatrixXd & F)
+
+VectorXd bilinear_interpolation_regular_grid(const Array<double, Dynamic, 2> & pp,
+                                             const Vector2d & box_min,
+                                             const Vector2d & box_max,
+                                             const MatrixXd & F)
+{
+    const VectorXd ff_periodic = periodic_bilinear_interpolation_regular_grid(pp, box_min, box_max, F);
+
+    const VectorXd box_mask = ((box_min(0) <= pp.col(0))  &&
+                               (box_min(1) <= pp.col(1))  &&
+                               (pp.col(0)  <= box_max(0)) &&
+                               (pp.col(1)  <= box_max(1))).cast<double>();
+
+    VectorXd ff = ff_periodic.array() * box_mask.array();
+    return ff;
+}
+
+VectorXd periodic_bilinear_interpolation_regular_grid(const Array<double, Dynamic, 2> & pp,
+                                                      const Vector2d & box_min,
+                                                      const Vector2d & box_max,
+                                                      const MatrixXd & F)
 {
     const int nx = F.rows();
     const int ny = F.cols();
