@@ -61,14 +61,14 @@ print('dt_NUMPY_periodic=', dt_NUMPY_periodic)
 hcpp.bilinear_interpolation_regular_grid(pp, box_min, box_max, F) # dummy (first cpp call is slower for some reason)
 
 t = time()
-ff_CPP = hcpp.bilinear_interpolation_regular_grid(pp, box_min, box_max, F)
-dt_CPP = time() - t
-print('dt_CPP=', dt_CPP)
-
-t = time()
 ff_CPP_periodic = hcpp.periodic_bilinear_interpolation_regular_grid(pp, box_min, box_max, F)
 dt_CPP_periodic = time() - t
 print('dt_CPP_periodic=', dt_CPP_periodic)
+
+t = time()
+ff_CPP = hcpp.bilinear_interpolation_regular_grid(pp, box_min, box_max, F)
+dt_CPP = time() - t
+print('dt_CPP=', dt_CPP)
 
 t = time()
 ff_CPP_for_loop = hcpp.grid_interpolate(pp, box_min[0], box_max[0], box_min[1], box_max[1], F)

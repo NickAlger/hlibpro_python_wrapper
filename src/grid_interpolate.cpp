@@ -91,7 +91,6 @@ VectorXd periodic_bilinear_interpolation_regular_grid(const Array<double, Dynami
 }
 
 
-
 double grid_interpolate_at_one_point(const VectorXd p,
                                      const double xmin, const double xmax,
                                      const double ymin, const double ymax,
