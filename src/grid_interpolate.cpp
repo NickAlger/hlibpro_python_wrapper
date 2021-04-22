@@ -11,142 +11,69 @@
 using namespace Eigen;
 using namespace std;
 
+VectorXd bilinear_interpolation_periodic_2d(const Array<double, Dynamic, 2> & pp,
+                                            const Vector2d & box_min,
+                                            const Vector2d & box_max,
+                                            const MatrixXd & F)
+{
+    const int nx = F.rows();
+    const int ny = F.cols();
+    const int num_pts = pp.rows();
 
-//Array<bool, 1, Dynamic> points_in_box_2d(const Array<double, Dynamic, 2> & pp,
-//                                         const Vector2d                     box_min,
-//                                         const Vector2d                     box_max)
-//{
-//     return (box_min(0) <= pp.col(0))  && (box_min(1) <= pp.col(1))  &&
-//            (pp.col(0)  <= box_max(0)) && (pp.col(1)  <= box_max(1));
-//}
-//
-//
-//VectorXd extract_vector_entries(const VectorXd & full, const VectorXi & ind)
-//{
-//    int num_indices = ind.size();
-//    VectorXd target(num_indices);
-//    for (int i = 0; i < num_indices; i++)
-//    {
-//        target(i) = full(ind(i));
-//    }
-//    return target;
-//}
-//
-//Array<double, 1, Dynamic> bilinear_interpolation_periodic(const Array<double, Dynamic, 2> & pp,
-//                                                          const VectorXd                  & F_vectorized_rowmajor,
-//                                                          const Vector2d                    box_min,
-//                                                          const Vector2d                    box_max,
-//                                                          const Vector2i                    grid_shape)
-//{
-////    int num_pts = pp.rows();
-//
-////    Vector2i grid_shape;
-////    grid_shape << F.rows(), F.cols();
-//
-//    Vector2d hh;
-//    hh(0) = (box_max(0) - box_min(0)) / ((double)grid_shape(0) - 1.0);
-//    hh(1) = (box_max(1) - box_min(1)) / ((double)grid_shape(1) - 1.0);
-//
-//    Array<double, Dynamic, 2> box_coords;
-//    box_coords.col(0) = (pp.col(0) - box_min(0)) / hh(0);
-//    box_coords.col(1) = (pp.col(1) - box_min(1)) / hh(1);
-//
-//    Array<int, Dynamic, 2> lower_inds = box_coords.cast<int>();
-//    Array<int, Dynamic, 2> upper_inds = lower_inds + 1;
-//    Array<double, Dynamic, 2> ss = box_coords - lower_inds.cast<double>();
-//
-//    // mod(a, b) = a - (b * (a / b))
-//    Array<int, Dynamic, 2> lower_inds_mod;
-//    lower_inds_mod.col(0) = lower_inds.col(0) - (grid_shape(0) * (lower_inds.col(0) / grid_shape(0)).cast<int>());
-//    lower_inds_mod.col(1) = lower_inds.col(1) - (grid_shape(1) * (lower_inds.col(1) / grid_shape(1)).cast<int>());
-//
-//    Array<int, Dynamic, 2> upper_inds_mod;
-//    upper_inds_mod.col(0) = upper_inds.col(0) - (grid_shape(0) * (upper_inds.col(0) / grid_shape(0)).cast<int>());
-//    upper_inds_mod.col(1) = upper_inds.col(1) - (grid_shape(1) * (upper_inds.col(1) / grid_shape(1)).cast<int>());
-//
-//    VectorXi v00_inds = grid_shape[1] * lower_inds_mod.col(0) + lower_inds_mod.col(1);
-//    VectorXi v01_inds = grid_shape[1] * lower_inds_mod.col(0) + upper_inds_mod.col(1);
-//    VectorXi v10_inds = grid_shape[1] * upper_inds_mod.col(0) + lower_inds_mod.col(1);
-//    VectorXi v11_inds = grid_shape[1] * upper_inds_mod.col(0) + upper_inds_mod.col(1);
-//
-////    Array<int, 1, Dynamic> v00_inds;
-////    Array<int, 1, Dynamic> v01_inds;
-////    Array<int, 1, Dynamic> v10_inds;
-////    Array<int, 1, Dynamic> v11_inds;
-////
-////    if(F.IsRowMajor)
-////    {
-////        v00_inds << F.cols() * lower_inds_mod.col(0) + lower_inds_mod.col(1);
-////        v01_inds << F.cols() * lower_inds_mod.col(0) + upper_inds_mod.col(1);
-////        v10_inds << F.cols() * upper_inds_mod.col(0) + lower_inds_mod.col(1);
-////        v11_inds << F.cols() * upper_inds_mod.col(0) + upper_inds_mod.col(1);
-////    }
-////    else
-////    {
-////        v00_inds << lower_inds_mod.col(0) + F.rows() * lower_inds_mod.col(1);
-////        v01_inds << lower_inds_mod.col(0) + F.rows() * upper_inds_mod.col(1);
-////        v10_inds << upper_inds_mod.col(0) + F.rows() * lower_inds_mod.col(1);
-////        v11_inds << upper_inds_mod.col(0) + F.rows() * upper_inds_mod.col(1);
-////    }
-//
-////    ArrayXd v00 = F(lower_inds_mod.col(0), lower_inds_mod.col(1)); // bad
-//
-////    ArrayXd v00 = F(v00_inds);
-////    ArrayXd v01 = F(v01_inds);
-////    ArrayXd v10 = F(v10_inds);
-////    ArrayXd v11 = F(v11_inds);
-//
-////    Map<const VectorXd> F_vectorized(F.data(), F.size());
-//
-////    VectorXd v00 = F_vectorized_rowmajor(v00_inds.array());
-//    VectorXd v00 = extract_vector_entries(F_vectorized_rowmajor, v00_inds);
-//    VectorXd v01 = extract_vector_entries(F_vectorized_rowmajor, v01_inds);
-//    VectorXd v10 = extract_vector_entries(F_vectorized_rowmajor, v10_inds);
-//    VectorXd v11 = extract_vector_entries(F_vectorized_rowmajor, v11_inds);
-//
-////    VectorXd v00 = F_vectorized(v00_inds);
-////    ArrayXd v01 = F_vectorized(v01_inds);
-////    ArrayXd v10 = F_vectorized(v10_inds);
-////    ArrayXd v11 = F_vectorized(v11_inds);
-////
-//    return (1.0-ss.col(0)) * (1.0-ss.col(1)) * v00.array()
-//         + (1.0-ss.col(0)) * ss.col(1)       * v01.array()
-//         + ss.col(0)       * (1.0-ss.col(1)) * v10.array()
-//         + ss.col(0)       * ss.col(1)       * v11.array();
-//
-////    Array<double, 1, Dynamic> ff;
-////    return ff;
-//}
-//
-//
-////void bilinear_interpolation(Eigen::VectorXd & ff,             // function values at points, size=num_pts (to be computed: we write into this)
-////                                const Eigen::MatrixXd & pp,       // points, shape=(num_pts x 2)
-////                                const Eigen::MatrixXd & F,        // grid values, shape=(box_nx, box_ny)
-////                                const Eigen::Vector2d & box_min,  // box minimum point, size=2
-////                                const Eigen::Vector2d & box_max)  // box maximum point, size=2
-////{
-////    std::cout << box_min << std::endl;
-//////    const int num_pts = pp.rows();
-//////    const int nx = F.rows();
-//////    const int ny = F.cols();
-////
-//////    Eigen::VectorXd in_box = (box_min(0) <= pp.col(0).array());
-//////    Eigen::VectorXd in_box = (pp.array() >= -0.1);
-//////    auto pp0 = pp.col(0).array();
-//////    auto pp1 = pp.col(1).array();
-////
-//////    auto in_box = (box_min(0) <= pp0);
-////
-//////    auto in_box = ((box_min(0) <= pp.col(0).array()) &&
-//////                   (box_min(1) <= pp.col(1).array()) &&
-//////                   (pp.col(0).array() <= box_max(0)) &&
-//////                   (pp.col(1).array() <= box_max(1)));
-////
-//////    auto in_box = ((pp.rowwise() - box_min.transpose()).array() >= 0) && ((pp.rowwise() - box_max.transpose()).array() <= 0);
-////
-//////    std::cout << "in_box: " << std::endl;
-//////    std::cout << in_box << std::endl;
-////}
+    const double x_width = (box_max(0) - box_min(0));
+    const double y_width = (box_max(1) - box_min(1));
+
+    const int num_cells_x = nx - 1;
+    const int num_cells_y = ny - 1;
+
+    const double hx = x_width / (double)num_cells_x;
+    const double hy = y_width / (double)num_cells_y;
+
+    const VectorXd box_coords_x = (pp.col(0) - box_min(0)) / hx;
+    const VectorXd box_coords_y = (pp.col(1) - box_min(1)) / hy;
+
+    const VectorXd lower_x = box_coords_x.array().floor();
+    const VectorXd lower_y = box_coords_y.array().floor();
+
+    const VectorXd upper_x = lower_x.array() + 1.0;
+    const VectorXd upper_y = lower_y.array() + 1.0;
+
+    const VectorXd box_remainder_x = box_coords_x - lower_x;
+    const VectorXd box_remainder_y = box_coords_y - lower_y;
+
+    // mod(a, b) = a - (b * int(a / b))
+    const VectorXi lower_inds_mod_x = (lower_x.array() - (nx * (lower_x.array() / (double)nx).floor())).cast<int>();
+    const VectorXi lower_inds_mod_y = (lower_y.array() - (ny * (lower_y.array() / (double)ny).floor())).cast<int>();
+
+    const VectorXi upper_inds_mod_x = (upper_x.array() - (nx * (upper_x.array() / (double)nx).floor())).cast<int>();
+    const VectorXi upper_inds_mod_y = (upper_y.array() - (ny * (upper_y.array() / (double)ny).floor())).cast<int>();
+
+    VectorXd ff(num_pts);
+    for ( int  k = 0; k < num_pts; ++k )
+    {
+        const double s = box_remainder_x(k);
+        const double t = box_remainder_y(k);
+
+        const int i = lower_inds_mod_x(k);
+        const int i_plus = upper_inds_mod_x(k);
+
+        const int j = lower_inds_mod_y(k);
+        const int j_plus = upper_inds_mod_y(k);
+
+        const double v00 = F(i, j);
+        const double v01 = F(i,   j_plus);
+        const double v10 = F(i_plus, j);
+        const double v11 = F(i_plus, j_plus);
+
+        ff(k) = (1.0-s) * (1.0-t) * v00
+              + (1.0-s) * t       * v01
+              + s       * (1.0-t) * v10
+              + s       * t       * v11;
+    }
+    return ff;
+}
+
+
 
 double grid_interpolate_at_one_point(const VectorXd p,
                                      const double xmin, const double xmax,
