@@ -9,7 +9,7 @@ hcpp = hpw.hpro_cpp
 make_plots=False
 
 d=2
-num_pts = int(1e2)
+num_pts = int(1e6)
 grid_shape = (246,247)
 box_min = np.array([-0.631, -0.424])
 box_max = np.array([1.411, 1.105])
