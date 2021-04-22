@@ -11,10 +11,10 @@
 using namespace Eigen;
 using namespace std;
 
-VectorXd bilinear_interpolation_periodic_2d(const Array<double, Dynamic, 2> & pp,
-                                            const Vector2d & box_min,
-                                            const Vector2d & box_max,
-                                            const MatrixXd & F)
+VectorXd bilinear_interpolation_periodic(const Array<double, Dynamic, 2> & pp,
+                                         const Vector2d & box_min,
+                                         const Vector2d & box_max,
+                                         const MatrixXd & F)
 {
     const int nx = F.rows();
     const int ny = F.cols();
@@ -41,7 +41,7 @@ VectorXd bilinear_interpolation_periodic_2d(const Array<double, Dynamic, 2> & pp
     const VectorXd box_remainder_x = box_coords_x - lower_x;
     const VectorXd box_remainder_y = box_coords_y - lower_y;
 
-    // mod(a, b) = a - (b * int(a / b))
+    // mod(a, b) = a - (b * floor(a / b))
     const VectorXi lower_inds_mod_x = (lower_x.array() - (nx * (lower_x.array() / (double)nx).floor())).cast<int>();
     const VectorXi lower_inds_mod_y = (lower_y.array() - (ny * (lower_y.array() / (double)ny).floor())).cast<int>();
 
