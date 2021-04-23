@@ -152,6 +152,55 @@ def build_hmatrix_from_scipy_sparse_matrix(A_csc, bct):
     return HMatrixWrapper(hmatrix_cpp_object, bct)
 
 
+def build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
+                                         FF_mins, FF_maxes, FF_arrays,
+                                         row_dof_coords, col_dof_coords,
+                                         block_cluster_tree, tol=1e-6, symmetrize=False):
+    '''Builds hmatrix for product-convolution operator based on weighting functions and convolution kernels defined
+    on regular grids in boxes. Convolution kernels must be zero-centered. If a convolution is not zero-centered,
+    you can make it zero centered by subtracting the center point from the box min and max points.
+
+    :param WW_mins: weighting function box min points.
+        list of numpy arrays, len(WW_mins)=num_patches, WW_mins[k].shape=(2,)
+    :param WW_maxes: weighting function box max points.
+        list of numpy arrays, len(WW_maxes)=num_patches, WW_maxes[k].shape=(2,)
+    :param WW_arrays: arrays of weighting function values on grids.
+        list of numpy arrays, len(WW_arrays)=num_patches,
+        WW_arrays[k].shape = grid shape for kth weighting function
+    :param FF_mins: convolution kernel box min points.
+        list of numpy arrays, len(FF_mins)=num_patches, FF_mins[k].shape=(2,)
+    :param FF_maxes: convolution kernel box max points.
+        list of numpy arrays, len(FF_maxes)=num_patches, FF_maxes[k].shape=(2,)
+    :param FF_arrays: arrays of convolution kernel values on grids.
+        list of numpy arrays, len(FF_arrays)=num_patches,
+        FF_arrays[k].shape = grid shape for kth weighting function
+    :param row_dof_coords: array of coordinates in physical space corresponding to rows of the matrix
+        row_dof_coords.shape = (num_rows, 2)
+    :param col_dof_coords: array of coordinates in physical space corresponding to columns of the matrix
+        col_dof_coords.shape = (num_cols, 2)
+    :param block_cluster_tree: block cluster tree
+    :param tol: truncation tolerance for low rank approximation of Hmatrix low rank (admissible) blocks
+    :param symmetrize: symmetrize the hmatrix (default: false)
+    :return: hmatrix
+    '''
+    PC_cpp = hpro_cpp.ProductConvolution2d(list_of_weighting_function_min_points,
+                                           list_of_weighting_function_max_points,
+                                           list_of_weighting_function_arrays,
+                                           list_of_convolution_kernel_min_points,
+                                           list_of_convolution_kernel_max_points,
+                                           list_of_convolution_kernel_arrays,
+                                           row_dof_coords, col_dof_coords)
+
+    PC_coefffn = hpro.hpro_cpp.PC2DCoeffFn(PC_cpp)
+    hmatrix_cpp_object = hpro.hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree, tol)
+    A_hmatrix = hpro.HMatrixWrapper(hmatrix_cpp_object, block_cluster_tree)
+
+    if symmetrize:
+        A_hmatrix = A_hmatrix.sym()
+
+    return A_hmatrix
+
+
 def h_factorized_solve(iA_factorized, y):
     return hpro_cpp.h_factorized_inverse_matvec(iA_factorized.cpp_object,
                                                 iA_factorized.row_ct(),
