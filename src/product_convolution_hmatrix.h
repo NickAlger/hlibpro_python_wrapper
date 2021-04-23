@@ -69,7 +69,7 @@ public:
                          Matrix<double, Dynamic, 2> col_coords);
 
     VectorXd get_entries(VectorXi rows, VectorXi cols);
-//    MatrixXd get_block(VectorXi block_rows, VectorXi block_cols);
+    MatrixXd get_block(VectorXi block_rows, VectorXi block_cols);
 };
 
 

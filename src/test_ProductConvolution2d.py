@@ -58,14 +58,40 @@ t = time()
 xx = row_coords[rr,:]
 yy = col_coords[cc,:]
 ee_true = W1(yy)*F1(xx-yy) + W2(yy)*F2(xx-yy) + W3(yy)*F3(xx-yy)
-dt_python = time() - t
-print('dt_python=', dt_python)
+dt_get_entries_python = time() - t
+print('dt_get_entries_python=', dt_get_entries_python)
 
 t = time()
 ee = PC_cpp.get_entries(rr,cc)
-dt_cpp = time() - t
-print('dt_cpp=', dt_cpp)
+dt_get_entries_cpp = time() - t
+print('dt_get_entries_cpp=', dt_get_entries_cpp)
 
+err_get_entries = np.linalg.norm(ee_true - ee)
+print('err_get_entries=', err_get_entries)
 
-err = np.linalg.norm(ee_true - ee)
-print('err=', err)
+num_rows_block = 54
+num_cols_block = 81
+
+block_rows = np.random.randint(0, num_pts, num_rows_block)
+block_cols = np.random.randint(0, num_pts, num_cols_block)
+
+t = time()
+B = PC_cpp.get_block(block_rows, block_cols)
+dt_get_block_cpp = time() - t
+print('dt_get_block_cpp=', dt_get_block_cpp)
+
+t = time()
+R = np.outer(block_rows, np.ones(num_cols_block, dtype=int)).reshape(-1)
+C = np.outer(np.ones(num_rows_block, dtype=int), block_cols).reshape(-1)
+rr_block = R.reshape(-1)
+cc_block = C.reshape(-1)
+xx_block = row_coords[rr_block,:]
+yy_block = col_coords[cc_block,:]
+B_true = (W1(yy_block) * F1(xx_block - yy_block) +
+          W2(yy_block) * F2(xx_block - yy_block) +
+          W3(yy_block) * F3(xx_block - yy_block)).reshape(num_rows_block, num_cols_block)
+dt_get_block_python = time() - t
+print('dt_get_block_python=', dt_get_block_python)
+
+err_get_block = np.linalg.norm(B_true - B)
+print('err_get_block=', err_get_block)
