@@ -505,7 +505,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                       Matrix<double, Dynamic, 2>  // col_coords
                       >())
         .def("get_entries", &ProductConvolution2d::get_entries)
-        .def("get_block", &ProductConvolution2d::get_block);
+        .def("get_block", &ProductConvolution2d::get_block)
+        .def("get_array", &ProductConvolution2d::get_array);
 }
 
 

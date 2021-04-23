@@ -1,5 +1,6 @@
 import numpy as np
 from nalger_helper_functions import *
+import matplotlib.pyplot as plt
 from time import time
 from hlibpro_python_wrapper import *
 
@@ -33,9 +34,10 @@ XF3, YF3 = F3.meshgrid
 F3.array = np.exp(-0.5 * ((XF3+0.1)**2 + (YF3-0.15)**2) / (0.2)**2) * np.cos(8 * XF3)
 F3.plot(title='F3')
 
-num_pts = 500
-row_coords = np.random.randn(num_pts, 2)
-col_coords = np.random.randn(num_pts, 2)
+num_row_pts = 511
+num_col_pts = 709
+row_coords = np.random.randn(num_row_pts, 2)
+col_coords = np.random.randn(num_col_pts, 2)
 
 WW_mins = [W1.min, W2.min, W3.min]
 WW_maxes = [W1.max, W2.max, W3.max]
@@ -51,13 +53,13 @@ PC_cpp = hpro_cpp.ProductConvolution2d(WW_mins, WW_maxes, WW_arrays,
 
 num_entries = 53
 
-rr = np.random.randint(0, num_pts, num_entries)
-cc = np.random.randint(0, num_pts, num_entries)
+rr = np.random.randint(0, num_row_pts, num_entries)
+cc = np.random.randint(0, num_col_pts, num_entries)
 
 t = time()
-xx = row_coords[rr,:]
-yy = col_coords[cc,:]
-ee_true = W1(yy)*F1(xx-yy) + W2(yy)*F2(xx-yy) + W3(yy)*F3(xx-yy)
+yy = row_coords[rr, :]
+xx = col_coords[cc, :]
+ee_true = W1(xx) * F1(yy - xx) + W2(xx) * F2(yy - xx) + W3(xx) * F3(yy - xx)
 dt_get_entries_python = time() - t
 print('dt_get_entries_python=', dt_get_entries_python)
 
@@ -72,8 +74,8 @@ print('err_get_entries=', err_get_entries)
 num_rows_block = 54
 num_cols_block = 81
 
-block_rows = np.random.randint(0, num_pts, num_rows_block)
-block_cols = np.random.randint(0, num_pts, num_cols_block)
+block_rows = np.random.randint(0, num_row_pts, num_rows_block)
+block_cols = np.random.randint(0, num_col_pts, num_cols_block)
 
 t = time()
 B = PC_cpp.get_block(block_rows, block_cols)
@@ -95,3 +97,24 @@ print('dt_get_block_python=', dt_get_block_python)
 
 err_get_block = np.linalg.norm(B_true - B)
 print('err_get_block=', err_get_block)
+
+t = time()
+M = PC_cpp.get_array()
+dt_get_array_cpp = time() - t
+print('dt_get_array_cpp=', dt_get_array_cpp)
+
+num_checks = 94
+rr_check = np.random.randint(0, num_row_pts, num_checks)
+cc_check = np.random.randint(0, num_col_pts, num_checks)
+errs_get_array = np.inf * np.ones(num_checks)
+for k in range(num_checks):
+    r = rr_check[k]
+    c = cc_check[k]
+    y = row_coords[r,:].reshape((1,-1))
+    x = col_coords[c,:].reshape((1,-1))
+    entry = M[r,c]
+    entry_true = W1(x) * F1(y - x) + W2(x) * F2(y - x) + W3(x) * F3(y - x)
+    errs_get_array[k] = np.abs(entry - entry_true)
+
+err_get_array = np.linalg.norm(errs_get_array)
+print('err_get_array=', err_get_array)

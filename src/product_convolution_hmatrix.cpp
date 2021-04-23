@@ -46,12 +46,12 @@ bool point_is_in_ellipsoid(VectorXd z, VectorXd mu, MatrixXd Sigma, double tau)
 // --------------------------------------------------------
 
 
-ProductConvolution2d::ProductConvolution2d(Matrix<double, Dynamic, 2> WW_mins,
-                                           Matrix<double, Dynamic, 2> WW_maxes,
-                                           std::vector<MatrixXd>      WW_arrays,
-                                           Matrix<double, Dynamic, 2> FF_mins,
-                                           Matrix<double, Dynamic, 2> FF_maxes,
-                                           std::vector<MatrixXd>      FF_arrays,
+ProductConvolution2d::ProductConvolution2d(std::vector<Vector2d> WW_mins,
+                                           std::vector<Vector2d> WW_maxes,
+                                           std::vector<MatrixXd> WW_arrays,
+                                           std::vector<Vector2d> FF_mins,
+                                           std::vector<Vector2d> FF_maxes,
+                                           std::vector<MatrixXd> FF_arrays,
                                            Matrix<double, Dynamic, 2> row_coords,
                                            Matrix<double, Dynamic, 2> col_coords) :
                                            WW_mins(WW_mins),
@@ -62,49 +62,144 @@ ProductConvolution2d::ProductConvolution2d(Matrix<double, Dynamic, 2> WW_mins,
                                            FF_arrays(FF_arrays),
                                            row_coords(row_coords),
                                            col_coords(col_coords),
-                                           num_patches(WW_mins.rows()),
+                                           num_patches(WW_mins.size()),
                                            num_rows(row_coords.rows()),
                                            num_cols(col_coords.rows()),
                                            row_patches(row_coords.rows()),
                                            col_patches(col_coords.rows())
 {
-    // Compute patches relevant to each row
+    // Compute patches relevant to each row.
     for (int r=0; r < num_rows; ++r)
     {
-        const Vector2d x = row_coords.row(r);
+        const Vector2d y = row_coords.row(r);
         for (int p=0; p < num_patches; ++p)
         {
-            const Vector2d x_min = WW_mins.row(p);
-            const Vector2d x_max = WW_maxes.row(p);
-            if (x_min(0) <= x(0) && x(0) <= x_max(0) &&
-                x_min(1) <= x(1) && x(1) <= x_max(1))
+            const Vector2d y_min = WW_mins[p] + FF_mins[p];
+            const Vector2d y_max = WW_maxes[p] + FF_maxes[p];
+            if (y_min(0) <= y(0) && y(0) <= y_max(0) &&
+                y_min(1) <= y(1) && y(1) <= y_max(1))
             {
                 row_patches[r].push_back(p);
             }
         }
+        std::sort(row_patches[r].begin(), row_patches[r].end()); // not sure if necessary
     }
 
     // Compute patches relevant to each col
     for (int c=0; c < num_cols; ++c)
     {
-        const Vector2d y = col_coords.row(c);
+        const Vector2d x = col_coords.row(c);
         for (int p=0; p < num_patches; ++p)
         {
-            const Vector2d y_min = WW_mins.row(p) + FF_mins.row(p);
-            const Vector2d y_max = WW_maxes.row(p) + FF_mins.row(p);
-            if (y_min(0) <= y(0) && y(0) <= y_max(0) &&
-                y_min(1) <= y(1) && y(1) <= y_max(1))
+            const Vector2d x_min = WW_mins[p];
+            const Vector2d x_max = WW_maxes[p];
+            if (x_min(0) <= x(0) && x(0) <= x_max(0) &&
+                x_min(1) <= x(1) && x(1) <= x_max(1))
             {
                 col_patches[c].push_back(p);
             }
         }
+        std::sort(col_patches[c].begin(), col_patches[c].end()); // not sure if necessary
     }
 }
 
-//ProductConvolution2d::get_entries(VectorXi rows, VectorXi cols)
-//{
-//
-//}
+VectorXd ProductConvolution2d::get_entries(VectorXi rows, VectorXi cols)
+{
+    int num_entries = rows.size();
+    std::vector<std::vector<int>> patch_entries(num_patches);
+    for (int e=0; e < num_entries; ++e)
+    {
+        const std::vector<int> pp_row = row_patches[rows(e)];
+        const std::vector<int> pp_col = col_patches[cols(e)];
+        std::vector<int> pp;
+        std::set_intersection(pp_row.begin(), pp_row.end(),
+                              pp_col.begin(), pp_col.end(),
+                              std::back_inserter(pp));
+        for (int i=0; i < pp.size(); ++i)
+        {
+            patch_entries[pp[i]].push_back(e);
+        }
+    }
+
+    VectorXd entries(num_entries);
+    entries.fill(0.0);
+    for (int p=0; p < num_patches; ++p)
+    {
+        const std::vector<int> ee = patch_entries[p];
+        if (ee.size() > 0)
+        {
+            Array<double, Dynamic, 2> yy;
+            Array<double, Dynamic, 2> xx;
+            yy.resize(ee.size(), 2);
+            xx.resize(ee.size(), 2);
+            for (int j=0; j < ee.size(); ++j)
+            {
+                yy.row(j) = row_coords.row(rows(ee[j]));
+                xx.row(j) = col_coords.row(cols(ee[j]));
+            }
+
+            VectorXd ww = bilinear_interpolation_regular_grid(xx, WW_mins[p], WW_maxes[p], WW_arrays[p]);
+            VectorXd ff = bilinear_interpolation_regular_grid(yy - xx, FF_mins[p], FF_maxes[p], FF_arrays[p]);
+
+            for (int j=0; j < ee.size(); ++j)
+            {
+                entries(ee[j]) += ww(j) * ff(j);
+            }
+        }
+    }
+    return entries;
+}
+
+MatrixXd ProductConvolution2d::get_block(VectorXi block_rows, VectorXi block_cols)
+{
+    const int num_entries = block_rows.size() * block_cols.size();
+
+    // form row/column index sets that linearly index all entries in the block
+    VectorXi rows(num_entries);
+    VectorXi cols(num_entries);
+    int e = 0;
+    for (int j=0; j < block_cols.size(); ++j) // stride down columns first because Eigen uses column-first ordering
+    {
+        for (int i=0; i < block_rows.size(); ++i)
+        {
+            rows(e) = block_rows(i);
+            cols(e) = block_cols(j);
+            e += 1;
+        }
+    }
+
+    VectorXd entries = ProductConvolution2d::get_entries(rows, cols); // <-- the actual computation of block entries
+
+    // reshape vector of block entries into a matrix
+    MatrixXd block_entries(block_rows.size(), block_cols.size());
+    e = 0;
+    for (int j=0; j < block_cols.size(); ++j)
+    {
+        for (int i=0; i < block_rows.size(); ++i)
+        {
+            block_entries(i, j) = entries(e);
+            e += 1;
+        }
+    }
+    return block_entries;
+}
+
+MatrixXd ProductConvolution2d::get_array()
+{
+    VectorXi block_rows(num_rows);
+    for (int r=0; r<num_rows; ++r)
+    {
+        block_rows(r) = r;
+    }
+
+    VectorXi block_cols(num_cols);
+    for (int c=0; c<num_cols; ++c)
+    {
+        block_cols(c) = c;
+    }
+
+    return ProductConvolution2d::get_block(block_rows, block_cols);
+}
 
 // --------------------------------------------------------
 // --------      ProductConvolutionOneBatch        --------
