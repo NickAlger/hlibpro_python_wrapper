@@ -1,5 +1,6 @@
 import numpy as np
 from nalger_helper_functions import *
+from time import time
 from hlibpro_python_wrapper import *
 
 W1 = BoxFunction(np.array([-1.1, -0.9]), np.array([0.5, 0.55]), np.zeros((21,15)))
@@ -48,3 +49,23 @@ PC_cpp = hpro_cpp.ProductConvolution2d(WW_mins, WW_maxes, WW_arrays,
                                        FF_mins, FF_maxes, FF_arrays,
                                        row_coords, col_coords)
 
+num_entries = 53
+
+rr = np.random.randint(0, num_pts, num_entries)
+cc = np.random.randint(0, num_pts, num_entries)
+
+t = time()
+xx = row_coords[rr,:]
+yy = col_coords[cc,:]
+ee_true = W1(yy)*F1(xx-yy) + W2(yy)*F2(xx-yy) + W3(yy)*F3(xx-yy)
+dt_python = time() - t
+print('dt_python=', dt_python)
+
+t = time()
+ee = PC_cpp.get_entries(rr,cc)
+dt_cpp = time() - t
+print('dt_cpp=', dt_cpp)
+
+
+err = np.linalg.norm(ee_true - ee)
+print('err=', err)
