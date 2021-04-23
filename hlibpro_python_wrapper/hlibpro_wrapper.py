@@ -155,7 +155,7 @@ def build_hmatrix_from_scipy_sparse_matrix(A_csc, bct):
 def build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
                                          FF_mins, FF_maxes, FF_arrays,
                                          row_dof_coords, col_dof_coords,
-                                         block_cluster_tree, tol=1e-6, symmetrize=False):
+                                         block_cluster_tree, tol=1e-6):
     '''Builds hmatrix for product-convolution operator based on weighting functions and convolution kernels defined
     on regular grids in boxes. Convolution kernels must be zero-centered. If a convolution is not zero-centered,
     you can make it zero centered by subtracting the center point from the box min and max points.
@@ -180,25 +180,15 @@ def build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
         col_dof_coords.shape = (num_cols, 2)
     :param block_cluster_tree: block cluster tree
     :param tol: truncation tolerance for low rank approximation of Hmatrix low rank (admissible) blocks
-    :param symmetrize: symmetrize the hmatrix (default: false)
     :return: hmatrix
     '''
-    PC_cpp = hpro_cpp.ProductConvolution2d(list_of_weighting_function_min_points,
-                                           list_of_weighting_function_max_points,
-                                           list_of_weighting_function_arrays,
-                                           list_of_convolution_kernel_min_points,
-                                           list_of_convolution_kernel_max_points,
-                                           list_of_convolution_kernel_arrays,
-                                           row_dof_coords, col_dof_coords)
+    PC_cpp = hpro_cpp.ProductConvolution2d(WW_mins, WW_maxes, WW_arrays,
+                                         FF_mins, FF_maxes, FF_arrays,
+                                         row_dof_coords, col_dof_coords)
 
-    PC_coefffn = hpro.hpro_cpp.PC2DCoeffFn(PC_cpp)
-    hmatrix_cpp_object = hpro.hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree, tol)
-    A_hmatrix = hpro.HMatrixWrapper(hmatrix_cpp_object, block_cluster_tree)
-
-    if symmetrize:
-        A_hmatrix = A_hmatrix.sym()
-
-    return A_hmatrix
+    PC_coefffn = hpro_cpp.PC2DCoeffFn(PC_cpp)
+    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree, tol)
+    return HMatrixWrapper(hmatrix_cpp_object, block_cluster_tree)
 
 
 def h_factorized_solve(iA_factorized, y):
