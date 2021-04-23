@@ -40,13 +40,13 @@ bool point_is_in_ellipsoid(VectorXd z, VectorXd mu, MatrixXd Sigma, double tau);
 class ProductConvolution2d
 {
 private:
-    Matrix<double, Dynamic, 2> WW_mins;
-    Matrix<double, Dynamic, 2> WW_maxes;
-    std::vector<MatrixXd>      WW_arrays;
+    std::vector<Vector2d> WW_mins;
+    std::vector<Vector2d> WW_maxes;
+    std::vector<MatrixXd> WW_arrays;
 
-    Matrix<double, Dynamic, 2> FF_mins;
-    Matrix<double, Dynamic, 2> FF_maxes;
-    std::vector<MatrixXd>      FF_arrays;
+    std::vector<Vector2d> FF_mins;
+    std::vector<Vector2d> FF_maxes;
+    std::vector<MatrixXd> FF_arrays;
 
     Matrix<double, Dynamic, 2> row_coords;
     Matrix<double, Dynamic, 2> col_coords;
@@ -59,16 +59,16 @@ private:
     std::vector<std::vector<int>> col_patches;
 
 public:
-    ProductConvolution2d(Matrix<double, Dynamic, 2> WW_mins,
-                         Matrix<double, Dynamic, 2> WW_maxes,
-                         std::vector<MatrixXd>      WW_arrays,
-                         Matrix<double, Dynamic, 2> FF_mins,
-                         Matrix<double, Dynamic, 2> FF_maxes,
-                         std::vector<MatrixXd>      FF_arrays,
+    ProductConvolution2d(std::vector<Vector2d> WW_mins,
+                         std::vector<Vector2d> WW_maxes,
+                         std::vector<MatrixXd> WW_arrays,
+                         std::vector<Vector2d> FF_mins,
+                         std::vector<Vector2d> FF_maxes,
+                         std::vector<MatrixXd> FF_arrays,
                          Matrix<double, Dynamic, 2> row_coords,
                          Matrix<double, Dynamic, 2> col_coords);
 
-//    VectorXd get_entries(VectorXi rows, VectorXi cols);
+    VectorXd get_entries(VectorXi rows, VectorXi cols);
 //    MatrixXd get_block(VectorXi block_rows, VectorXi block_cols);
 };
 
