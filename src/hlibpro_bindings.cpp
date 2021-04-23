@@ -493,6 +493,18 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     m.def("periodic_bilinear_interpolation_regular_grid", &periodic_bilinear_interpolation_regular_grid);
     m.def("bilinear_interpolation_regular_grid", &bilinear_interpolation_regular_grid);
+
+    py::class_<ProductConvolution2d>(m, "ProductConvolution2d")
+        .def(py::init<std::vector<Vector2d>, // WW_mins
+                      std::vector<Vector2d>, // WW_maxes
+                      std::vector<MatrixXd>, // WW_arrays
+                      std::vector<Vector2d>, // FF_mins
+                      std::vector<Vector2d>, // FF_maxes
+                      std::vector<MatrixXd>, // FF_arrays
+                      Matrix<double, Dynamic, 2>, // row_coords
+                      Matrix<double, Dynamic, 2>  // col_coords
+                      >())
+        .def("get_entries", &ProductConvolution2d::get_entries);
 }
 
 
