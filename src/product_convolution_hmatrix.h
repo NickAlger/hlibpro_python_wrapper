@@ -37,6 +37,7 @@ using  real_t = double;
 
 bool point_is_in_ellipsoid(VectorXd z, VectorXd mu, MatrixXd Sigma, double tau);
 
+
 class ProductConvolution2d
 {
 private:
@@ -68,9 +69,28 @@ public:
                          Matrix<double, Dynamic, 2> row_coords,
                          Matrix<double, Dynamic, 2> col_coords);
 
-    VectorXd get_entries(VectorXi rows, VectorXi cols);
-    MatrixXd get_block(VectorXi block_rows, VectorXi block_cols);
-    MatrixXd get_array();
+    VectorXd get_entries(VectorXi rows, VectorXi cols) const;
+    MatrixXd get_block(VectorXi block_rows, VectorXi block_cols) const;
+    MatrixXd get_array() const;
+};
+
+
+class PC2DCoeffFn : public TCoeffFn< real_t >
+{
+private:
+    ProductConvolution2d PC;
+
+public:
+    PC2DCoeffFn (const ProductConvolution2d & PC);
+
+    virtual void eval  ( const std::vector< idx_t > &  rowidxs,
+                         const std::vector< idx_t > &  colidxs,
+                         real_t *                      matrix ) const;
+
+    using TCoeffFn< real_t >::eval;
+
+//    virtual matform_t  matrix_format  () const { return MATFORM_SYM; }
+    virtual matform_t  matrix_format  () const { return MATFORM_NONSYM; }
 };
 
 

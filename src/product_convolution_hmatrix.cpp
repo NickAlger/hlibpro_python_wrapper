@@ -103,7 +103,7 @@ ProductConvolution2d::ProductConvolution2d(std::vector<Vector2d> WW_mins,
     }
 }
 
-VectorXd ProductConvolution2d::get_entries(VectorXi rows, VectorXi cols)
+VectorXd ProductConvolution2d::get_entries(VectorXi rows, VectorXi cols) const
 {
     int num_entries = rows.size();
     std::vector<std::vector<int>> patch_entries(num_patches);
@@ -150,7 +150,7 @@ VectorXd ProductConvolution2d::get_entries(VectorXi rows, VectorXi cols)
     return entries;
 }
 
-MatrixXd ProductConvolution2d::get_block(VectorXi block_rows, VectorXi block_cols)
+MatrixXd ProductConvolution2d::get_block(VectorXi block_rows, VectorXi block_cols) const
 {
     const int num_entries = block_rows.size() * block_cols.size();
 
@@ -184,7 +184,7 @@ MatrixXd ProductConvolution2d::get_block(VectorXi block_rows, VectorXi block_col
     return block_entries;
 }
 
-MatrixXd ProductConvolution2d::get_array()
+MatrixXd ProductConvolution2d::get_array() const
 {
     VectorXi block_rows(num_rows);
     for (int r=0; r<num_rows; ++r)
@@ -200,6 +200,44 @@ MatrixXd ProductConvolution2d::get_array()
 
     return ProductConvolution2d::get_block(block_rows, block_cols);
 }
+
+
+// -------------------------------------------------------
+// ---------------      PC2DCoeffFn        ---------------
+// -------------------------------------------------------
+
+PC2DCoeffFn::PC2DCoeffFn(const ProductConvolution2d & PC) : PC(PC) {}
+
+void PC2DCoeffFn::eval(const std::vector< idx_t > &  rowidxs,
+                       const std::vector< idx_t > &  colidxs,
+                       real_t *                      matrix ) const
+{
+    const int nrow = rowidxs.size();
+    const int ncol = colidxs.size();
+    const int num_entries = nrow * ncol;
+
+    // form row/column index sets that linearly index all entries in the block
+    VectorXi rows(num_entries);
+    VectorXi cols(num_entries);
+    int e = 0;
+    for (int j=0; j < ncol; ++j) // stride down columns first because Eigen uses column-first ordering
+    {
+        for (int i=0; i < nrow; ++i)
+        {
+            rows(e) = rowidxs[i];
+            cols(e) = colidxs[j];
+            e += 1;
+        }
+    }
+
+    VectorXd entries = PC.get_entries(rows, cols); // <-- the actual computation of block entries
+
+    for (int e=0; e<num_entries; ++e)
+    {
+        matrix[e] = entries(e);
+    }
+}
+
 
 // --------------------------------------------------------
 // --------      ProductConvolutionOneBatch        --------

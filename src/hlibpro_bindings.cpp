@@ -507,6 +507,9 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("get_entries", &ProductConvolution2d::get_entries)
         .def("get_block", &ProductConvolution2d::get_block)
         .def("get_array", &ProductConvolution2d::get_array);
+
+    py::class_<PC2DCoeffFn, HLIB::TCoeffFn<real_t>>(m, "PC2DCoeffFn")
+        .def(py::init<const PC2DCoeffFn &>());
 }
 
 
