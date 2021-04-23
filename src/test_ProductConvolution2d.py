@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from time import time
 from hlibpro_python_wrapper import *
 
+s = 0.3
+
 W1 = BoxFunction(np.array([-1.1, -0.9]), np.array([0.5, 0.55]), np.zeros((21,15)))
 XW1, YW1 = W1.meshgrid
 W1.array = np.cos(XW1)
@@ -19,27 +21,40 @@ XW3, YW3 = W3.meshgrid
 W3.array = np.cos(YW3 + XW3)
 W3.plot(title='W3')
 
-F1 = BoxFunction(np.array([-1.0, -0.9]), np.array([0.8, 0.85]), np.zeros((19,17)))
+F1 = BoxFunction(s*np.array([-1.0, -0.9]), s*np.array([0.8, 0.85]), np.zeros((19,17)))
 XF1, YF1 = F1.meshgrid
-F1.array = np.exp(-0.5 * (XF1**2 + YF1**2) / (0.25)**2)
+F1.array = np.exp(-0.5 * (XF1**2 + YF1**2) / (s*0.25)**2)
 F1.plot(title='F1')
 
-F2 = BoxFunction(np.array([-0.85, -0.95]), np.array([1.1, 1.2]), np.zeros((23,20)))
+F2 = BoxFunction(s*np.array([-0.85, -0.95]), s*np.array([1.1, 1.2]), np.zeros((23,20)))
 XF2, YF2 = F2.meshgrid
-F2.array = np.exp(-0.5 * (XF2**2 + YF2**2) / (0.35)**2) * np.cos(6 * np.sqrt(((XF2+YF2)**2 + YF2**2)))
+F2.array = np.exp(-0.5 * (XF2**2 + YF2**2) / (s*0.35)**2) * np.cos(6 * np.sqrt(((XF2+YF2)**2 + YF2**2)) / s)
 F2.plot(title='F2')
 
-F3 = BoxFunction(np.array([-1.03, -1.04]), np.array([1.05, 1.06]), np.zeros((35,21)))
+F3 = BoxFunction(s*np.array([-1.03, -1.04]), s*np.array([1.05, 1.06]), np.zeros((35,21)))
 XF3, YF3 = F3.meshgrid
-F3.array = np.exp(-0.5 * ((XF3+0.1)**2 + (YF3-0.15)**2) / (0.2)**2) * np.cos(8 * XF3)
+F3.array = np.exp(-0.5 * ((XF3+s*0.1)**2 + (YF3-s*0.15)**2) / (s*0.2)**2) * np.cos(8 * XF3 / s)
 F3.plot(title='F3')
 
-num_row_pts = 511
-num_col_pts = 709
-# num_col_pts = num_row_pts
-row_coords = np.random.randn(num_row_pts, 2)
-col_coords = np.random.randn(num_col_pts, 2)
-# col_coords = row_coords
+##
+
+irregular_grid = True
+
+if irregular_grid:
+    num_row_pts = 1511
+    num_col_pts = 1709
+    # num_col_pts = num_row_pts
+    row_coords = np.random.randn(num_row_pts, 2)
+    col_coords = np.random.randn(num_col_pts, 2)
+    # col_coords = row_coords
+else:
+    _, (X, Y) = make_regular_grid(np.array([-1.5, -1.5]), np.array([1.5, 1.5]), (50,50))
+    row_coords = np.vstack([X.reshape(-1), Y.reshape(-1)]).T
+    col_coords = row_coords
+    num_row_pts = row_coords.shape[1]
+    num_col_pts = col_coords.shape[1]
+
+##
 
 WW_mins = [W1.min, W2.min, W3.min]
 WW_maxes = [W1.max, W2.max, W3.max]
@@ -126,11 +141,13 @@ print('err_get_array=', err_get_array)
 u = np.random.randn(M.shape[1])
 
 tol=1e-6
+dense_cluster_cutoff = 5
+admissibility_eta = 1.0
 
-row_ct = build_cluster_tree_from_dof_coords(row_coords, 5)
-col_ct = build_cluster_tree_from_dof_coords(col_coords, 5)
+row_ct = build_cluster_tree_from_dof_coords(row_coords, dense_cluster_cutoff)
+col_ct = build_cluster_tree_from_dof_coords(col_coords, dense_cluster_cutoff)
 # col_ct = row_ct
-bct = build_block_cluster_tree(row_ct, col_ct, 1.0)
+bct = build_block_cluster_tree(row_ct, col_ct, admissibility_eta)
 
 M_hmatrix = build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
                                                  FF_mins, FF_maxes, FF_arrays,
