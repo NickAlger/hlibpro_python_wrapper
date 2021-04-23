@@ -35,11 +35,11 @@ F3.array = np.exp(-0.5 * ((XF3+0.1)**2 + (YF3-0.15)**2) / (0.2)**2) * np.cos(8 *
 F3.plot(title='F3')
 
 num_row_pts = 511
-# num_col_pts = 709
-num_col_pts = num_row_pts
+num_col_pts = 709
+# num_col_pts = num_row_pts
 row_coords = np.random.randn(num_row_pts, 2)
-# col_coords = np.random.randn(num_col_pts, 2)
-col_coords = row_coords
+col_coords = np.random.randn(num_col_pts, 2)
+# col_coords = row_coords
 
 WW_mins = [W1.min, W2.min, W3.min]
 WW_maxes = [W1.max, W2.max, W3.max]
@@ -127,8 +127,9 @@ u = np.random.randn(M.shape[1])
 
 tol=1e-6
 
-row_ct = build_cluster_tree_from_dof_coords(row_coords, 60)
-col_ct = build_cluster_tree_from_dof_coords(col_coords, 60)
+row_ct = build_cluster_tree_from_dof_coords(row_coords, 5)
+col_ct = build_cluster_tree_from_dof_coords(col_coords, 5)
+# col_ct = row_ct
 bct = build_block_cluster_tree(row_ct, col_ct, 1.0)
 
 M_hmatrix = build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
@@ -140,3 +141,6 @@ v2 = M_hmatrix.matvec(u)
 
 err_hmatrix = np.linalg.norm(v2 - v1) / np.linalg.norm(v1)
 print('err_hmatrix=', err_hmatrix)
+
+visualize_block_cluster_tree(bct, 'grid_bct')
+visualize_hmatrix(M_hmatrix, 'grid_PC')

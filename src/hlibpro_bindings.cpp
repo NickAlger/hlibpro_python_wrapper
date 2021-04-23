@@ -184,10 +184,10 @@ VectorXd h_matvec(HLIB::TMatrix * A_ptr,
     std::unique_ptr<HLIB::TVector> y_hlib = A_ptr->row_vector();
     std::unique_ptr<HLIB::TVector> x_hlib = A_ptr->col_vector();
 
-//    int n = y_hlib->size();
-//    int m = x_hlib->size();
-    int n = x.size();
-    int m = x.size();
+    int n = y_hlib->size();
+    int m = x_hlib->size();
+//    int n = x.size();
+//    int m = x.size();
 
     for ( size_t  i = 0; i < m; i++ )
         x_hlib->set_entry( i, x(i) );
