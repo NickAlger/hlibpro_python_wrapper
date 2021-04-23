@@ -42,6 +42,71 @@ bool point_is_in_ellipsoid(VectorXd z, VectorXd mu, MatrixXd Sigma, double tau)
 
 
 // --------------------------------------------------------
+// -----------      ProductConvolution2d        -----------
+// --------------------------------------------------------
+
+
+ProductConvolution2d::ProductConvolution2d(Matrix<double, Dynamic, 2> WW_mins,
+                                           Matrix<double, Dynamic, 2> WW_maxes,
+                                           std::vector<MatrixXd>      WW_arrays,
+                                           Matrix<double, Dynamic, 2> FF_mins,
+                                           Matrix<double, Dynamic, 2> FF_maxes,
+                                           std::vector<MatrixXd>      FF_arrays,
+                                           Matrix<double, Dynamic, 2> row_coords,
+                                           Matrix<double, Dynamic, 2> col_coords) :
+                                           WW_mins(WW_mins),
+                                           WW_maxes(WW_maxes),
+                                           WW_arrays(WW_arrays),
+                                           FF_mins(FF_mins),
+                                           FF_maxes(FF_maxes),
+                                           FF_arrays(FF_arrays),
+                                           row_coords(row_coords),
+                                           col_coords(col_coords),
+                                           num_patches(WW_mins.rows()),
+                                           num_rows(row_coords.rows()),
+                                           num_cols(col_coords.rows()),
+                                           row_patches(row_coords.rows()),
+                                           col_patches(col_coords.rows())
+{
+    // Compute patches relevant to each row
+    for (int r=0; r < num_rows; ++r)
+    {
+        const Vector2d x = row_coords.row(r);
+        for (int p=0; p < num_patches; ++p)
+        {
+            const Vector2d x_min = WW_mins.row(p);
+            const Vector2d x_max = WW_maxes.row(p);
+            if (x_min(0) <= x(0) && x(0) <= x_max(0) &&
+                x_min(1) <= x(1) && x(1) <= x_max(1))
+            {
+                row_patches[r].push_back(p);
+            }
+        }
+    }
+
+    // Compute patches relevant to each col
+    for (int c=0; c < num_cols; ++c)
+    {
+        const Vector2d y = col_coords.row(c);
+        for (int p=0; p < num_patches; ++p)
+        {
+            const Vector2d y_min = WW_mins.row(p) + FF_mins.row(p);
+            const Vector2d y_max = WW_maxes.row(p) + FF_mins.row(p);
+            if (y_min(0) <= y(0) && y(0) <= y_max(0) &&
+                y_min(1) <= y(1) && y(1) <= y_max(1))
+            {
+                col_patches[c].push_back(p);
+            }
+        }
+    }
+}
+
+//ProductConvolution2d::get_entries(VectorXi rows, VectorXi cols)
+//{
+//
+//}
+
+// --------------------------------------------------------
 // --------      ProductConvolutionOneBatch        --------
 // --------------------------------------------------------
 
