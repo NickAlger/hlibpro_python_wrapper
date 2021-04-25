@@ -29,6 +29,8 @@ M_csc = convert_fenics_csr_matrix_to_scipy_csr_matrix(M).tocsc()
 
 A_csc = K_csc + M_csc
 
+#### Test building objects within a function (this used to cause memory errors segfaults) ####
+
 def asdf():
     ct = hpro.build_cluster_tree_from_dof_coords(dof_coords, 60)
     bct = hpro.build_block_cluster_tree(ct, ct, 2.0)
@@ -40,14 +42,12 @@ K_hmatrix = asdf()
 x = np.random.randn(dof_coords.shape[0])
 y = hpro.h_matvec(K_hmatrix, x)
 
-
 ########    CLUSTER TREE / BLOCK CLUSTER TREE    ########
 
-ct = hpro.build_cluster_tree_from_dof_coords(dof_coords, 60)
+ct = hpro.build_cluster_tree_from_pointcloud(dof_coords, 60)
 bct = hpro.build_block_cluster_tree(ct, ct, 2.0)
-hpro.visualize_cluster_tree(ct, "sparsemat_cluster_tree_from_python")
-hpro.visualize_block_cluster_tree(bct, "sparsemat_block_cluster_tree_from_python")
-
+ct.visualize("sparsemat_cluster_tree_from_python")
+bct.visualize("sparsemat_block_cluster_tree_from_python")
 
 ########    BUILD HMATRIX FROM SPARSE    ########
 

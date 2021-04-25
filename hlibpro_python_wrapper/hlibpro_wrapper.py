@@ -10,26 +10,19 @@ class HMatrixWrapper:
     def __init__(me, cpp_hmatrix_object, bct):
         me.cpp_object = cpp_hmatrix_object
         me.bct = bct
+        me.row_ct = me.bct.row_ct
+        me.col_ct = me.bct.col_ct
         me.shape = (me.cpp_object.rows(), me.cpp_object.cols())
         me.dtype = np.double # Real: Complex not supported currently
 
-    def row_ct(me):
-        return me.bct.row_ct()
-
-    def col_ct(me):
-        return me.bct.col_ct()
-
     def copy(me):
         return HMatrixWrapper(hpro_cpp.copy_TMatrix(me.cpp_object), me.bct)
-        # return HMatrixWrapper(me.cpp_object.copy(), me.bct)
 
     def copy_struct(me):
         return HMatrixWrapper(hpro_cpp.copy_struct_TMatrix(me.cpp_object), me.bct)
-        # return HMatrixWrapper(me.cpp_object.copy_struct(), me.bct)
 
     def transpose(me):
         transposed_cpp_object = hpro_cpp.copy_TMatrix(me.cpp_object)
-        # transposed_cpp_object = me.cpp_object.copy()
         transposed_cpp_object.transpose()
         return HMatrixWrapper(transposed_cpp_object, me.bct)
 
@@ -126,15 +119,11 @@ class FactorizedInverseHMatrixWrapper:
     def __init__(me, cpp_object, factors_cpp_object, inverse_bct):
         me.cpp_object = cpp_object
         me.bct = inverse_bct
+        me.row_ct = me.bct.row_ct
+        me.col_ct = me.bct.col_ct
         me._factors_cpp_object = factors_cpp_object  # Don't mess with this!! Could cause segfault if deleted
         me.shape = (me._factors_cpp_object.rows(), me._factors_cpp_object.cols())
         me.dtype = np.double # Real: Complex not supported currently
-
-    def row_ct(me):
-        return me.bct.row_ct()
-
-    def col_ct(me):
-        return me.bct.col_ct()
 
     def matvec(me, x):
         return h_factorized_solve(me, x)
@@ -151,7 +140,7 @@ def build_hmatrix_from_scipy_sparse_matrix(A_csc, bct):
     A_csc[1,0] += 1e-14 # Force non-symmetry
     fname = "temp_sparse_matrix.mat"
     savemat(fname, {'A': A_csc})
-    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_sparse_matfile(fname, bct.bct_cpp_object)
+    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_sparse_matfile(fname, bct.cpp_object)
     return HMatrixWrapper(hmatrix_cpp_object, bct)
 
 
@@ -190,18 +179,18 @@ def build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
                                          row_dof_coords, col_dof_coords)
 
     PC_coefffn = hpro_cpp.PC2DCoeffFn(PC_cpp)
-    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree.bct_cpp_object, tol)
+    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree.cpp_object, tol)
     return HMatrixWrapper(hmatrix_cpp_object, block_cluster_tree)
 
 
 def h_factorized_solve(iA_factorized, y):
     return hpro_cpp.h_factorized_inverse_matvec(iA_factorized.cpp_object,
-                                                iA_factorized.row_ct(),
-                                                iA_factorized.col_ct(), y)
+                                                iA_factorized.row_ct.cpp_object,
+                                                iA_factorized.col_ct.cpp_object, y)
 
 
 def h_matvec(A_hmatrix, x):
-    return hpro_cpp.h_matvec(A_hmatrix.cpp_object, A_hmatrix.row_ct(), A_hmatrix.col_ct(), x)
+    return hpro_cpp.h_matvec(A_hmatrix.cpp_object, A_hmatrix.row_ct.cpp_object, A_hmatrix.col_ct.cpp_object, x)
 
 def visualize_hmatrix(A_hmatrix, title):
     hpro_cpp.visualize_hmatrix(A_hmatrix.cpp_object, title)
@@ -210,37 +199,42 @@ def visualize_inverse_factors(iA_factorized, title):
     hpro_cpp.visualize_hmatrix(iA_factorized._factors_cpp_object, title)
 
 
-build_cluster_tree_from_dof_coords = hpro_cpp.build_cluster_tree_from_dof_coords
-# build_block_cluster_tree = hpro_cpp.build_block_cluster_tree
-visualize_cluster_tree = hpro_cpp.visualize_cluster_tree
-# visualize_block_cluster_tree = hpro_cpp.visualize_block_cluster_tree
+class ClusterTreeWrapper:
+    def __init__(me, cpp_object):
+        me.cpp_object = cpp_object
+
+    def visualize(me, filename):
+        hpro_cpp.visualize_cluster_tree(me.cpp_object, filename)
 
 
 class BlockClusterTreeWrapper:
     # wrap block cluster tree cpp object to make sure python doesn't delete row and column cluster trees
     # when they go out of scope but are still internally referenced by the block cluster tree cpp object
-    def __init__(me, bct_cpp_object, row_ct_cpp_object, col_ct_cpp_object):
-        me.bct_cpp_object = bct_cpp_object
-        me.row_ct_cpp_object = row_ct_cpp_object
-        me.col_ct_cpp_object = col_ct_cpp_object
+    def __init__(me, cpp_object, row_ct, col_ct):
+        me.cpp_object = cpp_object
+        me.row_ct = row_ct
+        me.col_ct = col_ct
 
-    def row_ct(me):
-        return me.row_ct_cpp_object
-
-    def col_ct(me):
-        return me.col_ct_cpp_object
+    def visualize(me, filename):
+        hpro_cpp.visualize_block_cluster_tree(me.cpp_object, filename)
 
 
-def build_block_cluster_tree(row_ct_cpp_object, col_ct_cpp_object, admissibility_eta):
-    bct_cpp_object = hpro_cpp.build_block_cluster_tree(row_ct_cpp_object, col_ct_cpp_object, admissibility_eta)
-    return BlockClusterTreeWrapper(bct_cpp_object, row_ct_cpp_object, col_ct_cpp_object)
+def build_block_cluster_tree(row_ct, col_ct, admissibility_eta):
+    bct_cpp_object = hpro_cpp.build_block_cluster_tree(row_ct.cpp_object, col_ct.cpp_object, admissibility_eta)
+    return BlockClusterTreeWrapper(bct_cpp_object, row_ct, col_ct)
 
 
-def visualize_block_cluster_tree(bct, title):
-    hpro_cpp.visualize_block_cluster_tree(bct.bct_cpp_object, title)
+def build_cluster_tree_from_pointcloud(points, cluster_size_cutoff=50):
+    '''Build cluster tree from a collection of N points in d dimensions
 
+    :param points: numpy array, shape=(N,d)
+    :param cluster_size_cutoff: nonnegative int. number of points below which clusters are not subdivided further
+    :return: BlockClusterTreeWrapper
+    '''
+    cpp_object = hpro_cpp.build_cluster_tree_from_dof_coords(points, cluster_size_cutoff)
+    return ClusterTreeWrapper(cpp_object)
 
-
+build_cluster_tree_from_dof_coords = build_cluster_tree_from_pointcloud
 
 
 

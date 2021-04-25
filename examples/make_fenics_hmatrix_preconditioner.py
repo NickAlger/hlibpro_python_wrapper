@@ -33,7 +33,8 @@ A_csc = K_csc + M_csc
 
 ########    CLUSTER TREE / BLOCK CLUSTER TREE    ########
 
-ct = hpro.build_cluster_tree_from_dof_coords(dof_coords, 60)
+# ct = hpro.build_cluster_tree_from_dof_coords(dof_coords, 60) # <-- still works, but not preferred
+ct = hpro.build_cluster_tree_from_pointcloud(dof_coords, 60)
 bct = hpro.build_block_cluster_tree(ct, ct, 2.0)
 
 ########    BUILD HMATRIX    ########
