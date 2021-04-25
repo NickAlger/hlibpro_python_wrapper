@@ -59,14 +59,14 @@ std::unique_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const Mat
     return ct;
 }
 
-std::unique_ptr<HLIB::TBlockClusterTree> build_block_cluster_tree(HLIB::TClusterTree *  row_ct_ptr,
+std::shared_ptr<HLIB::TBlockClusterTree> build_block_cluster_tree(HLIB::TClusterTree *  row_ct_ptr,
                                                                   HLIB::TClusterTree * col_ct_ptr,
                                                                   double admissibility_eta)
 {
         TStdGeomAdmCond    adm_cond( admissibility_eta );
         TBCBuilder         bct_builder;
         std::unique_ptr<HLIB::TBlockClusterTree>  bct = bct_builder.build( row_ct_ptr, col_ct_ptr, & adm_cond );
-        return bct;
+        return std::move(bct);
 }
 
 void initialize_hlibpro()
@@ -428,7 +428,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("depth", &HLIB::TClusterTree::depth)
         .def("byte_size", &HLIB::TClusterTree::byte_size);
 
-    py::class_<HLIB::TBlockClusterTree>(m, "HLIB::TBlockClusterTree")
+    py::class_<HLIB::TBlockClusterTree, std::shared_ptr<HLIB::TBlockClusterTree>>(m, "HLIB::TBlockClusterTree")
         .def("row_ct", &HLIB::TBlockClusterTree::row_ct)
         .def("col_ct", &HLIB::TBlockClusterTree::col_ct)
         .def("nnodes", &HLIB::TBlockClusterTree::nnodes)
