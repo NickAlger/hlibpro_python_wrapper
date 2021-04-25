@@ -20,13 +20,16 @@ class HMatrixWrapper:
         return me.bct.col_ct()
 
     def copy(me):
-        return HMatrixWrapper(me.cpp_object.copy(), me.bct)
+        return HMatrixWrapper(hpro_cpp.copy_TMatrix(me.cpp_object), me.bct)
+        # return HMatrixWrapper(me.cpp_object.copy(), me.bct)
 
     def copy_struct(me):
-        return HMatrixWrapper(me.cpp_object.copy_struct(), me.bct)
+        return HMatrixWrapper(hpro_cpp.copy_struct_TMatrix(me.cpp_object), me.bct)
+        # return HMatrixWrapper(me.cpp_object.copy_struct(), me.bct)
 
     def transpose(me):
-        transposed_cpp_object = me.cpp_object.copy()
+        transposed_cpp_object = hpro_cpp.copy_TMatrix(me.cpp_object)
+        # transposed_cpp_object = me.cpp_object.copy()
         transposed_cpp_object.transpose()
         return HMatrixWrapper(transposed_cpp_object, me.bct)
 
@@ -139,7 +142,7 @@ class FactorizedInverseHMatrixWrapper:
 
 def h_factorized_inverse(A_hmatrix, rtol=default_rtol, atol=default_atol, display_progress=True):
     acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
-    factors_cpp_object = A_hmatrix.cpp_object.copy()
+    factors_cpp_object = hpro_cpp.copy_TMatrix(A_hmatrix.cpp_object)
     cpp_object = hpro_cpp.factorize_inv_with_progress_bar(factors_cpp_object, acc)
     return FactorizedInverseHMatrixWrapper(cpp_object, factors_cpp_object, A_hmatrix.bct)
 
@@ -148,7 +151,7 @@ def build_hmatrix_from_scipy_sparse_matrix(A_csc, bct):
     A_csc[1,0] += 1e-14 # Force non-symmetry
     fname = "temp_sparse_matrix.mat"
     savemat(fname, {'A': A_csc})
-    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_sparse_matfile(fname, bct)
+    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_sparse_matfile(fname, bct.bct_cpp_object)
     return HMatrixWrapper(hmatrix_cpp_object, bct)
 
 
@@ -187,7 +190,7 @@ def build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
                                          row_dof_coords, col_dof_coords)
 
     PC_coefffn = hpro_cpp.PC2DCoeffFn(PC_cpp)
-    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree, tol)
+    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree.bct_cpp_object, tol)
     return HMatrixWrapper(hmatrix_cpp_object, block_cluster_tree)
 
 
@@ -206,9 +209,39 @@ def visualize_hmatrix(A_hmatrix, title):
 def visualize_inverse_factors(iA_factorized, title):
     hpro_cpp.visualize_hmatrix(iA_factorized._factors_cpp_object, title)
 
+
 build_cluster_tree_from_dof_coords = hpro_cpp.build_cluster_tree_from_dof_coords
-build_block_cluster_tree = hpro_cpp.build_block_cluster_tree
+# build_block_cluster_tree = hpro_cpp.build_block_cluster_tree
 visualize_cluster_tree = hpro_cpp.visualize_cluster_tree
-visualize_block_cluster_tree = hpro_cpp.visualize_block_cluster_tree
+# visualize_block_cluster_tree = hpro_cpp.visualize_block_cluster_tree
+
+
+class BlockClusterTreeWrapper:
+    # wrap block cluster tree cpp object to make sure python doesn't delete row and column cluster trees
+    # when they go out of scope but are still internally referenced by the block cluster tree cpp object
+    def __init__(me, bct_cpp_object, row_ct_cpp_object, col_ct_cpp_object):
+        me.bct_cpp_object = bct_cpp_object
+        me.row_ct_cpp_object = row_ct_cpp_object
+        me.col_ct_cpp_object = col_ct_cpp_object
+
+    def row_ct(me):
+        return me.row_ct_cpp_object
+
+    def col_ct(me):
+        return me.col_ct_cpp_object
+
+
+def build_block_cluster_tree(row_ct_cpp_object, col_ct_cpp_object, admissibility_eta):
+    bct_cpp_object = hpro_cpp.build_block_cluster_tree(row_ct_cpp_object, col_ct_cpp_object, admissibility_eta)
+    return BlockClusterTreeWrapper(bct_cpp_object, row_ct_cpp_object, col_ct_cpp_object)
+
+
+def visualize_block_cluster_tree(bct, title):
+    hpro_cpp.visualize_block_cluster_tree(bct.bct_cpp_object, title)
+
+
+
+
+
 
 

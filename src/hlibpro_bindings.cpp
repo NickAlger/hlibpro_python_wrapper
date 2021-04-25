@@ -34,7 +34,8 @@ using  real_t = double;
 #endif
 
 
-std::unique_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const MatrixXd & dof_coords, const double nmin)
+//std::unique_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const MatrixXd & dof_coords, const double nmin)
+std::shared_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const MatrixXd & dof_coords, const double nmin)
 {
     size_t N = dof_coords.rows();
     size_t d = dof_coords.cols();
@@ -56,16 +57,19 @@ std::unique_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const Mat
     TCardBSPPartStrat  part_strat;
     TBSPCTBuilder      ct_builder( & part_strat, nmin );
     std::unique_ptr<HLIB::TClusterTree>  ct = ct_builder.build( coord.get() );
-    return ct;
+//    return ct;
+    return std::move(ct);
 }
 
 std::shared_ptr<HLIB::TBlockClusterTree> build_block_cluster_tree(HLIB::TClusterTree *  row_ct_ptr,
+//std::unique_ptr<HLIB::TBlockClusterTree> build_block_cluster_tree(HLIB::TClusterTree *  row_ct_ptr,
                                                                   HLIB::TClusterTree * col_ct_ptr,
                                                                   double admissibility_eta)
 {
         TStdGeomAdmCond    adm_cond( admissibility_eta );
         TBCBuilder         bct_builder;
         std::unique_ptr<HLIB::TBlockClusterTree>  bct = bct_builder.build( row_ct_ptr, col_ct_ptr, & adm_cond );
+//        return bct;
         return std::move(bct);
 }
 
@@ -89,8 +93,8 @@ void visualize_block_cluster_tree(HLIB::TBlockClusterTree * bct_ptr, string titl
 }
 
 
-std::unique_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_file,
-                                                                  HLIB::TBlockClusterTree * bct_ptr)
+//std::unique_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_file, HLIB::TBlockClusterTree * bct_ptr)
+std::shared_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_file, HLIB::TBlockClusterTree * bct_ptr)
 {
     auto row_ct_ptr = bct_ptr->row_ct();
     auto col_ct_ptr = bct_ptr->col_ct();
@@ -132,11 +136,13 @@ std::unique_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_fil
         cout << " |S-A|_2 = " << diff_norm_2( S, PA.get() ) << endl;
     }
 
-    return A;
+    return std::move(A);
+//    return A;
 }
 
 
-std::unique_ptr<HLIB::TMatrix> build_hmatrix_from_coefffn(TCoeffFn<real_t> & coefffn,
+//std::unique_ptr<HLIB::TMatrix> build_hmatrix_from_coefffn(TCoeffFn<real_t> & coefffn,
+std::shared_ptr<HLIB::TMatrix> build_hmatrix_from_coefffn(TCoeffFn<real_t> & coefffn,
 //                                                          HLIB::TClusterTree * row_ct_ptr,
 //                                                          HLIB::TClusterTree * col_ct_ptr,
                                                           HLIB::TBlockClusterTree * bct_ptr,
@@ -160,7 +166,8 @@ std::unique_ptr<HLIB::TMatrix> build_hmatrix_from_coefffn(TCoeffFn<real_t> & coe
     timer.pause();
     std::cout << "    done in " << timer << std::endl;
     std::cout << "    size of H-matrix = " << Mem::to_string( A->byte_size() ) << std::endl;
-    return A;
+//    return A;
+    return std::move(A);
 }
 
 void add_identity_to_hmatrix(HLIB::TMatrix * A_ptr, double s)
@@ -168,21 +175,29 @@ void add_identity_to_hmatrix(HLIB::TMatrix * A_ptr, double s)
     add_identity(A_ptr, s);
 }
 
-void visualize_hmatrix(HLIB::TMatrix * A_ptr, string title)
+//void visualize_hmatrix(HLIB::TMatrix * A_ptr, string title)
+void visualize_hmatrix(std::shared_ptr<HLIB::TMatrix> A_ptr, string title)
 {
     TPSMatrixVis              mvis;
     mvis.svd( true );
-    mvis.print( A_ptr, title );
+//    mvis.print( A_ptr, title );
+    mvis.print( A_ptr.get(), title );
 }
 
-VectorXd h_matvec(HLIB::TMatrix * A_ptr,
-                  HLIB::TClusterTree * row_ct_ptr,
-                  HLIB::TClusterTree * col_ct_ptr,
+//VectorXd h_matvec(HLIB::TMatrix * A_ptr,
+//                  HLIB::TClusterTree * row_ct_ptr,
+//                  HLIB::TClusterTree * col_ct_ptr,
+//                  VectorXd x)
+VectorXd h_matvec(std::shared_ptr<HLIB::TMatrix> A_ptr,
+                  std::shared_ptr<HLIB::TClusterTree> row_ct_ptr,
+                  std::shared_ptr<HLIB::TClusterTree> col_ct_ptr,
                   VectorXd x)
 {
     // y = A * x
-    std::unique_ptr<HLIB::TVector> y_hlib = A_ptr->row_vector();
-    std::unique_ptr<HLIB::TVector> x_hlib = A_ptr->col_vector();
+//    std::unique_ptr<HLIB::TVector> y_hlib = A_ptr->row_vector();
+//    std::unique_ptr<HLIB::TVector> x_hlib = A_ptr->col_vector();
+    std::unique_ptr<HLIB::TVector> y_hlib = A_ptr.get()->row_vector();
+    std::unique_ptr<HLIB::TVector> x_hlib = A_ptr.get()->col_vector();
 
     int n = y_hlib->size();
     int m = x_hlib->size();
@@ -192,11 +207,13 @@ VectorXd h_matvec(HLIB::TMatrix * A_ptr,
     for ( size_t  i = 0; i < m; i++ )
         x_hlib->set_entry( i, x(i) );
 
-    col_ct_ptr->perm_e2i()->permute( x_hlib.get() );
+//    col_ct_ptr->perm_e2i()->permute( x_hlib.get() );
+    col_ct_ptr.get()->perm_e2i()->permute( x_hlib.get() );
 
     A_ptr->apply(x_hlib.get(), y_hlib.get());
 
-    row_ct_ptr->perm_i2e()->permute( y_hlib.get() );
+//    row_ct_ptr->perm_i2e()->permute( y_hlib.get() );
+    row_ct_ptr.get()->perm_i2e()->permute( y_hlib.get() );
 
     VectorXd y(n);
     for ( size_t  i = 0; i < n; i++ )
@@ -235,7 +252,8 @@ VectorXd h_factorized_inverse_matvec(HLIB::TFacInvMatrix * inv_A_ptr,
     return y;
 }
 
-std::unique_ptr<HLIB::TFacInvMatrix> factorize_inv_with_progress_bar(HLIB::TMatrix * A_ptr, TTruncAcc acc)
+//std::unique_ptr<HLIB::TFacInvMatrix> factorize_inv_with_progress_bar(HLIB::TMatrix * A_ptr, TTruncAcc acc)
+std::shared_ptr<HLIB::TFacInvMatrix> factorize_inv_with_progress_bar(HLIB::TMatrix * A_ptr, TTruncAcc acc)
 {
     double rtol = acc.rel_eps();
     TTimer                    timer( WALL_TIME );
@@ -252,10 +270,12 @@ std::unique_ptr<HLIB::TFacInvMatrix> factorize_inv_with_progress_bar(HLIB::TMatr
 
     std::cout << "    size of LU factor = " << Mem::to_string( A_ptr->byte_size() ) << std::endl;
 
-    return A_inv;
+//    return A_inv;
+    return std::move(A_inv);
 }
 
-std::unique_ptr< HLIB::TFacInvMatrix > hmatrix_factorized_inverse_destructive(HLIB::TMatrix * A_ptr, double tol)
+//std::unique_ptr< HLIB::TFacInvMatrix > hmatrix_factorized_inverse_destructive(HLIB::TMatrix * A_ptr, double tol)
+std::shared_ptr< HLIB::TFacInvMatrix > hmatrix_factorized_inverse_destructive(HLIB::TMatrix * A_ptr, double tol)
 {
     TTruncAcc                 acc( tol, 0.0 );
     TTimer                    timer( WALL_TIME );
@@ -272,7 +292,8 @@ std::unique_ptr< HLIB::TFacInvMatrix > hmatrix_factorized_inverse_destructive(HL
 
     std::cout << "    size of LU factor = " << Mem::to_string( A_ptr->byte_size() ) << std::endl;
 
-    return A_inv;
+//    return A_inv;
+    return std::move(A_inv);
 }
 
 
@@ -322,6 +343,18 @@ void multiply_with_progress_bar(const T_value  	    alpha,
 }
 
 
+std::shared_ptr<HLIB::TMatrix> copy_TMatrix(std::shared_ptr<HLIB::TMatrix> A)
+{
+    std::unique_ptr<HLIB::TMatrix> A_copy = A->copy();
+    return std::move(A_copy);
+}
+
+std::shared_ptr<HLIB::TMatrix> copy_struct_TMatrix(std::shared_ptr<HLIB::TMatrix> A)
+{
+    std::unique_ptr<HLIB::TMatrix> A_copy_struct = A->copy_struct();
+    return std::move(A_copy_struct);
+}
+
 void print_hello() {
     std::cout << "hello" << std::endl;
 }
@@ -337,7 +370,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("print_hello", &print_hello);
 
     py::class_<HLIB::TProgressBar>(m, "TProgressBar");
-    py::class_<HLIB::TFacInvMatrix>(m, "TFacInvMatrix");
+    py::class_<HLIB::TFacInvMatrix, std::shared_ptr<TFacInvMatrix>>(m, "TFacInvMatrix");
+//    py::class_<HLIB::TFacInvMatrix, std::unique_ptr<TFacInvMatrix>>(m, "TFacInvMatrix");
     py::class_<HLIB::TBlockCluster>(m, "TBlockCluster");
 
     py::class_<HLIB::TBlockMatrix>(m, "TBlockMatrix")
@@ -367,7 +401,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     py::class_<HLIB::TVector>(m, "TVector");
 
-    py::class_<HLIB::TMatrix>(m, "TMatrix")
+    py::class_<HLIB::TMatrix, std::shared_ptr<HLIB::TMatrix>>(m, "TMatrix")
+//    py::class_<HLIB::TMatrix, std::unique_ptr<HLIB::TMatrix>>(m, "TMatrix")
         .def("id", &HLIB::TMatrix::id)
         .def("rows", &HLIB::TMatrix::rows)
         .def("cols", &HLIB::TMatrix::cols)
@@ -406,13 +441,17 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("check_data", &HLIB::TMatrix::check_data)
         .def("byte_size", &HLIB::TMatrix::byte_size)
         .def("print", &HLIB::TMatrix::print)
-        .def("copy", static_cast<std::unique_ptr<TMatrix> (HLIB::TMatrix::*)() const>(&HLIB::TMatrix::copy))
-        .def("copy_struct", &HLIB::TMatrix::copy_struct)
+//        .def("copy", static_cast<std::unique_ptr<TMatrix> (HLIB::TMatrix::*)() const>(&HLIB::TMatrix::copy))
+//        .def("copy", static_cast<std::shared_ptr<TMatrix> (HLIB::TMatrix::*)() const>(&HLIB::TMatrix::copy))
+//        .def("copy", &HLIB::TMatrix::copy)
+//        .def("copy_struct", &HLIB::TMatrix::copy_struct)
         .def("create", &HLIB::TMatrix::create)
         .def("cluster", &HLIB::TMatrix::cluster)
         .def("row_vector", &HLIB::TMatrix::row_vector)
         .def("col_vector", &HLIB::TMatrix::col_vector);
 
+    m.def("copy_TMatrix", &copy_TMatrix);
+    m.def("copy_struct_TMatrix", &copy_struct_TMatrix);
 
     m.def("add", &add<real_t>);
     m.def("multiply_without_progress_bar", &multiply_without_progress_bar<real_t>);
@@ -421,7 +460,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     py::class_<HLIB::TCoeffFn<real_t>>(m, "TCoeffFn<real_t>");
 
-    py::class_<HLIB::TClusterTree>(m, "HLIB::TClusterTree")
+//    py::class_<HLIB::TClusterTree>(m, "HLIB::TClusterTree")
+    py::class_<HLIB::TClusterTree, std::shared_ptr<TClusterTree>>(m, "HLIB::TClusterTree")
         .def("perm_i2e", &HLIB::TClusterTree::perm_i2e)
         .def("perm_e2i", &HLIB::TClusterTree::perm_e2i)
         .def("nnodes", &HLIB::TClusterTree::nnodes)
@@ -429,6 +469,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("byte_size", &HLIB::TClusterTree::byte_size);
 
     py::class_<HLIB::TBlockClusterTree, std::shared_ptr<HLIB::TBlockClusterTree>>(m, "HLIB::TBlockClusterTree")
+//    py::class_<HLIB::TBlockClusterTree>(m, "HLIB::TBlockClusterTree")
         .def("row_ct", &HLIB::TBlockClusterTree::row_ct)
         .def("col_ct", &HLIB::TBlockClusterTree::col_ct)
         .def("nnodes", &HLIB::TBlockClusterTree::nnodes)
