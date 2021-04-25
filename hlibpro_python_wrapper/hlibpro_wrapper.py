@@ -7,13 +7,31 @@ default_atol = 1e-12
 
 
 class HMatrixWrapper:
-    def __init__(me, cpp_hmatrix_object, bct):
-        me.cpp_object = cpp_hmatrix_object
-        me.bct = bct
-        me.row_ct = me.bct.row_ct
-        me.col_ct = me.bct.col_ct
-        me.shape = (me.cpp_object.rows(), me.cpp_object.cols())
+    def __init__(me, hmatrix_cpp_object, bct):
+        # Don't touch underscore prefix variables. Access via @property methods if needed
+        me._cpp_object = hmatrix_cpp_object
+        me._bct = bct
+        me._row_ct = me._bct.row_ct
+        me._col_ct = me._bct.col_ct
+
+        me.shape = (me.cpp_object.rows(), me._cpp_object.cols())
         me.dtype = np.double # Real: Complex not supported currently
+
+    @property
+    def cpp_object(me):
+        return me._cpp_object
+
+    @property
+    def bct(me):
+        return me._bct
+
+    @property
+    def row_ct(me):
+        return me._row_ct
+
+    @property
+    def col_ct(me):
+        return me._col_ct
 
     def copy(me):
         return HMatrixWrapper(hpro_cpp.copy_TMatrix(me.cpp_object), me.bct)
@@ -116,14 +134,35 @@ def h_mul(A_hmatrix, B_hmatrix, alpha=1.0, rtol=default_rtol, atol=default_atol,
         return C_hmatrix
 
 class FactorizedInverseHMatrixWrapper:
-    def __init__(me, cpp_object, factors_cpp_object, inverse_bct):
-        me.cpp_object = cpp_object
-        me.bct = inverse_bct
-        me.row_ct = me.bct.row_ct
-        me.col_ct = me.bct.col_ct
-        me._factors_cpp_object = factors_cpp_object  # Don't mess with this!! Could cause segfault if deleted
+    def __init__(me, factorized_inverse_cpp_object, factors_cpp_object, inverse_bct):
+        me._cpp_object = factorized_inverse_cpp_object
+        me._factors_cpp_object = factors_cpp_object
+        me._bct = inverse_bct
+        me._row_ct = me.bct.row_ct
+        me._col_ct = me.bct.col_ct
+
         me.shape = (me._factors_cpp_object.rows(), me._factors_cpp_object.cols())
         me.dtype = np.double # Real: Complex not supported currently
+
+    @property
+    def cpp_object(me):
+        return me._cpp_object
+
+    @property
+    def factors_cpp_object(me):
+        return me._factors_cpp_object
+
+    @property
+    def bct(me):
+        return me._bct
+
+    @property
+    def row_ct(me):
+        return me._row_ct
+
+    @property
+    def col_ct(me):
+        return me._col_ct
 
     def matvec(me, x):
         return h_factorized_solve(me, x)
@@ -196,12 +235,16 @@ def visualize_hmatrix(A_hmatrix, title):
     hpro_cpp.visualize_hmatrix(A_hmatrix.cpp_object, title)
 
 def visualize_inverse_factors(iA_factorized, title):
-    hpro_cpp.visualize_hmatrix(iA_factorized._factors_cpp_object, title)
+    hpro_cpp.visualize_hmatrix(iA_factorized.factors_cpp_object, title)
 
 
 class ClusterTreeWrapper:
-    def __init__(me, cpp_object):
-        me.cpp_object = cpp_object
+    def __init__(me, ct_cpp_object):
+        me._cpp_object = ct_cpp_object
+
+    @property
+    def cpp_object(me):
+        return me._cpp_object
 
     def visualize(me, filename):
         hpro_cpp.visualize_cluster_tree(me.cpp_object, filename)
@@ -210,16 +253,21 @@ class ClusterTreeWrapper:
 class BlockClusterTreeWrapper:
     # wrap block cluster tree cpp object to make sure python doesn't delete row and column cluster trees
     # when they go out of scope but are still internally referenced by the block cluster tree cpp object
-    def __init__(me, cpp_object, row_ct, col_ct):
-        me.cpp_object = cpp_object
+    def __init__(me, bct_cpp_object, row_ct, col_ct):
+        me._cpp_object = bct_cpp_object
+
         me.row_ct = row_ct
         me.col_ct = col_ct
+
+    @property
+    def cpp_object(me):
+        return me._cpp_object
 
     def visualize(me, filename):
         hpro_cpp.visualize_block_cluster_tree(me.cpp_object, filename)
 
 
-def build_block_cluster_tree(row_ct, col_ct, admissibility_eta):
+def build_block_cluster_tree(row_ct, col_ct, admissibility_eta=2.0):
     bct_cpp_object = hpro_cpp.build_block_cluster_tree(row_ct.cpp_object, col_ct.cpp_object, admissibility_eta)
     return BlockClusterTreeWrapper(bct_cpp_object, row_ct, col_ct)
 
