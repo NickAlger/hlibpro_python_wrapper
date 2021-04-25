@@ -1,12 +1,12 @@
 import numpy as np
 from scipy.io import savemat
-from . import hlibpro_bindings as hpro_cpp
+from . import hlibpro_bindings as _hpro_cpp
 
 default_rtol = 1e-7
 default_atol = 1e-12
 
 
-class HMatrixWrapper:
+class HMatrix:
     def __init__(me, hmatrix_cpp_object, bct):
         # Don't touch underscore prefix variables. Access via @property methods if needed
         me._cpp_object = hmatrix_cpp_object
@@ -34,43 +34,63 @@ class HMatrixWrapper:
         return me._col_ct
 
     def copy(me):
-        return HMatrixWrapper(hpro_cpp.copy_TMatrix(me.cpp_object), me.bct)
+        return HMatrix(_hpro_cpp.copy_TMatrix(me.cpp_object), me.bct)
 
     def copy_struct(me):
-        return HMatrixWrapper(hpro_cpp.copy_struct_TMatrix(me.cpp_object), me.bct)
+        return HMatrix(_hpro_cpp.copy_struct_TMatrix(me.cpp_object), me.bct)
 
-    def transpose(me):
-        transposed_cpp_object = hpro_cpp.copy_TMatrix(me.cpp_object)
-        transposed_cpp_object.transpose()
-        return HMatrixWrapper(transposed_cpp_object, me.bct)
+    def transpose(me, overwrite=False):
+        if overwrite:
+            me._cpp_object.transpose()
+            return me
+        else:
+            transposed_cpp_object = _hpro_cpp.copy_TMatrix(me.cpp_object)
+            transposed_cpp_object.transpose()
+            return HMatrix(transposed_cpp_object, me.bct)
 
     @property
     def T(me):
         return me.transpose()
 
     def sym(me, rtol=default_rtol, atol=default_atol):
-        return h_add(me, me.T, alpha=0.5, beta=0.5, rtol=rtol, atol=atol)
+        return h_add(me, me.T, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
 
     def matvec(me, x):
         return h_matvec(me, x)
 
-    def __add__(me, other, rtol=default_rtol, atol=default_atol):
-        if isinstance(other, HMatrixWrapper):
-            return h_add(me, other, rtol=rtol, atol=atol)
+    def __add__(me, other):
+        if isinstance(other, HMatrix):
+            return h_add(other, me)
 
         else:
-            raise RuntimeError('cannot add HMatrixWrapper to ' + str(other.type))
+            raise RuntimeError('cannot add HMatrix to ' + str(other.type))
+
+    def __iadd__(me, other):
+        if isinstance(other, HMatrix):
+            return h_add(other, me, overwrite_B=True)
+        else:
+            raise RuntimeError('cannot add HMatrix to ' + str(other.type))
 
     def __sub__(me, other, rtol=default_rtol, atol=default_atol):
-        if isinstance(other, HMatrixWrapper):
-            return h_add(me, other, beta=-1.0, rtol=rtol, atol=atol)
+        if isinstance(other, HMatrix):
+            return h_add(other, me, beta=-1.0)
 
         else:
-            raise RuntimeError('cannot add HMatrixWrapper to ' + str(other.type))
+            raise RuntimeError('cannot add HMatrix to ' + str(other.type))
 
-    def __mul__(me, other, rtol=default_rtol, atol=default_atol, display_progress=True):
-        if isinstance(other, HMatrixWrapper):
-            return h_mul(me, other, rtol=rtol, atol=atol, display_progress=display_progress)
+    def __isub__(me, other):
+        if isinstance(other, HMatrix):
+            return h_add(other, me, beta=-1.0, overwrite_B=True)
+
+        else:
+            raise RuntimeError('cannot add HMatrix to ' + str(other.type))
+
+    def __neg__(me):
+        return h_scale(me, -1.0)
+
+    def __mul__(me, other):
+        if isinstance(other, HMatrix):
+            return h_mul(me, other)
 
         if isinstance(other, float) or isinstance(other, np.number):
             return h_scale(me, other)
@@ -79,61 +99,84 @@ class HMatrixWrapper:
             return me.matvec(other)
 
         else:
-            raise RuntimeError('cannot multiply HMatrixWrapper with ' + str(other.type))
+            raise RuntimeError('cannot multiply HMatrix with ' + str(other.type))
 
-    def __rmul__(me, other, rtol=default_rtol, atol=default_atol, display_progress=True):
-        if isinstance(other, HMatrixWrapper):
-            return h_mul(other, me, rtol=rtol, atol=atol, display_progress=display_progress)
+    def __imul__(me, other):
+        if isinstance(other, HMatrix):
+            return h_mul(me, other, alpha_A_B_hmatrix=me)
+
+        if isinstance(other, float) or isinstance(other, np.number):
+            return h_scale(me, other, overwrite_A=True)
+
+        else:
+            raise RuntimeError('cannot multiply HMatrix with ' + str(other.type))
+
+    def __rmul__(me, other):
+        if isinstance(other, HMatrix):
+            return h_mul(other, me)
 
         if isinstance(other, float) or isinstance(other, np.number):
             return h_scale(me, other)
 
         else:
-            raise RuntimeError('cannot right multiply HMatrixWrapper with ' + str(other.type))
+            raise RuntimeError('cannot right multiply HMatrix with ' + str(other.type))
 
-    def factorized_inverse(me, rtol=default_rtol, atol=default_atol, display_progress=True):
-        return h_factorized_inverse(me, rtol=rtol, atol=atol, display_progress=display_progress)
+    def __matmul__(me, other):
+        return me.__mul__(me, other)
+
+    def __rmatmul__(me, other):
+        return me.__rmul__(me, other)
+
+    def __imatmul__(me, other):
+        return me.__imul__(me, other)
+
+    def factorized_inverse(me, rtol=default_rtol, atol=default_atol, overwrite=False):
+        return h_factorized_inverse(me, rtol=rtol, atol=atol)
 
 
-def h_add(A_hmatrix, B_hmatrix, alpha=1.0, beta=1.0, rtol=default_rtol, atol=default_atol):
+
+
+def h_add(A_hmatrix, B_hmatrix, alpha=1.0, beta=1.0, rtol=default_rtol, atol=default_atol, overwrite_B=False):
     # C = A + alpha * B to tolerance given by truncation accuracy object acc
-    acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
-    C_hmatrix = B_hmatrix.copy()
-    hpro_cpp.add(alpha, A_hmatrix.cpp_object, beta, C_hmatrix.cpp_object, acc)
-    return C_hmatrix
+    acc = _hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
+    if overwrite_B:
+        alpha_A_plus_beta_B_hmatrix = B_hmatrix
+    else:
+        alpha_A_plus_beta_B_hmatrix = B_hmatrix.copy()
+    _hpro_cpp.add(alpha, A_hmatrix.cpp_object, beta, alpha_A_plus_beta_B_hmatrix.cpp_object, acc)
+    return alpha_A_plus_beta_B_hmatrix
 
 
-def h_scale(A_hmatrix, alpha):
+def h_scale(A_hmatrix, alpha, overwrite_A=False):
     # C = alpha * A
-    C_hmatrix = A_hmatrix.copy()
-    C_hmatrix.cpp_object.scale(alpha)
-    return C_hmatrix
+    if overwrite_A:
+        alpha_A_hmatrix = A_hmatrix
+    else:
+        alpha_A_hmatrix = A_hmatrix.copy()
+    alpha_A_hmatrix.cpp_object.scale(alpha)
+    return alpha_A_hmatrix
 
-def h_mul(A_hmatrix, B_hmatrix, alpha=1.0, rtol=default_rtol, atol=default_atol, display_progress=True, overwrite_arg=-1):
+
+def h_mul(A_hmatrix, B_hmatrix, alpha_A_B_hmatrix=None, alpha=1.0, rtol=default_rtol, atol=default_atol, display_progress=True):
     # C = A * B
-    acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
-    return_C_hmatrix = False
-    if overwrite_arg == 0:
-        C_hmatrix = A_hmatrix
-    elif overwrite_arg == 1:
-        C_hmatrix = B_hmatrix
-    else:
-        C_hmatrix = A_hmatrix.copy_struct()
-        return_C_hmatrix = True
+    acc = _hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
+    if alpha_A_B_hmatrix is None:
+        # AB_admissibility_eta = np.min([A_hmatrix.admissibility_eta, B_hmatrix.admissibility_eta])
+        # AB_bct = build_block_cluster_tree(A_hmatrix.row_ct, B_hmatrix.col_ct, AB_admissibility_eta)
+        alpha_A_B_hmatrix = A_hmatrix.copy_struct()
 
-    # C_hmatrix = A_hmatrix.copy()
     if display_progress:
-        hpro_cpp.multiply_with_progress_bar(alpha, hpro_cpp.apply_normal, A_hmatrix.cpp_object,
-                                            hpro_cpp.apply_normal, B_hmatrix.cpp_object,
-                                            0.0, C_hmatrix.cpp_object, acc)
+        _hpro_cpp.multiply_with_progress_bar(alpha, _hpro_cpp.apply_normal, A_hmatrix.cpp_object,
+                                             _hpro_cpp.apply_normal, B_hmatrix.cpp_object,
+                                             0.0, alpha_A_B_hmatrix.cpp_object, acc)
     else:
-        hpro_cpp.multiply_without_progress_bar(alpha, hpro_cpp.apply_normal, A_hmatrix.cpp_object,
-                                               hpro_cpp.apply_normal, B_hmatrix.cpp_object,
-                                               0.0, C_hmatrix.cpp_object, acc)
-    if return_C_hmatrix:
-        return C_hmatrix
+        _hpro_cpp.multiply_without_progress_bar(alpha, _hpro_cpp.apply_normal, A_hmatrix.cpp_object,
+                                                _hpro_cpp.apply_normal, B_hmatrix.cpp_object,
+                                                0.0, alpha_A_B_hmatrix.cpp_object, acc)
+    return alpha_A_B_hmatrix
 
-class FactorizedInverseHMatrixWrapper:
+
+class FactorizedInverseHMatrix:
     def __init__(me, factorized_inverse_cpp_object, factors_cpp_object, inverse_bct):
         me._cpp_object = factorized_inverse_cpp_object
         me._factors_cpp_object = factors_cpp_object
@@ -168,19 +211,22 @@ class FactorizedInverseHMatrixWrapper:
         return h_factorized_solve(me, x)
 
 
-def h_factorized_inverse(A_hmatrix, rtol=default_rtol, atol=default_atol, display_progress=True):
-    acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
-    factors_cpp_object = hpro_cpp.copy_TMatrix(A_hmatrix.cpp_object)
-    cpp_object = hpro_cpp.factorize_inv_with_progress_bar(factors_cpp_object, acc)
-    return FactorizedInverseHMatrixWrapper(cpp_object, factors_cpp_object, A_hmatrix.bct)
+def h_factorized_inverse(A_hmatrix, rtol=default_rtol, atol=default_atol, overwrite=False):
+    acc = _hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
+    if overwrite:
+        factors_cpp_object = A_hmatrix.cpp_object
+    else:
+        factors_cpp_object = _hpro_cpp.copy_TMatrix(A_hmatrix.cpp_object)
+    cpp_object = _hpro_cpp.factorize_inv_with_progress_bar(factors_cpp_object, acc)
+    return FactorizedInverseHMatrix(cpp_object, factors_cpp_object, A_hmatrix.bct)
 
 
 def build_hmatrix_from_scipy_sparse_matrix(A_csc, bct):
     A_csc[1,0] += 1e-14 # Force non-symmetry
     fname = "temp_sparse_matrix.mat"
     savemat(fname, {'A': A_csc})
-    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_sparse_matfile(fname, bct.cpp_object)
-    return HMatrixWrapper(hmatrix_cpp_object, bct)
+    hmatrix_cpp_object = _hpro_cpp.build_hmatrix_from_sparse_matfile(fname, bct.cpp_object)
+    return HMatrix(hmatrix_cpp_object, bct)
 
 
 def build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
@@ -213,32 +259,32 @@ def build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
     :param tol: truncation tolerance for low rank approximation of Hmatrix low rank (admissible) blocks
     :return: hmatrix
     '''
-    PC_cpp = hpro_cpp.ProductConvolution2d(WW_mins, WW_maxes, WW_arrays,
-                                         FF_mins, FF_maxes, FF_arrays,
-                                         row_dof_coords, col_dof_coords)
+    PC_cpp = _hpro_cpp.ProductConvolution2d(WW_mins, WW_maxes, WW_arrays,
+                                            FF_mins, FF_maxes, FF_arrays,
+                                            row_dof_coords, col_dof_coords)
 
-    PC_coefffn = hpro_cpp.PC2DCoeffFn(PC_cpp)
-    hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree.cpp_object, tol)
-    return HMatrixWrapper(hmatrix_cpp_object, block_cluster_tree)
+    PC_coefffn = _hpro_cpp.PC2DCoeffFn(PC_cpp)
+    hmatrix_cpp_object = _hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree.cpp_object, tol)
+    return HMatrix(hmatrix_cpp_object, block_cluster_tree)
 
 
 def h_factorized_solve(iA_factorized, y):
-    return hpro_cpp.h_factorized_inverse_matvec(iA_factorized.cpp_object,
-                                                iA_factorized.row_ct.cpp_object,
-                                                iA_factorized.col_ct.cpp_object, y)
+    return _hpro_cpp.h_factorized_inverse_matvec(iA_factorized.cpp_object,
+                                                 iA_factorized.row_ct.cpp_object,
+                                                 iA_factorized.col_ct.cpp_object, y)
 
 
 def h_matvec(A_hmatrix, x):
-    return hpro_cpp.h_matvec(A_hmatrix.cpp_object, A_hmatrix.row_ct.cpp_object, A_hmatrix.col_ct.cpp_object, x)
+    return _hpro_cpp.h_matvec(A_hmatrix.cpp_object, A_hmatrix.row_ct.cpp_object, A_hmatrix.col_ct.cpp_object, x)
 
 def visualize_hmatrix(A_hmatrix, title):
-    hpro_cpp.visualize_hmatrix(A_hmatrix.cpp_object, title)
+    _hpro_cpp.visualize_hmatrix(A_hmatrix.cpp_object, title)
 
 def visualize_inverse_factors(iA_factorized, title):
-    hpro_cpp.visualize_hmatrix(iA_factorized.factors_cpp_object, title)
+    _hpro_cpp.visualize_hmatrix(iA_factorized.factors_cpp_object, title)
 
 
-class ClusterTreeWrapper:
+class ClusterTree:
     def __init__(me, ct_cpp_object):
         me._cpp_object = ct_cpp_object
 
@@ -247,29 +293,42 @@ class ClusterTreeWrapper:
         return me._cpp_object
 
     def visualize(me, filename):
-        hpro_cpp.visualize_cluster_tree(me.cpp_object, filename)
+        _hpro_cpp.visualize_cluster_tree(me.cpp_object, filename)
 
 
-class BlockClusterTreeWrapper:
+class BlockClusterTree:
     # wrap block cluster tree cpp object to make sure python doesn't delete row and column cluster trees
     # when they go out of scope but are still internally referenced by the block cluster tree cpp object
-    def __init__(me, bct_cpp_object, row_ct, col_ct):
+    def __init__(me, bct_cpp_object, row_ct, col_ct, admissibility_eta=None):
         me._cpp_object = bct_cpp_object
 
-        me.row_ct = row_ct
-        me.col_ct = col_ct
+        me._row_ct = row_ct
+        me._col_ct = col_ct
+        me._admissibility_eta = admissibility_eta
+
+    @property
+    def row_ct(me):
+        return me._row_ct
+
+    @property
+    def col_ct(me):
+        return me._col_ct
+
+    @property
+    def admissibility_eta(me):
+        return me._admissibility_eta
 
     @property
     def cpp_object(me):
         return me._cpp_object
 
     def visualize(me, filename):
-        hpro_cpp.visualize_block_cluster_tree(me.cpp_object, filename)
+        _hpro_cpp.visualize_block_cluster_tree(me.cpp_object, filename)
 
 
 def build_block_cluster_tree(row_ct, col_ct, admissibility_eta=2.0):
-    bct_cpp_object = hpro_cpp.build_block_cluster_tree(row_ct.cpp_object, col_ct.cpp_object, admissibility_eta)
-    return BlockClusterTreeWrapper(bct_cpp_object, row_ct, col_ct)
+    bct_cpp_object = _hpro_cpp.build_block_cluster_tree(row_ct.cpp_object, col_ct.cpp_object, admissibility_eta)
+    return BlockClusterTree(bct_cpp_object, row_ct, col_ct)
 
 
 def build_cluster_tree_from_pointcloud(points, cluster_size_cutoff=50):
@@ -279,8 +338,8 @@ def build_cluster_tree_from_pointcloud(points, cluster_size_cutoff=50):
     :param cluster_size_cutoff: nonnegative int. number of points below which clusters are not subdivided further
     :return: BlockClusterTreeWrapper
     '''
-    cpp_object = hpro_cpp.build_cluster_tree_from_dof_coords(points, cluster_size_cutoff)
-    return ClusterTreeWrapper(cpp_object)
+    cpp_object = _hpro_cpp.build_cluster_tree_from_dof_coords(points, cluster_size_cutoff)
+    return ClusterTree(cpp_object)
 
 build_cluster_tree_from_dof_coords = build_cluster_tree_from_pointcloud
 

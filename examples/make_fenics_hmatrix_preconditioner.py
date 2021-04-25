@@ -10,7 +10,7 @@ import hlibpro_python_wrapper as hpro
 
 grid_shape = (50, 55)
 mesh = fenics.UnitSquareMesh(*grid_shape)
-# grid_shape = (50, 51, 52)
+# grid_shape = (70, 71, 72)
 # mesh = fenics.UnitCubeMesh(*grid_shape)
 
 V = fenics.FunctionSpace(mesh, 'CG', 1)
@@ -55,6 +55,7 @@ A_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(A_csc, bct)
 ########   H-LU FACTORIZE HMATRIX    ########
 
 iA_factorized = hpro.h_factorized_inverse(A_hmatrix, rtol=1e-1)
+# iA_factorized = hpro.h_factorized_inverse(A_hmatrix, rtol=1e-1, overwrite=True) # <-- save memory, but fill A_hmatrix with nonsense
 
 ########   APPROXIMATELY SOLVE LINEAR SYSTEM    ########
 
