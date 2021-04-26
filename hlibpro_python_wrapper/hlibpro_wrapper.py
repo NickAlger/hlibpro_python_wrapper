@@ -329,31 +329,20 @@ class FactorizedHMatrix:
 
         if me.factorization_type == 'LDL':
             LD_list = _hpro_cpp.split_ldl_factorization(me._factors_cpp_object, fac_options)
-            # print('LD_list=', LD_list)
-            # print('LD_list.byte_size()=', LD_list.byte_size())
-            L_cpp_object = LD_list[0]
-            D_cpp_object = LD_list[1]
-            # print('L_cpp_object=', L_cpp_object)
-            # print('D_cpp_object=', D_cpp_object)
-            #
-            # L_cpp_object.byte_size()
 
-            # print('L_cpp_object.rows()=', L_cpp_object.nrows())
-            # L = ASDF(L_cpp_object, me.bct)
-            L = HMatrix(L_cpp_object, me.bct)
-            D = HMatrix(D_cpp_object, me.bct)
+            L = HMatrix(LD_list[0], me.bct)
+            D = HMatrix(LD_list[1], me.bct)
             return L, D
+        elif me.factorization_type == 'LU':
+            LU_list = _hpro_cpp.split_lu_factorization(me._factors_cpp_object, fac_options)
+
+            L = HMatrix(LU_list[0], me.bct)
+            U = HMatrix(LU_list[1], me.bct)
+            return L, U
         else:
             raise RuntimeError('asdf')
 
-class ASDF:
-    def __init__(me, L, bct):
-        me.L = L
-        me.bct = bct
-        me.row_ct = me.bct.row_ct
-        me.col_ct = me.bct.col_ct
 
-        me.nrow = me.L.rows()
 
 def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol,
           overwrite=False, display_progress=True,

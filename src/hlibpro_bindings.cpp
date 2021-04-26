@@ -432,9 +432,8 @@ std::shared_ptr<HLIB::TFacInvMatrix> LU_inv_matrix(std::shared_ptr<HLIB::TMatrix
     return std::move(LU::inv_matrix( A.get(), facopt ));
 }
 
-//std::shared_ptr<HLIB::TMatrix>
+
 std::vector<std::shared_ptr<HLIB::TMatrix>>
-//    split_ldl_factorization(TMatrix * A, const fac_options_t opts)
     split_ldl_factorization(std::shared_ptr<HLIB::TMatrix> A, const fac_options_t opts)
 {
     std::pair<HLIB::TMatrix*, HLIB::TMatrix*> LD_pair = LDL::split(A.get(), opts);
@@ -444,12 +443,25 @@ std::vector<std::shared_ptr<HLIB::TMatrix>>
 //    cout << "L byte size" << L.get()->byte_size() << endl;
 
 //    return L;
-    std::vector<std::shared_ptr<HLIB::TMatrix>> LU_list(2);
-    LU_list[0] = L;
-    LU_list[1] = D;
-    return LU_list;
+    std::vector<std::shared_ptr<HLIB::TMatrix>> LD_list(2);
+    LD_list[0] = L;
+    LD_list[1] = D;
+    return LD_list;
 }
 
+
+std::vector<std::shared_ptr<HLIB::TMatrix>>
+    split_lu_factorization(std::shared_ptr<HLIB::TMatrix> A, const fac_options_t opts)
+{
+    std::pair<HLIB::TMatrix*, HLIB::TMatrix*> LU_pair = LU::split(A.get(), opts);
+    std::shared_ptr<HLIB::TMatrix> L(LU_pair.first->copy());
+    std::shared_ptr<HLIB::TMatrix> U(LU_pair.second->copy());
+
+    std::vector<std::shared_ptr<HLIB::TMatrix>> LU_list(2);
+    LU_list[0] = L;
+    LU_list[1] = U;
+    return LU_list;
+}
 
 void print_hello() {
     std::cout << "hello" << std::endl;
@@ -699,5 +711,6 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .export_values();
 
     m.def("split_ldl_factorization", &split_ldl_factorization);
+    m.def("split_lu_factorization", &split_lu_factorization);
 }
 

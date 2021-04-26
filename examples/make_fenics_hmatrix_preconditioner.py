@@ -58,8 +58,8 @@ A_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(A_csc, bct)
 
 ########   H-LU FACTORIZE HMATRIX    ########
 
-A_factorized = hpro.h_ldl(A_hmatrix.sym(), rtol=1e-6, atol=0.0, display_progress=False)
-# A_factorized = hpro.h_lu(A_hmatrix, rtol=1e-6, atol=0.0, display_progress=True)
+# A_factorized = hpro.h_ldl(A_hmatrix.sym(), rtol=1e-6, atol=0.0, display_progress=False, eval_type='block_wise', storage_type='store_normal')
+A_factorized = hpro.h_lu(A_hmatrix, rtol=1e-6, atol=0.0, display_progress=True)
 
 
 ########   APPROXIMATELY SOLVE LINEAR SYSTEM    ########
@@ -82,9 +82,12 @@ print('err_gmres=', err_gmres)
 
 y1 = A_factorized.apply(x)
 
-L, D = A_factorized.split()
+L, U = A_factorized.split()
+# L, D = A_factorized.split()
 
-y2 = L * (D * (L.T * x))
+y2 = L * (U * x)
+# y2 = L * (D * (L.T * x))
+# y2 = L * (L.T * x)
 
-err_LD_split = np.linalg.norm(y2 - y1) / np.linalg.norm(y1)
-print('err_LD_split=', err_LD_split)
+err_split = np.linalg.norm(y2 - y1) / np.linalg.norm(y1)
+print('err_split=', err_split)
