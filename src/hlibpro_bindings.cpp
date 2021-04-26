@@ -411,6 +411,27 @@ std::shared_ptr<HLIB::TMatrix> copy_struct_TMatrix(std::shared_ptr<HLIB::TMatrix
     return std::move(A_copy_struct);
 }
 
+
+std::shared_ptr<HLIB::TFacMatrix> LDL_eval_matrix(std::shared_ptr<HLIB::TMatrix> A, fac_options_t facopt)
+{
+    return std::move(LDL::eval_matrix( A.get(), A->form(), facopt ));
+}
+
+std::shared_ptr<HLIB::TFacInvMatrix> LDL_inv_matrix(std::shared_ptr<HLIB::TMatrix> A, fac_options_t facopt)
+{
+    return std::move(LDL::inv_matrix( A.get(), A->form(), facopt ));
+}
+
+std::shared_ptr<HLIB::TFacMatrix> LU_eval_matrix(std::shared_ptr<HLIB::TMatrix> A, fac_options_t facopt)
+{
+    return std::move(LU::eval_matrix( A.get(), facopt ));
+}
+
+std::shared_ptr<HLIB::TFacInvMatrix> LU_inv_matrix(std::shared_ptr<HLIB::TMatrix> A, fac_options_t facopt)
+{
+    return std::move(LU::inv_matrix( A.get(), facopt ));
+}
+
 void print_hello() {
     std::cout << "hello" << std::endl;
 }
@@ -425,7 +446,14 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     m.def("print_hello", &print_hello);
 
+
     py::class_<HLIB::TProgressBar>(m, "TProgressBar");
+//        .def(py::init<>());
+//        .def(py::init<const double, const double, const double>(), py::arg("amin"), py::arg("amax"), py::arg("acur"));
+
+    py::class_<HLIB::TConsoleProgressBar, HLIB::TProgressBar>(m, "TConsoleProgressBar")
+        .def(py::init<>());
+
     py::class_<HLIB::TFacMatrix, std::shared_ptr<TFacMatrix>>(m, "TFacMatrix");
     py::class_<HLIB::TFacInvMatrix, std::shared_ptr<TFacInvMatrix>>(m, "TFacInvMatrix");
 //    py::class_<HLIB::TFacInvMatrix, std::unique_ptr<TFacInvMatrix>>(m, "TFacInvMatrix");
@@ -507,7 +535,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("create", &HLIB::TMatrix::create)
         .def("cluster", &HLIB::TMatrix::cluster)
         .def("row_vector", &HLIB::TMatrix::row_vector)
-        .def("col_vector", &HLIB::TMatrix::col_vector);
+        .def("col_vector", &HLIB::TMatrix::col_vector)
+        .def("form", &HLIB::TMatrix::form);
 
     m.def("copy_TMatrix", &copy_TMatrix);
     m.def("copy_struct_TMatrix", &copy_struct_TMatrix);
@@ -627,12 +656,27 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .value("store_inverse", HLIB::storage_type_t::store_inverse)
         .export_values();
 
+//    py::class_<HLIB::fac_options_t, std::shared_ptr<HLIB::fac_options_t>>(m, "fac_options_t")
     py::class_<HLIB::fac_options_t>(m, "fac_options_t")
         .def(py::init<>())
         .def(py::init<const eval_type_t, const storage_type_t, const bool, TProgressBar *>(),
              py::arg("aeval"), py::arg("astorage"), py::arg("ado_coarsen"), py::arg("aprogress")=nullptr);
 
     m.def("LDL_factorize", &LDL::factorise);
-}
+    m.def("LDL_eval_matrix", &LDL_eval_matrix);
+    m.def("LDL_inv_matrix", &LDL_inv_matrix);
 
+    m.def("LU_factorize", &LU::factorise);
+    m.def("LU_eval_matrix", &LU_eval_matrix);
+    m.def("LU_inv_matrix", &LU_inv_matrix);
+
+    py::enum_<HLIB::matform_t>(m, "matform_t", py::arithmetic())
+        .value("unsymmetric", HLIB::matform_t::unsymmetric)
+        .value("symmetric", HLIB::matform_t::symmetric)
+        .value("hermitian", HLIB::matform_t::hermitian)
+        .value("MATFORM_NONSYM", HLIB::matform_t::MATFORM_NONSYM)
+        .value("MATFORM_SYM", HLIB::matform_t::MATFORM_SYM)
+        .value("MATFORM_HERM", HLIB::matform_t::MATFORM_HERM)
+        .export_values();
+}
 

@@ -143,6 +143,9 @@ class HMatrix:
     def factorized_inverse(me, rtol=default_rtol, atol=default_atol, overwrite=False):
         return h_factorized_inverse(me, rtol=rtol, atol=atol)
 
+    def visualize(me, filename):
+        _hpro_cpp.visualize_hmatrix(me.cpp_object, filename)
+
 
 
 
@@ -232,10 +235,15 @@ def h_factorized_inverse(A_hmatrix, rtol=default_rtol, atol=default_atol, overwr
 
 
 class FactorizedHMatrix:
-    def __init__(me, eval_cpp_object, eval_inverse_cpp_object, factors_cpp_object, bct):
+    def __init__(me, eval_cpp_object, eval_inverse_cpp_object, factors_cpp_object, bct,
+                 eval_type, storage_type, coarsened, factorization_type):
         me._eval_cpp_object = eval_cpp_object
         me._eval_inverse_cpp_object = eval_inverse_cpp_object
         me._factors_cpp_object = factors_cpp_object
+        me._eval_type = eval_type
+        me._storage_type = storage_type
+        me._coarsened = coarsened
+        me._factorization_type = factorization_type
         me._bct = bct
         me._row_ct = me.bct.row_ct
         me._col_ct = me.bct.col_ct
@@ -254,6 +262,22 @@ class FactorizedHMatrix:
     @property
     def factors_cpp_object(me):
         return me._factors_cpp_object
+
+    @property
+    def eval_type(me):
+        return me._eval_type
+
+    @property
+    def storage_type(me):
+        return me._storage_type
+
+    @property
+    def coarsened(me):
+        return me._coarsened
+
+    @property
+    def factorization_type(me):
+        return me._factorization_type
 
     @property
     def bct(me):
@@ -277,41 +301,85 @@ class FactorizedHMatrix:
                                              me.row_ct.cpp_object,
                                              me.col_ct.cpp_object, x)
 
-    def as_linear_operator(me, solver=False):
-        if solver:
+    def as_linear_operator(me, inverse=False):
+        if inverse:
             return spla.LinearOperator(me.shape, matvec=me.solve)
         else:
             return spla.LinearOperator(me.shape, matvec=me.apply)
 
+    def visualize(me, filename):
+        _hpro_cpp.visualize_hmatrix(me.factors_cpp_object, filename)
 
-def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol, overwrite=False):
+
+def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol,
+          overwrite=False, display_progress=True,
+          eval_type='block_wise', storage_type='store_normal', do_coarsen=False):
+    return _factorize_h_matrix(A_hmatrix, 'LDL', rtol, atol,
+                        overwrite, display_progress,
+                        eval_type, storage_type, do_coarsen)
+
+
+def h_lu(A_hmatrix, rtol=default_rtol, atol=default_atol,
+         overwrite=False, display_progress=True,
+         eval_type='block_wise', storage_type='store_normal', do_coarsen=False):
+    return _factorize_h_matrix(A_hmatrix, 'LU', rtol, atol,
+                        overwrite, display_progress,
+                        eval_type, storage_type, do_coarsen)
+
+
+def _factorize_h_matrix(A_hmatrix, factorization_type, rtol, atol,
+                        overwrite, display_progress,
+                        eval_type, storage_type, do_coarsen):
+    # Look in hpro/algebra/mat_fac.hh
     acc = _hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
+
     if overwrite:
         factors_cpp_object = A_hmatrix.cpp_object
     else:
         factors_cpp_object = _hpro_cpp.copy_TMatrix(A_hmatrix.cpp_object)
 
-    # eval_type = _hpro_cpp.eval_type_t.point_wise
-    eval_type = _hpro_cpp.eval_type_t.block_wise
-    storage_type = _hpro_cpp.storage_type_t.store_normal
-    do_coarsen = False
-    fac_options = _hpro_cpp.fac_options_t(eval_type, storage_type, do_coarsen)
+    if eval_type == 'point_wise':
+        cpp_eval_type = _hpro_cpp.eval_type_t.point_wise
+    elif eval_type == 'block_wise':
+        cpp_eval_type = _hpro_cpp.eval_type_t.block_wise
+    else:
+        raise RuntimeError('eval_type must be point_wise or block_wise. eval_type=', eval_type)
 
-    print('━━ LDLt factorisation ( rtol = ', rtol, ', atol = ', atol, ', overwrite=', overwrite,' )')
+    if storage_type == 'store_normal':
+        cpp_storage_type = _hpro_cpp.storage_type_t.store_normal
+    elif storage_type == 'store_inverse':
+        cpp_storage_type = _hpro_cpp.storage_type_t.store_inverse
+    else:
+        raise RuntimeError('storage_type must be store_normal or store_inverse. storage_type=', storage_type)
 
-    t = time()
-    _hpro_cpp.LDL_factorize(factors_cpp_object, acc, fac_options)
-    dt_fac = time() - t
+    if display_progress:
+        progress_bar = _hpro_cpp.TConsoleProgressBar()
+        fac_options = _hpro_cpp.fac_options_t(cpp_eval_type, cpp_storage_type, do_coarsen, progress_bar)
+    else:
+        fac_options = _hpro_cpp.fac_options_t(cpp_eval_type, cpp_storage_type, do_coarsen)
+
+
+    print('━━ ', factorization_type, ' factorisation ( rtol = ', rtol, ', atol = ', atol, ', overwrite=', overwrite,' )')
+
+    if factorization_type == 'LDL':
+        t = time()
+        _hpro_cpp.LDL_factorize(factors_cpp_object, acc, fac_options)
+        dt_fac = time() - t
+    elif factorization_type == 'LU':
+        t = time()
+        _hpro_cpp.LU_factorize(factors_cpp_object, acc, fac_options)
+        dt_fac = time() - t
 
     print('    done in ', dt_fac)
-    print('    size of LDLt factor = ', factors_cpp_object.byte_size())
+    print('    size of factors = ', factors_cpp_object.byte_size(), ' bytes')
 
-    return None
-    # # eval_cpp_object, eval_inverse_cpp_object = _hpro_cpp.factorize_inv_with_progress_bar(factors_cpp_object, acc)
-    # QQQ = _hpro_cpp.factorize_inv_with_progress_bar(factors_cpp_object, acc)
-    # eval_cpp_object = QQQ[0]
-    # eval_inverse_cpp_object = QQQ[1]
-    # return FactorizedHMatrix(eval_cpp_object, eval_inverse_cpp_object, factors_cpp_object, A_hmatrix.bct)
+    eval_cpp_object = _hpro_cpp.LDL_eval_matrix(factors_cpp_object, fac_options)
+    eval_inverse_cpp_object = _hpro_cpp.LDL_inv_matrix(factors_cpp_object, fac_options)
+
+    return FactorizedHMatrix(eval_cpp_object, eval_inverse_cpp_object, factors_cpp_object, A_hmatrix.bct,
+                             eval_type, storage_type, do_coarsen, factorization_type)
+
+
 
 
 def build_hmatrix_from_scipy_sparse_matrix(A_csc, bct):
@@ -370,11 +438,11 @@ def h_factorized_solve(iA_factorized, y):
 def h_matvec(A_hmatrix, x):
     return _hpro_cpp.h_matvec(A_hmatrix.cpp_object, A_hmatrix.row_ct.cpp_object, A_hmatrix.col_ct.cpp_object, x)
 
-def visualize_hmatrix(A_hmatrix, title):
-    _hpro_cpp.visualize_hmatrix(A_hmatrix.cpp_object, title)
+# def visualize_hmatrix(A_hmatrix, title):
+#     _hpro_cpp.visualize_hmatrix(A_hmatrix.cpp_object, title)
 
-def visualize_inverse_factors(iA_factorized, title):
-    _hpro_cpp.visualize_hmatrix(iA_factorized.factors_cpp_object, title)
+# def visualize_inverse_factors(iA_factorized, title):
+#     _hpro_cpp.visualize_hmatrix(iA_factorized.factors_cpp_object, title)
 
 
 class ClusterTree:

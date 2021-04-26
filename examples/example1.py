@@ -54,20 +54,21 @@ bct.visualize("sparsemat_block_cluster_tree_from_python")
 K_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(K_csc, bct)
 M_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(M_csc, bct)
 
-hpro.visualize_hmatrix(K_hmatrix, "stiffness_hmatrix_from_python")
+K_hmatrix.visualize("stiffness_hmatrix_from_python")
+
 
 x = np.random.randn(dof_coords.shape[0])
-y = hpro.h_matvec(K_hmatrix, x)
-
+y = K_hmatrix * x  # alternatively: hpro.h_matvec(K_hmatrix, x)
 y2 = K_csc * x
+
 err_hmat_stiffness = np.linalg.norm(y - y2)/np.linalg.norm(y2)
 print('err_hmat_stiffness=', err_hmat_stiffness)
 
 
 ########    SCALE HMATRIX   ########
 
-three_K_hmatrix = hpro.h_scale(K_hmatrix, 3.0)
-three_y = hpro.h_matvec(three_K_hmatrix, x)
+three_K_hmatrix = 3.0 * K_hmatrix  # alternative: three_K_hmatrix = hpro.h_scale(K_hmatrix, 3.0)
+three_y = three_K_hmatrix * x      # alternative: three_y = hpro.h_matvec(three_K_hmatrix, x)
 
 err_h_scale = np.linalg.norm(three_y - 3.0*y)
 print('err_h_scale=', err_h_scale)
@@ -75,31 +76,31 @@ print('err_h_scale=', err_h_scale)
 
 ########    VISUALIZE HMATRIX    ########
 
-hpro.visualize_hmatrix(M_hmatrix, "mass_hmatrix_from_python")
+M_hmatrix.visualize("mass_hmatrix_from_python") # hpro.visualize_hmatrix(M_hmatrix, "mass_hmatrix_from_python")
 
 x = np.random.randn(dof_coords.shape[0])
-y = hpro.h_matvec(M_hmatrix, x)
-
+y = M_hmatrix * x
 y2 = M_csc * x
+
 err_hmat_mass = np.linalg.norm(y - y2)/np.linalg.norm(y2)
 print('err_hmat_mass=', err_hmat_mass)
 
 
 ########    ADD HMATRICES   ########
 
-A_hmatrix = hpro.h_add(K_hmatrix, M_hmatrix)
+A_hmatrix = hpro.h_add(K_hmatrix, M_hmatrix)  # alternatively: K_hmatrix + M_hmatrix
 
 x = np.random.randn(dof_coords.shape[0])
 y = hpro.h_matvec(A_hmatrix, x)
-
 y2 = A_csc * x
+
 err_h_add = np.linalg.norm(y - y2)/np.linalg.norm(y2)
 print('err_h_add=', err_h_add)
 
 
 ########    MULTIPLY HMATRICES   ########
 
-KM_hmatrix = hpro.h_mul(K_hmatrix, M_hmatrix, rtol=1e-6)
+KM_hmatrix = hpro.h_mul(K_hmatrix, M_hmatrix, rtol=1e-6)  # alternatively: K_hmatrix + M_hmatrix
 
 x = np.random.randn(dof_coords.shape[0])
 y = hpro.h_matvec(KM_hmatrix, x)
@@ -116,14 +117,17 @@ print('err_H_mul_exact=', err_H_mul_exact)
 
 ########    FACTORIZE HMATRIX   ########
 
-iA_factorized = hpro.h_factorized_inverse(A_hmatrix, rtol=1e-10)
+A_factorized = hpro.h_lu(A_hmatrix, rtol=1e-10)
+# iA_factorized = hpro.h_factorized_inverse(A_hmatrix, rtol=1e-10)
 
 x = np.random.randn(dof_coords.shape[0])
 y = hpro.h_matvec(A_hmatrix, x)
 
-x2 = hpro.h_factorized_solve(iA_factorized, y)
+x2 = A_factorized.solve(y)
+# x2 = hpro.h_factorized_solve(iA_factorized, y)
 
 err_hfac = np.linalg.norm(x - x2)/np.linalg.norm(x2)
 print('err_hfac=', err_hfac)
 
-hpro.visualize_inverse_factors(iA_factorized, 'inv_A_factors')
+A_factorized.visualize('inv_A_factors')
+# hpro.visualize_inverse_factors(iA_factorized, 'inv_A_factors')
