@@ -54,6 +54,8 @@ A_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(A_csc, bct)
 
 ########   H-LU FACTORIZE HMATRIX    ########
 
+# A_factorized = hpro.h_ldl(A_hmatrix.sym(), rtol=1e-2)
+
 iA_factorized = hpro.h_factorized_inverse(A_hmatrix, rtol=1e-1)
 # iA_factorized = hpro.h_factorized_inverse(A_hmatrix, rtol=1e-1, overwrite=True) # <-- save memory, but fill A_hmatrix with nonsense
 

@@ -1,5 +1,7 @@
 import numpy as np
+import scipy.sparse.linalg as spla
 from scipy.io import savemat
+from time import time
 from . import hlibpro_bindings as _hpro_cpp
 
 default_rtol = 1e-7
@@ -53,7 +55,15 @@ class HMatrix:
         return me.transpose()
 
     def sym(me, rtol=default_rtol, atol=default_atol):
-        return h_add(me, me.T, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
+        A_sym = h_add(me, me.T, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
+        A_sym._set_symmetric()
+        return A_sym
+
+    def _set_symmetric(me):
+        me._cpp_object.set_symmetric()
+
+    def _set_nonsym(me):
+        me._cpp_object.set_nonsym()
 
     def matvec(me, x):
         return h_matvec(me, x)
@@ -219,6 +229,89 @@ def h_factorized_inverse(A_hmatrix, rtol=default_rtol, atol=default_atol, overwr
         factors_cpp_object = _hpro_cpp.copy_TMatrix(A_hmatrix.cpp_object)
     cpp_object = _hpro_cpp.factorize_inv_with_progress_bar(factors_cpp_object, acc)
     return FactorizedInverseHMatrix(cpp_object, factors_cpp_object, A_hmatrix.bct)
+
+
+class FactorizedHMatrix:
+    def __init__(me, eval_cpp_object, eval_inverse_cpp_object, factors_cpp_object, bct):
+        me._eval_cpp_object = eval_cpp_object
+        me._eval_inverse_cpp_object = eval_inverse_cpp_object
+        me._factors_cpp_object = factors_cpp_object
+        me._bct = bct
+        me._row_ct = me.bct.row_ct
+        me._col_ct = me.bct.col_ct
+
+        me.shape = (me._factors_cpp_object.rows(), me._factors_cpp_object.cols())
+        me.dtype = np.double # Real: Complex not supported currently
+
+    @property
+    def eval_cpp_object(me):
+        return me._eval_cpp_object
+
+    @property
+    def eval_inverse_cpp_object(me):
+        return me._eval_inverse_cpp_object
+
+    @property
+    def factors_cpp_object(me):
+        return me._factors_cpp_object
+
+    @property
+    def bct(me):
+        return me._bct
+
+    @property
+    def row_ct(me):
+        return me._row_ct
+
+    @property
+    def col_ct(me):
+        return me._col_ct
+
+    def solve(me, y):
+        return _hpro_cpp.h_factorized_inverse_matvec(me.eval_inverse_cpp_object,
+                                                     me.row_ct.cpp_object,
+                                                     me.col_ct.cpp_object, y)
+
+    def apply(me, x):
+        return _hpro_cpp.h_factorized_matvec(me.eval_cpp_object,
+                                             me.row_ct.cpp_object,
+                                             me.col_ct.cpp_object, x)
+
+    def as_linear_operator(me, solver=False):
+        if solver:
+            return spla.LinearOperator(me.shape, matvec=me.solve)
+        else:
+            return spla.LinearOperator(me.shape, matvec=me.apply)
+
+
+def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol, overwrite=False):
+    acc = _hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
+    if overwrite:
+        factors_cpp_object = A_hmatrix.cpp_object
+    else:
+        factors_cpp_object = _hpro_cpp.copy_TMatrix(A_hmatrix.cpp_object)
+
+    # eval_type = _hpro_cpp.eval_type_t.point_wise
+    eval_type = _hpro_cpp.eval_type_t.block_wise
+    storage_type = _hpro_cpp.storage_type_t.store_normal
+    do_coarsen = False
+    fac_options = _hpro_cpp.fac_options_t(eval_type, storage_type, do_coarsen)
+
+    print('━━ LDLt factorisation ( rtol = ', rtol, ', atol = ', atol, ', overwrite=', overwrite,' )')
+
+    t = time()
+    _hpro_cpp.LDL_factorize(factors_cpp_object, acc, fac_options)
+    dt_fac = time() - t
+
+    print('    done in ', dt_fac)
+    print('    size of LDLt factor = ', factors_cpp_object.byte_size())
+
+    return None
+    # # eval_cpp_object, eval_inverse_cpp_object = _hpro_cpp.factorize_inv_with_progress_bar(factors_cpp_object, acc)
+    # QQQ = _hpro_cpp.factorize_inv_with_progress_bar(factors_cpp_object, acc)
+    # eval_cpp_object = QQQ[0]
+    # eval_inverse_cpp_object = QQQ[1]
+    # return FactorizedHMatrix(eval_cpp_object, eval_inverse_cpp_object, factors_cpp_object, A_hmatrix.bct)
 
 
 def build_hmatrix_from_scipy_sparse_matrix(A_csc, bct):

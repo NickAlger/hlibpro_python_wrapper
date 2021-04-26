@@ -7,6 +7,7 @@
 
 #include <pybind11/pybind11.h>
 #include <hlib.hh>
+#include <hpro/algebra/mat_fac.hh>
 
 #include <Eigen/Dense>
 #include <Eigen/LU>
@@ -223,9 +224,9 @@ VectorXd h_matvec(std::shared_ptr<HLIB::TMatrix> A_ptr,
 }
 
 VectorXd h_factorized_inverse_matvec(HLIB::TFacInvMatrix * inv_A_ptr,
-                                           HLIB::TClusterTree * row_ct_ptr,
-                                           HLIB::TClusterTree * col_ct_ptr,
-                                           VectorXd x)
+                                     HLIB::TClusterTree * row_ct_ptr,
+                                     HLIB::TClusterTree * col_ct_ptr,
+                                     VectorXd x)
 {
     // y = inv_A * x
     std::unique_ptr<HLIB::TVector> y_hlib = inv_A_ptr->matrix()->row_vector();
@@ -242,6 +243,34 @@ VectorXd h_factorized_inverse_matvec(HLIB::TFacInvMatrix * inv_A_ptr,
     col_ct_ptr->perm_e2i()->permute( x_hlib.get() );
 
     inv_A_ptr->apply(x_hlib.get(), y_hlib.get());
+
+    row_ct_ptr->perm_i2e()->permute( y_hlib.get() );
+
+    VectorXd y(n);
+    for ( size_t  i = 0; i < n; i++ )
+        y(i) = y_hlib->entry( i );
+
+    return y;
+}
+
+VectorXd h_factorized_matvec(HLIB::TFacMatrix * A_factorized_ptr,
+                             HLIB::TClusterTree * row_ct_ptr,
+                             HLIB::TClusterTree * col_ct_ptr,
+                             VectorXd x)
+{
+    // y = A * x
+    std::unique_ptr<HLIB::TVector> y_hlib = A_factorized_ptr->matrix()->row_vector();
+    std::unique_ptr<HLIB::TVector> x_hlib = A_factorized_ptr->matrix()->col_vector();
+
+    int n = x.size();
+    int m = x.size();
+
+    for ( size_t  i = 0; i < m; i++ )
+        x_hlib->set_entry( i, x(i) );
+
+    col_ct_ptr->perm_e2i()->permute( x_hlib.get() );
+
+    A_factorized_ptr->apply(x_hlib.get(), y_hlib.get());
 
     row_ct_ptr->perm_i2e()->permute( y_hlib.get() );
 
@@ -272,6 +301,33 @@ std::shared_ptr<HLIB::TFacInvMatrix> factorize_inv_with_progress_bar(HLIB::TMatr
 
 //    return A_inv;
     return std::move(A_inv);
+}
+
+std::tuple<std::shared_ptr<HLIB::TFacMatrix>, std::shared_ptr<HLIB::TFacInvMatrix>> ldl_factorization_inplace(HLIB::TMatrix * A_ptr, TTruncAcc acc)
+{
+    double rtol = acc.rel_eps();
+    TTimer                    timer( WALL_TIME );
+    TConsoleProgressBar       progress;
+
+    fac_options_t  facopt(point_wise, store_normal, false, & progress);
+//    LDL::TLDL        fac(facopt);
+
+    std::cout << std::endl << "━━ LDLt factorisation ( rtol = " << rtol << " )" << std::endl;
+
+    timer.start();
+
+//    fac.factorise( A_ptr, acc );
+    LDL::factorise( A_ptr, acc, facopt );
+
+    timer.pause();
+    std::cout << "    done in " << timer << std::endl;
+
+    std::cout << "    size of LDLt factor = " << Mem::to_string( A_ptr->byte_size() ) << std::endl;
+
+//    std::unique_ptr<TLDLMatrix> A_fac = fac.eval_matrix( A_ptr );
+    std::shared_ptr<HLIB::TFacMatrix> A_fac = std::move(LDL::eval_matrix( A_ptr, A_ptr->form(), facopt ));
+    std::shared_ptr<HLIB::TFacInvMatrix> A_invfac = std::move(LDL::inv_matrix( A_ptr, A_ptr->form(), facopt ));
+    return std::make_tuple(A_fac, A_invfac);
 }
 
 //std::unique_ptr< HLIB::TFacInvMatrix > hmatrix_factorized_inverse_destructive(HLIB::TMatrix * A_ptr, double tol)
@@ -370,9 +426,12 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("print_hello", &print_hello);
 
     py::class_<HLIB::TProgressBar>(m, "TProgressBar");
+    py::class_<HLIB::TFacMatrix, std::shared_ptr<TFacMatrix>>(m, "TFacMatrix");
     py::class_<HLIB::TFacInvMatrix, std::shared_ptr<TFacInvMatrix>>(m, "TFacInvMatrix");
 //    py::class_<HLIB::TFacInvMatrix, std::unique_ptr<TFacInvMatrix>>(m, "TFacInvMatrix");
     py::class_<HLIB::TBlockCluster>(m, "TBlockCluster");
+
+//    py::class_<HLIB::TLDLMatrix, std::shared_ptr<HLIB::TLDLMatrix>>(m, "TLDLMatrix");
 
     py::class_<HLIB::TBlockMatrix>(m, "TBlockMatrix")
         .def(py::init<const TBlockCluster *>(), py::arg("bct")=nullptr);
@@ -551,6 +610,29 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     py::class_<PC2DCoeffFn, HLIB::TCoeffFn<real_t>>(m, "PC2DCoeffFn")
         .def(py::init<const ProductConvolution2d &>());
+
+
+    //
+
+    m.def("ldl_factorization_inplace", &ldl_factorization_inplace);
+    m.def("h_factorized_matvec", &h_factorized_matvec);
+
+    py::enum_<HLIB::eval_type_t>(m, "eval_type_t", py::arithmetic())
+        .value("point_wise", HLIB::eval_type_t::point_wise)
+        .value("block_wise", HLIB::eval_type_t::block_wise)
+        .export_values();
+
+    py::enum_<HLIB::storage_type_t>(m, "storage_type_t", py::arithmetic())
+        .value("store_normal", HLIB::storage_type_t::store_normal)
+        .value("store_inverse", HLIB::storage_type_t::store_inverse)
+        .export_values();
+
+    py::class_<HLIB::fac_options_t>(m, "fac_options_t")
+        .def(py::init<>())
+        .def(py::init<const eval_type_t, const storage_type_t, const bool, TProgressBar *>(),
+             py::arg("aeval"), py::arg("astorage"), py::arg("ado_coarsen"), py::arg("aprogress")=nullptr);
+
+    m.def("LDL_factorize", &LDL::factorise);
 }
 
 
