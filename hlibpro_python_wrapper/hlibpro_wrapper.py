@@ -310,6 +310,50 @@ class FactorizedHMatrix:
     def visualize(me, filename):
         _hpro_cpp.visualize_hmatrix(me.factors_cpp_object, filename)
 
+    def split(me):
+        if me.eval_type == 'point_wise':
+            cpp_eval_type = _hpro_cpp.eval_type_t.point_wise
+        elif me.eval_type == 'block_wise':
+            cpp_eval_type = _hpro_cpp.eval_type_t.block_wise
+        else:
+            raise RuntimeError('eval_type must be point_wise or block_wise. eval_type=', me.eval_type)
+
+        if me.storage_type == 'store_normal':
+            cpp_storage_type = _hpro_cpp.storage_type_t.store_normal
+        elif me.storage_type == 'store_inverse':
+            cpp_storage_type = _hpro_cpp.storage_type_t.store_inverse
+        else:
+            raise RuntimeError('storage_type must be store_normal or store_inverse. storage_type=', me.storage_type)
+
+        fac_options = _hpro_cpp.fac_options_t(cpp_eval_type, cpp_storage_type, me.coarsened)
+
+        if me.factorization_type == 'LDL':
+            LD_list = _hpro_cpp.split_ldl_factorization(me._factors_cpp_object, fac_options)
+            # print('LD_list=', LD_list)
+            # print('LD_list.byte_size()=', LD_list.byte_size())
+            L_cpp_object = LD_list[0]
+            D_cpp_object = LD_list[1]
+            # print('L_cpp_object=', L_cpp_object)
+            # print('D_cpp_object=', D_cpp_object)
+            #
+            # L_cpp_object.byte_size()
+
+            # print('L_cpp_object.rows()=', L_cpp_object.nrows())
+            # L = ASDF(L_cpp_object, me.bct)
+            L = HMatrix(L_cpp_object, me.bct)
+            D = HMatrix(D_cpp_object, me.bct)
+            return L, D
+        else:
+            raise RuntimeError('asdf')
+
+class ASDF:
+    def __init__(me, L, bct):
+        me.L = L
+        me.bct = bct
+        me.row_ct = me.bct.row_ct
+        me.col_ct = me.bct.col_ct
+
+        me.nrow = me.L.rows()
 
 def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol,
           overwrite=False, display_progress=True,
@@ -325,6 +369,8 @@ def h_lu(A_hmatrix, rtol=default_rtol, atol=default_atol,
     return _factorize_h_matrix(A_hmatrix, 'LU', rtol, atol,
                         overwrite, display_progress,
                         eval_type, storage_type, do_coarsen)
+
+
 
 
 def _factorize_h_matrix(A_hmatrix, factorization_type, rtol, atol,

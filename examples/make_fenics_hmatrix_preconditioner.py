@@ -43,23 +43,24 @@ A_csc = K_csc + M_csc
 # dt_fac = time() - t
 # print('dt_fac=', dt_fac)
 
+
 ########    CLUSTER TREE / BLOCK CLUSTER TREE    ########
 
 # ct = hpro.build_cluster_tree_from_dof_coords(dof_coords, 50) # <-- still works, but not preferred
 ct = hpro.build_cluster_tree_from_pointcloud(dof_coords, cluster_size_cutoff=50)
 bct = hpro.build_block_cluster_tree(ct, ct, admissibility_eta=1.0)
 
+
 ########    BUILD HMATRIX    ########
 
 A_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(A_csc, bct)
 
+
 ########   H-LU FACTORIZE HMATRIX    ########
 
-# A_factorized = hpro.h_ldl(A_hmatrix.sym(), rtol=1e-6, atol=0.0, display_progress=True)
-A_factorized = hpro.h_lu(A_hmatrix, rtol=1e-6, atol=0.0, display_progress=True)
+A_factorized = hpro.h_ldl(A_hmatrix.sym(), rtol=1e-6, atol=0.0, display_progress=False)
+# A_factorized = hpro.h_lu(A_hmatrix, rtol=1e-6, atol=0.0, display_progress=True)
 
-# iA_factorized = hpro.h_factorized_inverse(A_hmatrix, rtol=1e-1)
-# iA_factorized = hpro.h_factorized_inverse(A_hmatrix, rtol=1e-1, overwrite=True) # <-- save memory, but fill A_hmatrix with nonsense
 
 ########   APPROXIMATELY SOLVE LINEAR SYSTEM    ########
 
@@ -77,5 +78,13 @@ x3 = spla.gmres(A_csc, y, M=A_factorized.as_linear_operator(inverse=True), tol=1
 err_gmres = np.linalg.norm(x - x3)/np.linalg.norm(x3)
 print('err_gmres=', err_gmres)
 
-#
+# split
 
+y1 = A_factorized.apply(x)
+
+L, D = A_factorized.split()
+
+y2 = L * (D * (L.T * x))
+
+err_LD_split = np.linalg.norm(y2 - y1) / np.linalg.norm(y1)
+print('err_LD_split=', err_LD_split)

@@ -432,6 +432,25 @@ std::shared_ptr<HLIB::TFacInvMatrix> LU_inv_matrix(std::shared_ptr<HLIB::TMatrix
     return std::move(LU::inv_matrix( A.get(), facopt ));
 }
 
+//std::shared_ptr<HLIB::TMatrix>
+std::vector<std::shared_ptr<HLIB::TMatrix>>
+//    split_ldl_factorization(TMatrix * A, const fac_options_t opts)
+    split_ldl_factorization(std::shared_ptr<HLIB::TMatrix> A, const fac_options_t opts)
+{
+    std::pair<HLIB::TMatrix*, HLIB::TMatrix*> LD_pair = LDL::split(A.get(), opts);
+    std::shared_ptr<HLIB::TMatrix> L(LD_pair.first->copy());
+    std::shared_ptr<HLIB::TMatrix> D(LD_pair.second->copy());
+
+//    cout << "L byte size" << L.get()->byte_size() << endl;
+
+//    return L;
+    std::vector<std::shared_ptr<HLIB::TMatrix>> LU_list(2);
+    LU_list[0] = L;
+    LU_list[1] = D;
+    return LU_list;
+}
+
+
 void print_hello() {
     std::cout << "hello" << std::endl;
 }
@@ -657,7 +676,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .export_values();
 
 //    py::class_<HLIB::fac_options_t, std::shared_ptr<HLIB::fac_options_t>>(m, "fac_options_t")
-    py::class_<HLIB::fac_options_t>(m, "fac_options_t")
+    py::class_<HLIB::fac_options_t, std::shared_ptr<HLIB::fac_options_t>>(m, "fac_options_t")
         .def(py::init<>())
         .def(py::init<const eval_type_t, const storage_type_t, const bool, TProgressBar *>(),
              py::arg("aeval"), py::arg("astorage"), py::arg("ado_coarsen"), py::arg("aprogress")=nullptr);
@@ -678,5 +697,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .value("MATFORM_SYM", HLIB::matform_t::MATFORM_SYM)
         .value("MATFORM_HERM", HLIB::matform_t::MATFORM_HERM)
         .export_values();
+
+    m.def("split_ldl_factorization", &split_ldl_factorization);
 }
 
