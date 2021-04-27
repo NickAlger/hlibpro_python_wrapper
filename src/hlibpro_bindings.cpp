@@ -691,7 +691,10 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     py::class_<HLIB::fac_options_t, std::shared_ptr<HLIB::fac_options_t>>(m, "fac_options_t")
         .def(py::init<>())
         .def(py::init<const eval_type_t, const storage_type_t, const bool, TProgressBar *>(),
-             py::arg("aeval"), py::arg("astorage"), py::arg("ado_coarsen"), py::arg("aprogress")=nullptr);
+             py::arg("aeval"),
+             py::arg("astorage"),
+             py::arg("ado_coarsen"),
+             py::arg("aprogress")=nullptr);
 
     m.def("LDL_factorize", &LDL::factorise);
     m.def("LDL_eval_matrix", &LDL_eval_matrix);
@@ -712,5 +715,19 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     m.def("split_ldl_factorization", &split_ldl_factorization);
     m.def("split_lu_factorization", &split_lu_factorization);
-}
 
+    py::enum_<HLIB::BLAS::diag_type_t>(m, "diag_type_t", py::arithmetic())
+        .value("unit_diag", HLIB::BLAS::diag_type_t::unit_diag)
+        .value("general_diag", HLIB::BLAS::diag_type_t::general_diag)
+        .export_values();
+
+    py::class_<HLIB::inv_options_t, std::shared_ptr<HLIB::inv_options_t>>(m, "inv_options_t")
+        .def(py::init<>())
+        .def(py::init<const diag_type_t, const storage_type_t, const bool, TProgressBar *>(),
+             py::arg("adiag")=general_diag,
+             py::arg("astorage")=store_normal,
+             py::arg("acoarsen")=CFG::Arith::coarsen,
+             py::arg("aprogress")=nullptr);
+
+    m.def("invert_h_matrix", static_cast<void (*)(TMatrix *, const TTruncAcc &, const inv_options_t &)>(&HLIB::invert));
+}

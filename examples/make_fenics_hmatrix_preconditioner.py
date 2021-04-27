@@ -91,3 +91,10 @@ y2 = L * (U * x)
 
 err_split = np.linalg.norm(y2 - y1) / np.linalg.norm(y1)
 print('err_split=', err_split)
+
+# invert
+
+iA_hmatrix = hpro.h_inv(A_hmatrix, rtol=1e-12, atol=1e-15)
+
+err_inv = np.linalg.norm(A_csc * (iA_hmatrix * x) - x) / np.linalg.norm(x)
+print('err_inv=', err_inv)

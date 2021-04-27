@@ -342,27 +342,69 @@ class FactorizedHMatrix:
         else:
             raise RuntimeError('asdf')
 
+def h_inv(A_hmatrix, rtol=default_rtol, atol=default_atol,
+          overwrite=False, display_progress=True,
+          diag_type='general_diag', storage_type='store_normal', do_coarsen=False):
+    # Look in hpro/algebra/mat_inv.hh
+    acc = _hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
+
+    if do_coarsen:
+        raise RuntimeError('coarsening inverse of hmatrix not implemented yet in python wrapper')
+
+    if overwrite:
+        inverse_cpp_object = A_hmatrix.cpp_object
+    else:
+        inverse_cpp_object = _hpro_cpp.copy_TMatrix(A_hmatrix.cpp_object)
+
+    if diag_type == 'general_diag':
+        cpp_diag_type = _hpro_cpp.diag_type_t.general_diag
+    elif diag_type == 'unit_diag':
+        cpp_diag_type = _hpro_cpp.diag_type_t.unit_diag
+    else:
+        raise RuntimeError('diag_type must be general_diag or unit_diag. diag_type=', diag_type)
+
+    if storage_type == 'store_normal':
+        cpp_storage_type = _hpro_cpp.storage_type_t.store_normal
+    elif storage_type == 'store_inverse':
+        cpp_storage_type = _hpro_cpp.storage_type_t.store_inverse
+    else:
+        raise RuntimeError('storage_type must be store_normal or store_inverse. storage_type=', storage_type)
+
+    if display_progress:
+        progress_bar = _hpro_cpp.TConsoleProgressBar()
+        inv_options = _hpro_cpp.inv_options_t(cpp_diag_type, cpp_storage_type, do_coarsen, progress_bar)
+    else:
+        inv_options = _hpro_cpp.fac_options_t(cpp_diag_type, cpp_storage_type, do_coarsen)
+
+    print('━━ H-matrix inverse ( rtol = ', rtol, ', atol = ', atol, ', overwrite=', overwrite, ' )')
+
+    t = time()
+    _hpro_cpp.invert_h_matrix(inverse_cpp_object, acc, inv_options)
+    dt_inv = time() - t
+
+    print('    done in ', dt_inv)
+    print('    size of inverse = ', inverse_cpp_object.byte_size(), ' bytes')
+
+    return HMatrix(inverse_cpp_object, A_hmatrix.bct)
 
 
 def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol,
           overwrite=False, display_progress=True,
           eval_type='block_wise', storage_type='store_normal', do_coarsen=False):
     return _factorize_h_matrix(A_hmatrix, 'LDL', rtol, atol,
-                        overwrite, display_progress,
-                        eval_type, storage_type, do_coarsen)
+                               overwrite, display_progress,
+                               eval_type, storage_type, do_coarsen)
 
 
 def h_lu(A_hmatrix, rtol=default_rtol, atol=default_atol,
          overwrite=False, display_progress=True,
          eval_type='block_wise', storage_type='store_normal', do_coarsen=False):
     return _factorize_h_matrix(A_hmatrix, 'LU', rtol, atol,
-                        overwrite, display_progress,
-                        eval_type, storage_type, do_coarsen)
+                               overwrite, display_progress,
+                               eval_type, storage_type, do_coarsen)
 
 
-
-
-def _factorize_h_matrix(A_hmatrix, factorization_type, rtol, atol,
+def _factorize_h_matrix(A_hmatrix, operation_to_perform, rtol, atol,
                         overwrite, display_progress,
                         eval_type, storage_type, do_coarsen):
     # Look in hpro/algebra/mat_fac.hh
@@ -394,13 +436,13 @@ def _factorize_h_matrix(A_hmatrix, factorization_type, rtol, atol,
         fac_options = _hpro_cpp.fac_options_t(cpp_eval_type, cpp_storage_type, do_coarsen)
 
 
-    print('━━ ', factorization_type, ' factorisation ( rtol = ', rtol, ', atol = ', atol, ', overwrite=', overwrite,' )')
+    print('━━ ', operation_to_perform, ' factorisation ( rtol = ', rtol, ', atol = ', atol, ', overwrite=', overwrite, ' )')
 
-    if factorization_type == 'LDL':
+    if operation_to_perform == 'LDL':
         t = time()
         _hpro_cpp.LDL_factorize(factors_cpp_object, acc, fac_options)
         dt_fac = time() - t
-    elif factorization_type == 'LU':
+    elif operation_to_perform == 'LU':
         t = time()
         _hpro_cpp.LU_factorize(factors_cpp_object, acc, fac_options)
         dt_fac = time() - t
@@ -412,7 +454,7 @@ def _factorize_h_matrix(A_hmatrix, factorization_type, rtol, atol,
     eval_inverse_cpp_object = _hpro_cpp.LDL_inv_matrix(factors_cpp_object, fac_options)
 
     return FactorizedHMatrix(eval_cpp_object, eval_inverse_cpp_object, factors_cpp_object, A_hmatrix.bct,
-                             eval_type, storage_type, do_coarsen, factorization_type)
+                             eval_type, storage_type, do_coarsen, operation_to_perform)
 
 
 
