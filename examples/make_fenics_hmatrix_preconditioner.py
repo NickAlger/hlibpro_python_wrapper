@@ -94,7 +94,8 @@ print('err_split=', err_split)
 
 # invert
 
-iA_hmatrix = hpro.h_inv(A_hmatrix, rtol=1e-12, atol=1e-15)
+# iA_hmatrix = hpro.h_inv(A_hmatrix, rtol=1e-12, atol=1e-15)
+iA_hmatrix = A_hmatrix.inv(rtol=1e-12, atol=1e-15)
 
 err_inv = np.linalg.norm(A_csc * (iA_hmatrix * x) - x) / np.linalg.norm(x)
 print('err_inv=', err_inv)

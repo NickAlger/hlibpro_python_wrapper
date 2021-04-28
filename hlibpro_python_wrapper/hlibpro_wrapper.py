@@ -140,6 +140,13 @@ class HMatrix:
     def __imatmul__(me, other):
         return me.__imul__(me, other)
 
+    def inv(me, rtol=default_rtol, atol=default_atol,
+            overwrite=False, display_progress=True,
+            diag_type='general_diag', storage_type='store_normal', do_coarsen=False):
+        return h_inv(me, rtol=rtol, atol=atol,
+                     overwrite=overwrite, display_progress=display_progress,
+                     diag_type=diag_type, storage_type=storage_type, do_coarsen=do_coarsen)
+
     def factorized_inverse(me, rtol=default_rtol, atol=default_atol, overwrite=False):
         return h_factorized_inverse(me, rtol=rtol, atol=atol)
 
@@ -385,7 +392,10 @@ def h_inv(A_hmatrix, rtol=default_rtol, atol=default_atol,
     print('    done in ', dt_inv)
     print('    size of inverse = ', inverse_cpp_object.byte_size(), ' bytes')
 
-    return HMatrix(inverse_cpp_object, A_hmatrix.bct)
+    if overwrite:
+        return A_hmatrix
+    else:
+        return HMatrix(inverse_cpp_object, A_hmatrix.bct)
 
 
 def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol,
