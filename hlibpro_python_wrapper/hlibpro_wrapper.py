@@ -35,6 +35,9 @@ class HMatrix:
     def col_ct(me):
         return me._col_ct
 
+    def byte_size(me):
+        return me.cpp_object.byte_size()
+
     def copy(me):
         return HMatrix(_hpro_cpp.copy_TMatrix(me.cpp_object), me.bct)
 
