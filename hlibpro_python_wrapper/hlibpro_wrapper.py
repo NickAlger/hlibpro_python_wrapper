@@ -150,10 +150,20 @@ class HMatrix:
     def factorized_inverse(me, rtol=default_rtol, atol=default_atol, overwrite=False):
         return h_factorized_inverse(me, rtol=rtol, atol=atol)
 
+    def add_identity(me, s=1.0, overwrite=False):
+        return add_identity_to_hmatrix(me, s=s, overwrite=overwrite)
+
     def visualize(me, filename):
         _hpro_cpp.visualize_hmatrix(me.cpp_object, filename)
 
 
+def add_identity_to_hmatrix(A_hmatrix, s=1.0, overwrite=False):
+    if overwrite:
+        A_plus_alpha_I = A_hmatrix
+    else:
+        A_plus_alpha_I = A_hmatrix.copy()
+    _hpro_cpp.add_identity_to_hmatrix(A_plus_alpha_I.cpp_object, s)
+    return A_plus_alpha_I
 
 
 def h_add(A_hmatrix, B_hmatrix, alpha=1.0, beta=1.0, rtol=default_rtol, atol=default_atol, overwrite_B=False):

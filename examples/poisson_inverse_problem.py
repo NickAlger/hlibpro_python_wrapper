@@ -7,8 +7,6 @@ from time import time
 import hlibpro_python_wrapper as hpro
 
 
-#### WORK IN PROGRESS ####
-
 ########    SET UP FORWARD PROBLEM    ########
 
 num_obs=400
