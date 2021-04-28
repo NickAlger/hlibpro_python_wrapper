@@ -405,6 +405,11 @@ std::shared_ptr<HLIB::TMatrix> copy_TMatrix(std::shared_ptr<HLIB::TMatrix> A)
     return std::move(A_copy);
 }
 
+void copy_TMatrix_into_another_TMatrix(HLIB::TMatrix * source, HLIB::TMatrix * target)
+{
+    source->copy_to(target);
+}
+
 std::shared_ptr<HLIB::TMatrix> copy_struct_TMatrix(std::shared_ptr<HLIB::TMatrix> A)
 {
     std::unique_ptr<HLIB::TMatrix> A_copy_struct = A->copy_struct();
@@ -571,6 +576,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     m.def("copy_TMatrix", &copy_TMatrix);
     m.def("copy_struct_TMatrix", &copy_struct_TMatrix);
+    m.def("copy_TMatrix_into_another_TMatrix", &copy_TMatrix_into_another_TMatrix);
 
     m.def("add", &add<real_t>);
     m.def("multiply_without_progress_bar", &multiply_without_progress_bar<real_t>);

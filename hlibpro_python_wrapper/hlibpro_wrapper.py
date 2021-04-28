@@ -41,6 +41,10 @@ class HMatrix:
     def copy_struct(me):
         return HMatrix(_hpro_cpp.copy_struct_TMatrix(me.cpp_object), me.bct)
 
+    def copy_to(me, other):
+        _hpro_cpp.copy_TMatrix_into_another_TMatrix(me.cpp_object, other.cpp_object)
+        other._bct = me.bct
+
     def transpose(me, overwrite=False):
         if overwrite:
             me._cpp_object.transpose()
