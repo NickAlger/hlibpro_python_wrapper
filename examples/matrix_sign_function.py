@@ -4,6 +4,8 @@ import scipy.sparse.linalg as spla
 import scipy.linalg as sla
 import fenics
 from time import time
+from tqdm.auto import tqdm
+import matplotlib.pyplot as plt
 import hlibpro_python_wrapper as hpro
 
 ########    SET UP PROBLEM    ########
@@ -72,10 +74,69 @@ eig_true = spla.eigsh(A_hmatrix, 1)[0][0]
 print('eig=', eig, ', eig_true=', eig_true)
 
 
-shift = -2.34567
+# shift = -1.6789
+shift = -1.2345
 
 inv_tol = 1e-9
 newton_tol = 1e-4
+
+X = A_hmatrix.copy()
+X.add_identity(s=shift, overwrite=True)
+
+lambda_max = spla.eigsh(X, 1)[0][0]
+# lambda_max = get_largest_eigenvalue(X, display=True)
+X2_linop = spla.LinearOperator(A_hmatrix.shape, matvec=lambda x: lambda_max * x - X * x)
+lambda_min = lambda_max - spla.eigsh(X2_linop, 1)[0][0]
+print('lambda_min=', lambda_min, ', lambda_max=', lambda_max)
+
+mu = 2.0 * np.abs(lambda_min)
+gamma = np.abs(lambda_min)*(mu - np.abs(lambda_min))
+
+c1 = (1. / (1. + gamma / (lambda_max*(lambda_max + mu))))
+c2 = c1 * gamma
+
+X_plus = X.copy()
+X_plus.add_identity(mu, overwrite=True)
+X_plus.inv(overwrite=True)
+# hpro.h_add(X, X_plus, alpha=1.0, beta=c2, overwrite_B=True)
+hpro.h_add(X, X_plus, alpha=c1, beta=c1*c2, overwrite_B=True)
+
+X_plus.visualize('X_plus')
+
+X_dense = np.zeros(X.shape)
+for k in tqdm(range(X.shape[1])):
+    ek = np.zeros(X_dense.shape[1])
+    ek[k] = 1.0
+    X_dense[:,k] = X * ek
+
+X_plus_dense = np.zeros(X.shape)
+for k in tqdm(range(X.shape[1])):
+    ek = np.zeros(X_plus_dense.shape[1])
+    ek[k] = 1.0
+    X_plus_dense[:,k] = X_plus * ek
+
+dd, P = np.linalg.eigh(X_dense)
+dd_plus, P_plus = np.linalg.eigh(X_plus_dense)
+
+# dd_plus = dd + c / (dd + mu)
+# dd_plus2 = (lambda_max / (lambda_max + c / (lambda_max + mu))) * dd_plus
+# dd_plus2 = (1. / (1. + c2 / (lambda_max*(lambda_max + mu)))) * dd_plus
+
+plt.figure()
+plt.plot(dd)
+plt.plot(dd_plus)
+# plt.plot(dd_plus2)
+
+X_plus_dense = np.dot(P, np.dot(np.diag(dd_plus), P.T))
+
+x = np.random.randn(V.dim())
+y1 = X_plus_dense * x
+y2 = X_plus * x
+err_X_plus = np.linalg.norm(y2 - y1) / np.linalg.norm(y1)
+print('err_X_plus=', err_X_plus)
+
+####
+
 
 M1 = A_hmatrix.copy()
 M1.add_identity(s=shift, overwrite=True)
