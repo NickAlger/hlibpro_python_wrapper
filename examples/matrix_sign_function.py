@@ -71,25 +71,46 @@ eig = get_largest_eigenvalue(A_hmatrix, display=True)
 eig_true = spla.eigsh(A_hmatrix, 1)[0][0]
 print('eig=', eig, ', eig_true=', eig_true)
 
+
 shift = -2.34567
-S = A_hmatrix.copy()
-S.add_identity(s=shift, overwrite=True)
-iS = S.copy()
 
-for k in range(8):
-    iS.inv(overwrite=True,rtol=1e-10)
+inv_tol = 1e-9
+newton_tol = 1e-4
 
-    # norm_S = spla.eigsh(S, 1)[0][0]
-    # norm_iS = spla.eigsh(iS, 1)[0][0]
-    norm_S = get_largest_eigenvalue(S)
-    norm_iS = get_largest_eigenvalue(iS)
+M1 = A_hmatrix.copy()
+M1.add_identity(s=shift, overwrite=True)
+M2 = M1.copy()
+# M1 = M2 = S_old
 
+norm_S = get_largest_eigenvalue(M1)
+
+for k in range(7):
+    M2.inv(overwrite=True, rtol=inv_tol)
+    # M1 = S_old, M2 = inv(S_old),
+
+    norm_iS = get_largest_eigenvalue(M2)
     mu = np.sqrt(norm_iS / norm_S)
-
     print('k=', k, ', norm_S=', norm_S, ', norm_iS=', norm_iS)
 
-    hpro.h_add(iS, S, alpha=0.5/mu, beta=0.5*mu, overwrite_B=True)
-    S.copy_to(iS)
+    hpro.h_add(M1, M2, alpha=0.5 * mu, beta=0.5 / mu, overwrite_B=True)
+    # M1 = S_old, M2 = S_new
+
+    norm_S = get_largest_eigenvalue(M2)
+
+    hpro.h_add(M2, M1, alpha=1.0, beta=-1.0, overwrite_B=True)
+    # M1 = S_new - S_old, M2 = S_new
+
+    norm_diff = get_largest_eigenvalue(M1)
+    rel_err = norm_diff / norm_S
+    print('rel_err=', rel_err)
+
+    M2.copy_to(M1)
+    # M1 = M2 = S_new
+
+    if rel_err**2 < newton_tol:
+        break
+
+S = M1
 
 x = np.random.randn(V.dim())
 
@@ -104,13 +125,3 @@ S2 = sla.signm(A_dense2)
 np.linalg.norm(S2 @ x - S * x) / np.linalg.norm(S2 @ x)
 
 ####
-
-A_hmatrix.copy_to(iA_hmatrix)
-
-x = np.random.randn(V.dim())
-
-print(np.linalg.norm(A_hmatrix * x - iA_hmatrix * x))
-
-iA_hmatrix.inv(overwrite=True)
-
-print(np.linalg.norm(A_hmatrix * (iA_hmatrix * x) -  x) / np.linalg.norm(x))
