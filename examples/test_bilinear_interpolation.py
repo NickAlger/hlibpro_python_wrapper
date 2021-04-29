@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from nalger_helper_functions import make_regular_grid
 from time import time
 from scipy.interpolate import interpn
-import hlibpro_python_wrapper as hpw
-hcpp = hpw.hpro_cpp
+import hlibpro_python_wrapper as hpro
+hcpp = hpro.hpro_cpp
 
 make_plots=False
 

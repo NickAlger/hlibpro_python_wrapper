@@ -2,7 +2,7 @@ import numpy as np
 from nalger_helper_functions import *
 import matplotlib.pyplot as plt
 from time import time
-from hlibpro_python_wrapper import *
+import hlibpro_python_wrapper as hpro
 
 s = 0.3
 
@@ -64,9 +64,9 @@ FF_mins = [F1.min, F2.min, F3.min]
 FF_maxes = [F1.max, F2.max, F3.max]
 FF_arrays = [F1.array, F2.array, F3.array]
 
-PC_cpp = hpro_cpp.ProductConvolution2d(WW_mins, WW_maxes, WW_arrays,
-                                       FF_mins, FF_maxes, FF_arrays,
-                                       row_coords, col_coords)
+PC_cpp = hpro.hpro_cpp.ProductConvolution2d(WW_mins, WW_maxes, WW_arrays,
+                                            FF_mins, FF_maxes, FF_arrays,
+                                            row_coords, col_coords)
 
 num_entries = 53
 
@@ -116,7 +116,7 @@ err_get_block = np.linalg.norm(B_true - B)
 print('err_get_block=', err_get_block)
 
 t = time()
-M = PC_cpp.get_array()
+A = PC_cpp.get_array()
 dt_get_array_cpp = time() - t
 print('dt_get_array_cpp=', dt_get_array_cpp)
 
@@ -129,7 +129,7 @@ for k in range(num_checks):
     c = cc_check[k]
     y = row_coords[r,:].reshape((1,-1))
     x = col_coords[c,:].reshape((1,-1))
-    entry = M[r,c]
+    entry = A[r, c]
     entry_true = W1(x) * F1(y - x) + W2(x) * F2(y - x) + W3(x) * F3(y - x)
     errs_get_array[k] = np.abs(entry - entry_true)
 
@@ -138,26 +138,26 @@ print('err_get_array=', err_get_array)
 
 ##
 
-u = np.random.randn(M.shape[1])
+u = np.random.randn(A.shape[1])
 
 tol=1e-6
 dense_cluster_cutoff = 5
 admissibility_eta = 1.0
 
-row_ct = build_cluster_tree_from_dof_coords(row_coords, dense_cluster_cutoff)
-col_ct = build_cluster_tree_from_dof_coords(col_coords, dense_cluster_cutoff)
+row_ct = hpro.build_cluster_tree_from_pointcloud(row_coords, dense_cluster_cutoff)
+col_ct = hpro.build_cluster_tree_from_pointcloud(col_coords, dense_cluster_cutoff)
 # col_ct = row_ct
-bct = build_block_cluster_tree(row_ct, col_ct, admissibility_eta)
+bct = hpro.build_block_cluster_tree(row_ct, col_ct, admissibility_eta)
 
-M_hmatrix = build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
-                                                 FF_mins, FF_maxes, FF_arrays,
-                                                 row_coords, col_coords, bct, tol=tol)
+A_hmatrix = hpro.build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
+                                                      FF_mins, FF_maxes, FF_arrays,
+                                                      row_coords, col_coords, bct, tol=tol)
 
-v1 = np.dot(M, u)
-v2 = M_hmatrix.matvec(u)
+v1 = np.dot(A, u)
+v2 = A_hmatrix.matvec(u)
 
 err_hmatrix = np.linalg.norm(v2 - v1) / np.linalg.norm(v1)
 print('err_hmatrix=', err_hmatrix)
 
-visualize_block_cluster_tree(bct, 'grid_bct')
-visualize_hmatrix(M_hmatrix, 'grid_PC')
+bct.visualize('grid_bct')
+A_hmatrix.visualize('grid_PC')
