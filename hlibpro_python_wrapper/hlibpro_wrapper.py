@@ -61,8 +61,11 @@ class HMatrix:
     def T(me):
         return me.transpose()
 
-    def sym(me, rtol=default_rtol, atol=default_atol):
-        A_sym = h_add(me, me.T, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
+    def sym(me, rtol=default_rtol, atol=default_atol, overwrite=False):
+        if overwrite:
+            A_sym = h_add(me.T, me, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
+        else:
+            A_sym = h_add(me, me.T, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
         A_sym._set_symmetric()
         return A_sym
 
@@ -609,5 +612,53 @@ def build_cluster_tree_from_pointcloud(points, cluster_size_cutoff=50):
 build_cluster_tree_from_dof_coords = build_cluster_tree_from_pointcloud
 
 
+def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=False):
+    '''Form symmetric positive definite approximation of hmatrix A
+    using rational approximation of the form:
+      A_spd = c1*A.sym() + c2 * (A.sym() + mu*I)^-1
+
+    Constants c1, c2, mu are chosen such that:
+      lambda_min(A_spd) = 0,
+      lambda_max(A_spd) = lambda_max(A.sym())
+      mu is as small as possible, while maintaining positive definiteness
+
+    :param A: HMatrix
+    :param overwrite: bool. Overwrite A if true. Otherwise, keep A intact and modify a copy of A
+    :return: HMatrix. Positive definite approximation of A
+    '''
+    if overwrite:
+        M1 = A
+    else:
+        M1 = A.copy()
+
+    M2 = A.T
+    ####     current state:    M1 = A
+    ##                         M2 = A^T
+
+    h_add(M2, M1, alpha=0.5, beta=0.5, rtol=1e-10, atol=1e-15, overwrite_B=True)
+    M1.copy_to(M2)
+    ####     current state:    M1 = A.sym()
+    ####                       M2 = A.sym()
+
+    lambda_max = spla.eigsh(M1, 1)[0][0]
+    A2_linop = spla.LinearOperator(M1.shape, matvec=lambda x: lambda_max * x - M1 * x)
+    lambda_min = lambda_max - spla.eigsh(A2_linop, 1)[0][0]
+    print('A.sym(): lambda_min=', lambda_min, ', lambda_max=', lambda_max)
+
+    mu = 2.0 * np.abs(lambda_min)
+    gamma = np.abs(lambda_min)*(mu - np.abs(lambda_min))
+    c1 = (1. / (1. + gamma / (lambda_max*(lambda_max + mu))))
+    c2 = c1 * gamma
+
+    M2.add_identity(mu, overwrite=True)
+    M2.inv(overwrite=True)
+    ####     current state:    M1 = A.sym()
+    ####                       M2 = (A.sym() + mu*I)^-1
+
+    h_add(M2, M1, alpha=c2, beta=c1, overwrite_B=True)
+    ####     current state:    M1 = c1*A.sym() + c2(A.sym() + mu*I)^-1
+    ####                       M2 = (A.sym() + mu*I)^-1
+
+    return M1
 
 
