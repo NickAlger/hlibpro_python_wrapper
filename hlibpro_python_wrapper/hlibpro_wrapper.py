@@ -533,6 +533,7 @@ def build_product_convolution_hmatrix_2d(WW_mins, WW_maxes, WW_arrays,
 
     PC_coefffn = hpro_cpp.PC2DCoeffFn(PC_cpp)
     hmatrix_cpp_object = hpro_cpp.build_hmatrix_from_coefffn(PC_coefffn, block_cluster_tree.cpp_object, tol)
+
     return HMatrix(hmatrix_cpp_object, block_cluster_tree)
 
 
