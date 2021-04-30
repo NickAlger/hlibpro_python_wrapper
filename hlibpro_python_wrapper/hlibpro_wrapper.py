@@ -613,7 +613,7 @@ def build_cluster_tree_from_pointcloud(points, cluster_size_cutoff=50):
 build_cluster_tree_from_dof_coords = build_cluster_tree_from_pointcloud
 
 
-def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=False):
+def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=False, rtol=1e-10, atol=1e-15):
     '''Form symmetric positive definite approximation of hmatrix A
     using rational approximation of the form:
       A_spd = c1*A.sym() + c2 * (A.sym() + mu*I)^-1
@@ -636,8 +636,8 @@ def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=Fals
     ####     current state:    M1 = A
     ##                         M2 = A^T
 
-    h_add(M2, M1, alpha=0.5, beta=0.5, rtol=1e-10, atol=1e-15, overwrite_B=True)
-    M1.copy_to(M2)
+    h_add(M2, M1, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
+    M2 = M1.copy() # M1.copy_to(M2) # COPY FOR DEBUGGING
     ####     current state:    M1 = A.sym()
     ####                       M2 = A.sym()
 
@@ -646,17 +646,20 @@ def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=Fals
     lambda_min = lambda_max - spla.eigsh(A2_linop, 1)[0][0]
     print('A.sym(): lambda_min=', lambda_min, ', lambda_max=', lambda_max)
 
-    mu = 2.0 * np.abs(lambda_min)
-    gamma = np.abs(lambda_min)*(mu - np.abs(lambda_min))
+    # zerpoint: location where rational function crosses zero.
+    # Slightly smaller than lambda_min to ensure positive definiteness with inexact hmatrix arithmetic
+    zeropoint = np.abs(lambda_min) * (1. + 10*rtol)
+    mu = 2.0 * zeropoint
+    gamma = zeropoint*(mu - zeropoint)
     c1 = (1. / (1. + gamma / (lambda_max*(lambda_max + mu))))
     c2 = c1 * gamma
 
     M2.add_identity(mu, overwrite=True)
-    M2.inv(overwrite=True)
+    M2.inv(overwrite=True, rtol=rtol, atol=atol)
     ####     current state:    M1 = A.sym()
     ####                       M2 = (A.sym() + mu*I)^-1
 
-    h_add(M2, M1, alpha=c2, beta=c1, overwrite_B=True)
+    h_add(M2, M1, alpha=c2, beta=c1, rtol=rtol, atol=atol, overwrite_B=True)
     ####     current state:    M1 = c1*A.sym() + c2(A.sym() + mu*I)^-1
     ####                       M2 = (A.sym() + mu*I)^-1
 
