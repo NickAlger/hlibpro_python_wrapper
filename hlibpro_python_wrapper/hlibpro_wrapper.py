@@ -648,7 +648,7 @@ def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=Fals
 
     # zerpoint: location where rational function crosses zero.
     # Slightly smaller than lambda_min to ensure positive definiteness with inexact hmatrix arithmetic
-    zeropoint = np.abs(lambda_min) * (1. + 10*rtol)
+    zeropoint = np.abs(lambda_min) * (1. + 2*rtol)
     mu = 2.0 * zeropoint
     gamma = zeropoint*(mu - zeropoint)
     c1 = (1. / (1. + gamma / (lambda_max*(lambda_max + mu))))
