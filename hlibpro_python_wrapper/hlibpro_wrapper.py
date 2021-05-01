@@ -624,7 +624,7 @@ def rational_positive_definite_approximation_method1(A, overwrite=False,
 
     Constants c1, c2, mu are chosen such that:
       f(M) = M
-      f(0) = 0
+      f(0) = h =approx= 0  (slightly bigger than zero to ensure positive definiteness with inexact hmatrix arithmetic)
       f'(0) = 0
       f(m) = min_eig_scale * |m|
 
@@ -656,7 +656,9 @@ def rational_positive_definite_approximation_method1(A, overwrite=False,
     m = M - spla.eigsh(A2_linop, 1)[0][0]
     print('A.sym(): lambda_min=', m, ', lambda_max=', M)
 
-    b = np.array([M, 0, 0])
+    h = rtol_inv * np.abs(m)
+
+    b = np.array([M, h, 0])
 
     def make_A(mu):
         return np.array([[1, M, 1 / (M + mu)],
