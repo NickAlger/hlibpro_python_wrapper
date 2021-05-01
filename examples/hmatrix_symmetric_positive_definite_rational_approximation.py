@@ -46,14 +46,14 @@ bct = hpro.build_block_cluster_tree(ct, ct, admissibility_eta=2.0)
 A_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(A_csc, bct)
 
 
-########    COMPUTE HMATRIX SPD APPROXIMATION    ########
+########    COMPUTE HMATRIX SPD APPROXIMATION, METHOD 1    ########
 
-A_spd_hmatrix = hpro.hmatrix_symmetric_positive_definite_rational_approximation(A_hmatrix, overwrite=False)
+A_spd_hmatrix = hpro.rational_positive_definite_approximation_method1(A_hmatrix, overwrite=False, atol_inv=1e-6)
 
 A_spd_hmatrix.visualize('A_spd_hmatrix')
 
 
-########    CHECK CORRECTNESS VIA DENSE LINEAR ALGEBRA    ########
+########    CHECK CORRECTNESS VIA DENSE LINEAR ALGEBRA, METHOD 1    ########
 
 A_dense = np.zeros(A_hmatrix.shape)
 for k in tqdm(range(A_dense.shape[1])):
@@ -68,12 +68,17 @@ for k in tqdm(range(A_spd_dense.shape[1])):
     A_spd_dense[:,k] = A_spd_hmatrix * ek
 
 dd, P = np.linalg.eigh(A_dense)
-dd_spd, P_spd = np.linalg.eigh(A_spd_dense)
+_, P_spd = np.linalg.eigh(A_spd_dense)
+RQ = np.dot(P.T, np.dot(A_spd_dense, P))
+dd_spd = RQ.diagonal()
 
 A_dense2 = np.dot(P_spd, np.dot(np.diag(dd), P_spd.T))
 
-err_eigenvectors = np.linalg.norm(A_dense - A_dense) / np.linalg.norm(A_dense)
-print('err_eigenvectors=', err_eigenvectors)
+err_eigenvectors1 = np.linalg.norm(A_dense - A_dense) / np.linalg.norm(A_dense)
+print('err_eigenvectors1=', err_eigenvectors1)
+
+err_eigenvectors2 = np.linalg.norm(RQ - np.diag(RQ.diagonal())) / np.linalg.norm(RQ)
+print('err_eigenvectors2=', err_eigenvectors2)
 
 plt.figure()
 plt.plot(dd)
@@ -81,4 +86,49 @@ plt.plot(dd_spd)
 plt.xlabel('i')
 plt.ylabel('lambda_i')
 plt.legend(['Original A', 'SPD approximation of A'])
-plt.title('Eigenvalues of original, and SPD modified hmatrix')
+plt.title('SPD eigenvalue modifications, method 1')
+
+
+########    COMPUTE HMATRIX SPD APPROXIMATION, METHOD 2    ########
+
+A_spd_hmatrix = hpro.rational_positive_definite_approximation_method2(A_hmatrix, overwrite=False, atol_inv=1e-6)
+
+A_spd_hmatrix.visualize('A_spd_hmatrix')
+
+
+########    CHECK CORRECTNESS VIA DENSE LINEAR ALGEBRA, METHOD 2    ########
+
+A_dense = np.zeros(A_hmatrix.shape)
+for k in tqdm(range(A_dense.shape[1])):
+    ek = np.zeros(A_dense.shape[1])
+    ek[k] = 1.0
+    A_dense[:,k] = A_hmatrix * ek
+
+A_spd_dense = np.zeros(A_spd_hmatrix.shape)
+for k in tqdm(range(A_spd_dense.shape[1])):
+    ek = np.zeros(A_spd_dense.shape[1])
+    ek[k] = 1.0
+    A_spd_dense[:,k] = A_spd_hmatrix * ek
+
+dd, P = np.linalg.eigh(A_dense)
+_, P_spd = np.linalg.eigh(A_spd_dense)
+RQ = np.dot(P.T, np.dot(A_spd_dense, P))
+dd_spd = RQ.diagonal()
+
+A_dense2 = np.dot(P_spd, np.dot(np.diag(dd), P_spd.T))
+
+err_eigenvectors1 = np.linalg.norm(A_dense - A_dense) / np.linalg.norm(A_dense)
+print('err_eigenvectors1=', err_eigenvectors1)
+
+err_eigenvectors2 = np.linalg.norm(RQ - np.diag(RQ.diagonal())) / np.linalg.norm(RQ)
+print('err_eigenvectors2=', err_eigenvectors2)
+
+plt.figure()
+plt.plot(dd)
+plt.plot(dd_spd)
+plt.xlabel('i')
+plt.ylabel('lambda_i')
+plt.legend(['Original A', 'SPD approximation of A'])
+plt.title('SPD eigenvalue modifications, method 2')
+
+

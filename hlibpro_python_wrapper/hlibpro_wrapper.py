@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.sparse.linalg as spla
+from scipy.optimize import root_scalar
 from scipy.io import savemat
 from time import time
 from . import hlibpro_bindings as hpro_cpp
@@ -613,7 +614,95 @@ def build_cluster_tree_from_pointcloud(points, cluster_size_cutoff=50):
 build_cluster_tree_from_dof_coords = build_cluster_tree_from_pointcloud
 
 
-def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=False, rtol=1e-10, atol=1e-15):
+def rational_positive_definite_approximation_method1(A, overwrite=False,
+                                              rtol_inv=1e-2, atol_inv=1e-15,
+                                              rtol_add=1e-10, atol_add=1e-15,
+                                              min_eig_scale=1.0):
+    '''Form symmetric positive definite approximation of hmatrix A with eigenvalues in [m, M]
+    using rational approximation of the form:
+      A_spd = f(A.sym()) = c0*I + c1*A.sym() + c2 * (A.sym() + mu*I)^-1
+
+    Constants c1, c2, mu are chosen such that:
+      f(M) = M
+      f(0) = 0
+      f'(0) = 0
+      f(m) = min_eig_scale * |m|
+
+    :param A : HMatrix
+    :param overwrite : bool. Overwrite A if true. Otherwise, keep A intact and modify a copy of A
+    :param rtol_inv : positive float. Relative error tolerance for H-matrix inversion
+    :param atol_inv : nonnegative float. Absolute error tolerance for H-matrix inversion
+    :param rtol_add : positive float. Relative error tolerance for H-matrix addition
+    :param atol_add : nonnegative float. absolute error tolerance for H-matrix addition
+    :param min_eig_scale :
+    :return: HMatrix. Positive definite approximation of A
+    '''
+    if overwrite:
+        X1 = A
+    else:
+        X1 = A.copy()
+
+    X2 = A.T
+    ####     current state:    X1 = A
+    ##                         X2 = A^T
+
+    h_add(X2, X1, alpha=0.5, beta=0.5, rtol=rtol_add, atol=atol_add, overwrite_B=True)
+    X2 = X1.copy() # M1.copy_to(M2) # COPY FOR DEBUGGING
+    ####     current state:    X1 = A.sym()
+    ####                       X2 = A.sym()
+
+    M = spla.eigsh(X1, 1)[0][0]
+    A2_linop = spla.LinearOperator(X1.shape, matvec=lambda x: M * x - X1 * x)
+    m = M - spla.eigsh(A2_linop, 1)[0][0]
+    print('A.sym(): lambda_min=', m, ', lambda_max=', M)
+
+    b = np.array([M, 0, 0])
+
+    def make_A(mu):
+        return np.array([[1, M, 1 / (M + mu)],
+                         [1, 0, 1 / (0 + mu)],
+                         [0, 1, -1 / mu ** 2]])
+
+    def res(mu):
+        c = np.linalg.solve(make_A(mu), b)
+        return min_eig_scale * abs(m) - (c[0] + c[1] * m + c[2] / (m + mu))
+
+    soln = root_scalar(res, x0=-1.9 * m, x1=-2.1 * m)
+    mu = soln.root
+
+    # print('soln:')
+    # print(soln)
+    #
+    # print('res(mu)=', res(mu))
+
+    c = np.linalg.solve(make_A(mu), b)
+
+    f = lambda x: c[0] + c[1] * x + c[2] / (x + mu)
+    f_prime = lambda x: c[1] - c[2] / (x + mu) ** 2
+
+    # print('c-', c, ', mu=', mu)
+    # print('m=', m, ', M=', M)
+    # print('f(m)=', f(m), ', f(0)=', f(0), ', f(M)=', f(M), ', f_prime(0)=', f_prime(0))
+
+    X2.add_identity(mu, overwrite=True)
+    X2.inv(overwrite=True, rtol=rtol_inv, atol=atol_inv)
+    ####     current state:    X1 = A.sym()
+    ####                       X2 = (A.sym() + mu*I)^-1
+
+    h_add(X2, X1, alpha=c[2], beta=c[1], rtol=rtol_add, atol=atol_add, overwrite_B=True)
+    ####     current state:    X1 = c1*A.sym() + c2(A.sym() + mu*I)^-1
+    ####                       X2 = (A.sym() + mu*I)^-1
+
+    X1.add_identity(c[0], overwrite=True)
+    ####     current state:    X1 = c0*I + c1*A.sym() + c2*(A.sym() + mu*I)^-1
+    ####                       X2 = (A.sym() + mu*I)^-1
+
+    return X1
+
+
+def rational_positive_definite_approximation_method2(A, overwrite=False,
+                                                     rtol_inv=1e-2, atol_inv=1e-15,
+                                                     rtol_add=1e-10, atol_add=1e-15):
     '''Form symmetric positive definite approximation of hmatrix A
     using rational approximation of the form:
       A_spd = c1*A.sym() + c2 * (A.sym() + mu*I)^-1
@@ -636,7 +725,7 @@ def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=Fals
     ####     current state:    M1 = A
     ##                         M2 = A^T
 
-    h_add(M2, M1, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
+    h_add(M2, M1, alpha=0.5, beta=0.5, rtol=rtol_add, atol=atol_add, overwrite_B=True)
     M2 = M1.copy() # M1.copy_to(M2) # COPY FOR DEBUGGING
     ####     current state:    M1 = A.sym()
     ####                       M2 = A.sym()
@@ -648,18 +737,18 @@ def hmatrix_symmetric_positive_definite_rational_approximation(A, overwrite=Fals
 
     # zerpoint: location where rational function crosses zero.
     # Slightly smaller than lambda_min to ensure positive definiteness with inexact hmatrix arithmetic
-    zeropoint = np.abs(lambda_min) * (1. + 2*rtol)
+    zeropoint = np.abs(lambda_min) * (1. + 2*rtol_inv)
     mu = 2.0 * zeropoint
     gamma = zeropoint*(mu - zeropoint)
     c1 = (1. / (1. + gamma / (lambda_max*(lambda_max + mu))))
     c2 = c1 * gamma
 
     M2.add_identity(mu, overwrite=True)
-    M2.inv(overwrite=True, rtol=rtol, atol=atol)
+    M2.inv(overwrite=True, rtol=rtol_inv, atol=atol_inv)
     ####     current state:    M1 = A.sym()
     ####                       M2 = (A.sym() + mu*I)^-1
 
-    h_add(M2, M1, alpha=c2, beta=c1, rtol=rtol, atol=atol, overwrite_B=True)
+    h_add(M2, M1, alpha=c2, beta=c1, rtol=rtol_add, atol=atol_add, overwrite_B=True)
     ####     current state:    M1 = c1*A.sym() + c2(A.sym() + mu*I)^-1
     ####                       M2 = (A.sym() + mu*I)^-1
 
