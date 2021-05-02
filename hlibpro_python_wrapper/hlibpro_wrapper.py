@@ -481,8 +481,12 @@ def _factorize_h_matrix(A_hmatrix, operation_to_perform, rtol, atol,
     print('    done in ', dt_fac)
     print('    size of factors = ', factors_cpp_object.byte_size(), ' bytes')
 
-    eval_cpp_object = hpro_cpp.LDL_eval_matrix(factors_cpp_object, fac_options)
-    eval_inverse_cpp_object = hpro_cpp.LDL_inv_matrix(factors_cpp_object, fac_options)
+    if operation_to_perform == 'LDL':
+        eval_cpp_object = hpro_cpp.LDL_eval_matrix(factors_cpp_object, fac_options)
+        eval_inverse_cpp_object = hpro_cpp.LDL_inv_matrix(factors_cpp_object, fac_options)
+    elif operation_to_perform == 'LU':
+        eval_cpp_object = hpro_cpp.LU_eval_matrix(factors_cpp_object, fac_options)
+        eval_inverse_cpp_object = hpro_cpp.LU_inv_matrix(factors_cpp_object, fac_options)
 
     return FactorizedHMatrix(eval_cpp_object, eval_inverse_cpp_object, factors_cpp_object, A_hmatrix.bct,
                              eval_type, storage_type, do_coarsen, operation_to_perform)
