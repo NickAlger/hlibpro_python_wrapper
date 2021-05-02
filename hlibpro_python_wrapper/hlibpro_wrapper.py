@@ -634,7 +634,7 @@ def rational_positive_definite_approximation_method1(A, overwrite=False,
     :param atol_inv : nonnegative float. Absolute error tolerance for H-matrix inversion
     :param rtol_add : positive float. Relative error tolerance for H-matrix addition
     :param atol_add : nonnegative float. absolute error tolerance for H-matrix addition
-    :param min_eig_scale :
+    :param min_eig_scale : nonnegative float. scaling factor: f(m) = min_eig_scale * abs(m)
     :return: HMatrix. Positive definite approximation of A
     '''
     if overwrite:
@@ -647,7 +647,8 @@ def rational_positive_definite_approximation_method1(A, overwrite=False,
     ##                         X2 = A^T
 
     h_add(X2, X1, alpha=0.5, beta=0.5, rtol=rtol_add, atol=atol_add, overwrite_B=True)
-    X2 = X1.copy() # M1.copy_to(M2) # COPY FOR DEBUGGING
+    # X1.copy_to(X2) # RuntimeError:  in "(TRkMatrix) copy_to" at "src/matrix/TRkMatrix.cc:2639" Error: invalid matrix type (TDenseMatrix)
+    X2 = X1.copy() # COPY FOR DEBUGGING
     ####     current state:    X1 = A.sym()
     ####                       X2 = A.sym()
 
@@ -656,7 +657,8 @@ def rational_positive_definite_approximation_method1(A, overwrite=False,
     m = M - spla.eigsh(A2_linop, 1)[0][0]
     print('A.sym(): lambda_min=', m, ', lambda_max=', M)
 
-    h = rtol_inv * np.abs(m)
+    # h = rtol_inv * np.abs(m)
+    h = 0
 
     b = np.array([M, h, 0])
 
@@ -672,19 +674,7 @@ def rational_positive_definite_approximation_method1(A, overwrite=False,
     soln = root_scalar(res, x0=-1.9 * m, x1=-2.1 * m)
     mu = soln.root
 
-    # print('soln:')
-    # print(soln)
-    #
-    # print('res(mu)=', res(mu))
-
     c = np.linalg.solve(make_A(mu), b)
-
-    f = lambda x: c[0] + c[1] * x + c[2] / (x + mu)
-    f_prime = lambda x: c[1] - c[2] / (x + mu) ** 2
-
-    # print('c-', c, ', mu=', mu)
-    # print('m=', m, ', M=', M)
-    # print('f(m)=', f(m), ', f(0)=', f(0), ', f(M)=', f(M), ', f_prime(0)=', f_prime(0))
 
     X2.add_identity(mu, overwrite=True)
     X2.inv(overwrite=True, rtol=rtol_inv, atol=atol_inv)
