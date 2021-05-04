@@ -95,10 +95,12 @@ void visualize_block_cluster_tree(HLIB::TBlockClusterTree * bct_ptr, string titl
 
 
 //std::unique_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_file, HLIB::TBlockClusterTree * bct_ptr)
-std::shared_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_file, HLIB::TBlockClusterTree * bct_ptr)
+//std::shared_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_file, HLIB::TBlockClusterTree * bct_ptr)
+std::shared_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_file,
+                                                                  std::shared_ptr<HLIB::TBlockClusterTree> bct_ptr)
 {
-    auto row_ct_ptr = bct_ptr->row_ct();
-    auto col_ct_ptr = bct_ptr->col_ct();
+    auto row_ct_ptr = bct_ptr.get()->row_ct();
+    auto col_ct_ptr = bct_ptr.get()->col_ct();
 
     auto               M = read_matrix( mat_file );
 
@@ -121,12 +123,12 @@ std::shared_ptr<HLIB::TMatrix> build_hmatrix_from_sparse_matfile (string mat_fil
     cout << "  size of sparse matrix = " << Mem::to_string( S->byte_size() ) << endl;
     cout << "  |S|_F                 = " << norm_F( S ) << endl;
 
-    cout << "    sparsity constant = " << bct_ptr->compute_c_sp() << endl;
+    cout << "    sparsity constant = " << bct_ptr.get()->compute_c_sp() << endl;
 
     TSparseMBuilder    h_builder( S, row_ct_ptr->perm_i2e(), col_ct_ptr->perm_e2i() );
 
     TTruncAcc                 acc(0.0, 0.0);
-    auto               A = h_builder.build( bct_ptr, acc );
+    auto               A = h_builder.build( bct_ptr.get(), acc );
 
     cout << "    size of H-matrix  = " << Mem::to_string( A->byte_size() ) << endl;
     cout << "    |A|_F             = " << norm_F( A.get() ) << endl;
