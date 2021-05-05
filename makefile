@@ -2,8 +2,11 @@ default: all
 
 ##################    VVVV    Change these    VVVV    ##################
 
-HLIBPRO_DIR := /home/nick/hlibpro-2.8.1
-EIGEN_INCLUDE := /home/nick/anaconda3/envs/fenics3/include/eigen3
+#HLIBPRO_DIR := /home/nick/hlibpro-2.8.1
+#EIGEN_INCLUDE := /home/nick/anaconda3/envs/fenics3/include/eigen3
+HLIBPRO_DIR := /home/thartland/hlibpro-2.8.1
+EIGEN_INCLUDE := /home/thartland/.conda/envs/fenics-2019.1_lekan/include/eigen3
+
 
 ########################################################################
 
@@ -21,7 +24,8 @@ OBJ_DIR  := ./obj
 BUILD_DIR  := ./hlibpro_python_wrapper
 
 LDFLAGS  = -shared -L$(HLIBPRO_LIB)
-CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++14
+CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++14 -D_GLIBCXX_USE_CXX11_ABI=0
+#CXXFLAGS = -O0 -Wall -shared -fPIC -std=c++11
 
 LIBS := -lhpro -Wl,-rpath,$(HLIBPRO_LIB)
 

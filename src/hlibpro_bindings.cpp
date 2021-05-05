@@ -35,7 +35,8 @@ using  real_t = double;
 #endif
 
 
-std::shared_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const MatrixXd & dof_coords, const double nmin)
+//std::shared_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const MatrixXd & dof_coords, const double nmin)
+HLIB::TClusterTree build_cluster_tree_from_dof_coords(const MatrixXd & dof_coords, const double nmin)
 {
     size_t N = dof_coords.rows();
     size_t d = dof_coords.cols();
@@ -58,7 +59,9 @@ std::shared_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const Mat
     TBSPCTBuilder      ct_builder( & part_strat, nmin );
     std::unique_ptr<HLIB::TClusterTree>  ct = ct_builder.build( coord.get() );
 //    return ct;
-    return std::move(ct);
+    //return std::move(ct);
+    HLIB::TClusterTree* ct_ptr= ct.get();
+    return *ct_ptr;
 }
 
 std::shared_ptr<HLIB::TBlockClusterTree> build_block_cluster_tree(std::shared_ptr<HLIB::TClusterTree> row_ct_ptr,
@@ -79,10 +82,11 @@ void initialize_hlibpro()
     CFG::set_verbosity( verbosity_level );
 }
 
-void visualize_cluster_tree(std::shared_ptr<HLIB::TClusterTree> ct_ptr, string title)
+//void visualize_cluster_tree(std::shared_ptr<HLIB::TClusterTree> ct_ptr, string title)
+void visualize_cluster_tree(HLIB::TClusterTree ct, string title)
 {
     TPSClusterVis        c_vis;
-    c_vis.print( ct_ptr.get()->root(), title );
+    c_vis.print( ct.root(), title );
 }
 
 void visualize_block_cluster_tree(std::shared_ptr<HLIB::TBlockClusterTree> bct_ptr, string title)
@@ -570,8 +574,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     py::class_<HLIB::TCoeffFn<real_t>>(m, "TCoeffFn<real_t>");
 
-//    py::class_<HLIB::TClusterTree>(m, "HLIB::TClusterTree")
-    py::class_<HLIB::TClusterTree, std::shared_ptr<TClusterTree>>(m, "HLIB::TClusterTree")
+    py::class_<HLIB::TClusterTree>(m, "HLIB::TClusterTree")
+//    py::class_<HLIB::TClusterTree, std::shared_ptr<TClusterTree>>(m, "HLIB::TClusterTree")
         .def("perm_i2e", &HLIB::TClusterTree::perm_i2e)
         .def("perm_e2i", &HLIB::TClusterTree::perm_e2i)
         .def("nnodes", &HLIB::TClusterTree::nnodes)
@@ -589,7 +593,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("compute_c_sp", &HLIB::TBlockClusterTree::compute_c_sp)
         .def("byte_size", &HLIB::TBlockClusterTree::byte_size);
 
-    m.def("build_cluster_tree_from_dof_coords", &build_cluster_tree_from_dof_coords);
+    m.def("build_cluster_tree_from_dof_coords", &build_cluster_tree_from_dof_coords, py::return_value_policy::copy);
     m.def("build_block_cluster_tree", &build_block_cluster_tree);
     m.def("initialize_hlibpro", &initialize_hlibpro);
     m.def("visualize_cluster_tree", &visualize_cluster_tree);

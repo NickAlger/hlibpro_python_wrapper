@@ -6,7 +6,7 @@ import hlibpro_python_wrapper as hpro
 
 ########    SETUP    ########
 
-mesh = fenics.UnitSquareMesh(70, 75)
+mesh = fenics.UnitSquareMesh(10, 15)
 V = fenics.FunctionSpace(mesh, 'CG', 1)
 dof_coords = V.tabulate_dof_coordinates()
 
@@ -28,34 +28,35 @@ K_csc = convert_fenics_csr_matrix_to_scipy_csr_matrix(K).tocsc()
 M_csc = convert_fenics_csr_matrix_to_scipy_csr_matrix(M).tocsc()
 
 A_csc = K_csc + M_csc
-
 # #### Test building objects within a function (this used to cause memory errors segfaults) ####
 #
-# def asdf():
+#def asdf():
 #     ct = hpro.build_cluster_tree_from_dof_coords(dof_coords, cluster_size_cutoff=50)
 #     bct = hpro.build_block_cluster_tree(ct, ct, admissibility_eta=2.0)
+#     exit()
 #     K_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(K_csc, bct)
 #     return K_hmatrix
 #
-# K_hmatrix = asdf()
+#K_hmatrix = asdf()
 #
-# x = np.random.randn(dof_coords.shape[0])
-# y = hpro.h_matvec(K_hmatrix, x)
+#x = np.random.randn(dof_coords.shape[0])
+#y = hpro.h_matvec(K_hmatrix, x)
 
 ########    CLUSTER TREE / BLOCK CLUSTER TREE    ########
 
-ct = hpro.build_cluster_tree_from_pointcloud(dof_coords, cluster_size_cutoff=50)
-bct = hpro.build_block_cluster_tree(ct, ct, admissibility_eta=2.0)
+ct  = hpro.build_cluster_tree_from_pointcloud(dof_coords, cluster_size_cutoff=5)
+#bct = hpro.build_block_cluster_tree(ct, ct, admissibility_eta=2.0)
+#print(bct.cpp_object)
+print("")
+#----------
 ct.visualize("sparsemat_cluster_tree_from_python")
-bct.visualize("sparsemat_block_cluster_tree_from_python")
+#bct.visualize("sparsemat_block_cluster_tree_from_python")
 
 ########    BUILD HMATRIX FROM SPARSE    ########
-
-K_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(K_csc, bct)
+#K_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(K_csc, bct)
+exit()
 M_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(M_csc, bct)
-
-K_hmatrix.visualize("stiffness_hmatrix_from_python")
-
+#K_hmatrix.visualize("stiffness_hmatrix_from_python")
 
 x = np.random.randn(dof_coords.shape[0])
 y = K_hmatrix * x  # alternatively: hpro.h_matvec(K_hmatrix, x)
@@ -76,7 +77,7 @@ print('err_h_scale=', err_h_scale)
 
 ########    VISUALIZE HMATRIX    ########
 
-M_hmatrix.visualize("mass_hmatrix_from_python") # hpro.visualize_hmatrix(M_hmatrix, "mass_hmatrix_from_python")
+#M_hmatrix.visualize("mass_hmatrix_from_python") # hpro.visualize_hmatrix(M_hmatrix, "mass_hmatrix_from_python")
 
 x = np.random.randn(dof_coords.shape[0])
 y = M_hmatrix * x
@@ -129,5 +130,5 @@ x2 = A_factorized.solve(y)
 err_hfac = np.linalg.norm(x - x2)/np.linalg.norm(x2)
 print('err_hfac=', err_hfac)
 
-A_factorized.visualize('inv_A_factors')
+#A_factorized.visualize('inv_A_factors')
 # hpro.visualize_inverse_factors(iA_factorized, 'inv_A_factors')
