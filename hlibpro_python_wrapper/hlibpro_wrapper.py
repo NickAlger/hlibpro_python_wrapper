@@ -122,15 +122,15 @@ class HMatrix:
         else:
             raise RuntimeError('cannot multiply HMatrix with ' + str(other.type))
 
-    def __imul__(me, other):
-        if isinstance(other, HMatrix):
-            return h_mul(me, other, alpha_A_B_hmatrix=me)
-
-        if isinstance(other, float) or isinstance(other, np.number):
-            return h_scale(me, other, overwrite_A=True)
-
-        else:
-            raise RuntimeError('cannot multiply HMatrix with ' + str(other.type))
+    # def __imul__(me, other):
+    #     if isinstance(other, HMatrix):
+    #         return h_mul(me, other, alpha_A_B_hmatrix=me)
+    #
+    #     if isinstance(other, float) or isinstance(other, np.number):
+    #         return h_scale(me, other, overwrite_A=True)
+    #
+    #     else:
+    #         raise RuntimeError('cannot multiply HMatrix with ' + str(other.type))
 
     def __rmul__(me, other):
         if isinstance(other, HMatrix):
@@ -148,8 +148,8 @@ class HMatrix:
     def __rmatmul__(me, other):
         return me.__rmul__(me, other)
 
-    def __imatmul__(me, other):
-        return me.__imul__(me, other)
+    # def __imatmul__(me, other):
+    #     return me.__imul__(me, other)
 
     def inv(me, rtol=default_rtol, atol=default_atol,
             overwrite=False, display_progress=True,
