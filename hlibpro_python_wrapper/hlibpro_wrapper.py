@@ -67,8 +67,11 @@ class HMatrix:
             A_sym = h_add(me.T, me, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
         else:
             A_sym = h_add(me, me.T, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
-        A_sym._set_symmetric()
+        # A_sym._set_symmetric()
         return A_sym
+
+    def spd(me, **kwargs):
+        return rational_positive_definite_approximation_method1(me, **kwargs)
 
     def _set_symmetric(me):
         me._cpp_object.set_symmetric()
@@ -619,9 +622,9 @@ build_cluster_tree_from_dof_coords = build_cluster_tree_from_pointcloud
 
 
 def rational_positive_definite_approximation_method1(A, overwrite=False,
-                                              rtol_inv=1e-2, atol_inv=1e-15,
-                                              rtol_add=1e-10, atol_add=1e-15,
-                                              min_eig_scale=1.0):
+                                                     rtol_inv=1e-2, atol_inv=1e-15,
+                                                     rtol_add=1e-10, atol_add=1e-15,
+                                                     min_eig_scale=1.0):
     '''Form symmetric positive definite approximation of hmatrix A with eigenvalues in [m, M]
     using rational approximation of the form:
       A_spd = f(A.sym()) = c0*I + c1*A.sym() + c2 * (A.sym() + mu*I)^-1
