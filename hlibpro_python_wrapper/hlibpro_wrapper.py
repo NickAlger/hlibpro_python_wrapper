@@ -170,6 +170,9 @@ class HMatrix:
     def visualize(me, filename):
         hpro_cpp.visualize_hmatrix(me.cpp_object, filename)
 
+    def as_linear_operator(me):
+        return spla.LinearOperator(me.shape, matvec=me.matvec)
+
 
 def add_identity_to_hmatrix(A_hmatrix, s=1.0, overwrite=False):
     if overwrite:
