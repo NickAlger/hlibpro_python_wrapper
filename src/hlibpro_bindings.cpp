@@ -17,6 +17,7 @@
 
 #include "grid_interpolate.h"
 #include "product_convolution_hmatrix.h"
+#include "rbf_interpolation.h"
 
 using namespace Eigen;
 
@@ -721,4 +722,10 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
              py::arg("aprogress")=nullptr);
 
     m.def("invert_h_matrix", static_cast<void (*)(TMatrix *, const TTruncAcc &, const inv_options_t &)>(&HLIB::invert));
+
+    m.def("eval_thin_plate_splines_at_points", &eval_thin_plate_splines_at_points);
+
+    py::class_<ThinPlateSplineWeightingFunctions>(m, "ThinPlateSplineWeightingFunctions")
+        .def(py::init< const Array<double, Dynamic, 2> >())
+        .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
 }
