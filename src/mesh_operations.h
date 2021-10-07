@@ -24,19 +24,19 @@ using namespace Eigen;
 using namespace std;
 
 
-class TriangulationAABBTree
+class AABBTreeWrapper
 {
 private:
-    Tree tree;
-    std::vector<std::shared_ptr<Point>> CGAL_vertices;
-    std::vector<std::shared_ptr<Triangle>> CGAL_triangles;
+    std::vector<Point> CGAL_points;
+    std::vector<Triangle> TT_vector;
+    std::list<Triangle> TT;
+
 public:
-    TriangulationAABBTree(const Array<double, Dynamic, 2> vertices,
-                          const Array<int, Dynamic, 3>    triangles);
+    Tree aabb_tree;
 
-    Array<double, Dynamic, 2> closest_points(const Array<double, Dynamic, 2> points);
+    AABBTreeWrapper( Array<double, Dynamic, 2> const & points_array,
+                     Array<int, Dynamic, 3> const &    triangles_array );
+
+    Vector2d closest_point( Vector2d p );
 };
-
-std::list<Triangle> make_CGAL_triangles(const Array<double, Dynamic, 2> & vertices,
-                                        const Array<int, Dynamic, 3> &    triangles);
 
