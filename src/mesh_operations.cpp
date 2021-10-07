@@ -7,7 +7,7 @@
 #include <CGAL/AABB_triangle_primitive.h>
 
 #include <math.h>
-//#include <Eigen/Dense>
+#include <Eigen/Dense>
 
 typedef CGAL::Simple_cartesian<double> K;
 typedef K::FT FT;
@@ -21,28 +21,35 @@ typedef CGAL::AABB_triangle_primitive<K, Iterator> Primitive;
 typedef CGAL::AABB_traits<K, Primitive> AABB_triangle_traits;
 typedef CGAL::AABB_tree<AABB_triangle_traits> Tree;
 
-//using namespace Eigen;
+using namespace Eigen;
 using namespace std;
 
-//std::list<Triangle> make_CGAL_triangles(const Array<double, Dynamic, 2> & vertices,
-//                                        const Array<int, Dynamic, 3> &    triangles)
-//{
-//    int num_vertices = vertices.rows();
-//    int num_triangles = triangles.rows();
-//
-//    std::vector<Point> CGAL_vertices;
-//    for ( int ii = 0; ii < num_vertices, ++ii)
-//    {
-//        Point p(vertices(ii,0), vertices(ii,1), 0.0);
-//        CGAL_vertices.push_back(p);
-//    }
-//
-//    std::vector<Triangle> CGAL_triangles;
-//    for ( int jj = 0; jj < num_triangles; ++jj)
-//    {
-//        Triangle T1(p1, p2, p3);
-//    }
-//}
+std::list<Triangle> make_CGAL_triangles(const Array<double, Dynamic, 2> & vertices,
+                                        const Array<int, Dynamic, 3> &    triangles)
+{
+    int num_vertices = vertices.rows();
+    int num_triangles = triangles.rows();
+
+    std::vector<Point> CGAL_vertices;
+    for ( int ii = 0; ii < num_vertices, ++ii)
+    {
+        Point p(vertices(ii,0), vertices(ii,1), 0.0);
+        CGAL_vertices.push_back(p);
+    }
+
+    std::vector<Triangle> CGAL_triangles;
+    for ( int jj = 0; jj < num_triangles; ++jj)
+    {
+        const Vector3i T_verts = triangles.row(jj);
+        Triangle T(CGAL_vertices[T_verts(0)],
+                   CGAL_vertices[T_verts(1)],
+                   CGAL_vertices[T_verts(2)]);
+        CGAL_triangles.push_back(T)
+    }
+
+    std::list<Triangle> CGAL_triangles_list(CGAL_triangles.begin(), CGAL_triangles.end());
+    return CGAL_triangles_list;
+}
 
 
 int main()
