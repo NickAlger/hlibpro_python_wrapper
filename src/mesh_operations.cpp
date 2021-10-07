@@ -56,7 +56,7 @@ std::vector<Triangle> make_CGAL_triangles( Array<int, Dynamic, 3> const triangle
 
 
 AABBTreeWrapper::AABBTreeWrapper( Array<double, Dynamic, 2> const & points_array,
-                                  Array<int, Dynamic, 3> const &    triangles_array )
+                                  Array<int, Dynamic, 3> const &    triangles_array ) : aabb_tree{}
 {
     CGAL_points = make_CGAL_points( points_array );
     TT_vector = make_CGAL_triangles(triangles_array, CGAL_points);
@@ -76,3 +76,14 @@ Vector2d AABBTreeWrapper::closest_point( Vector2d p )
     Vector2d closest_p(closest_p_CGAL[0], closest_p_CGAL[1]);
     return closest_p;
 }
+
+/*
+import numpy as np
+import dolfin as dl
+import hlibpro_python_wrapper as hpro
+
+hcpp = hpro.hpro_cpp
+mesh = dl.UnitSquareMesh(10,23)
+T = hcpp.AABBTreeWrapper(mesh.coordinates(), mesh.cells())
+T.closest_point(np.array([-0.3, 0.62345]))
+*/
