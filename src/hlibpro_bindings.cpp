@@ -18,6 +18,7 @@
 #include "grid_interpolate.h"
 #include "product_convolution_hmatrix.h"
 #include "rbf_interpolation.h"
+#include "mesh_operations.h"
 
 using namespace Eigen;
 
@@ -728,4 +729,10 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     py::class_<ThinPlateSplineWeightingFunctions>(m, "ThinPlateSplineWeightingFunctions")
         .def(py::init< const Array<double, Dynamic, 2> >())
         .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
+
+    py::class_<TriangulationAABBTree>(m, "TriangulationAABBTree")
+        .def(py::init< const Array<double, Dynamic, 2>,
+                       const Array<int, Dynamic, 3> >())
+        .def("closest_points", &TriangulationAABBTree::closest_points);
 }
+
