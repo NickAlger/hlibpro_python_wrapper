@@ -51,8 +51,7 @@ def nearest_neighbor(query_point, tree_node, depth):
     if child_B is not None:
         B_distance_lower_bound = np.abs(displacement_to_splitting_plane)
 
-        # if B_distance_lower_bound < best_distance:
-        if True:
+        if B_distance_lower_bound < best_distance:
             point_B, distance_B = nearest_neighbor(query_point, child_B, depth+1)
             if distance_B < best_distance:
                 best_point = point_B
