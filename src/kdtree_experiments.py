@@ -30,11 +30,12 @@ def kdtree(pp, depth):
 
 def nearest_neighbor(query_point, tree_node, depth):
     best_point = tree_node.location
-    best_distance = np.linalg.norm(query_point - tree_node.location)
+    delta = query_point - tree_node.location
+    best_distance_squared = np.sum(np.power(delta, 2))
 
     dim = query_point.size
     axis = depth % dim
-    displacement_to_splitting_plane = tree_node.location[axis] - query_point[axis]
+    displacement_to_splitting_plane = delta[axis]
     if displacement_to_splitting_plane >= 0:
         child_A = tree_node.left_child
         child_B = closest_child = tree_node.right_child
@@ -43,21 +44,19 @@ def nearest_neighbor(query_point, tree_node, depth):
         child_B = closest_child = tree_node.left_child
 
     if child_A is not None:
-        point_A, distance_A = nearest_neighbor(query_point, child_A, depth+1)
-        if distance_A < best_distance:
+        point_A, distance_squared_A = nearest_neighbor(query_point, child_A, depth+1)
+        if distance_squared_A < best_distance_squared:
             best_point = point_A
-            best_distance = distance_A
+            best_distance_squared = distance_squared_A
 
     if child_B is not None:
-        B_distance_lower_bound = np.abs(displacement_to_splitting_plane)
-
-        if B_distance_lower_bound < best_distance:
-            point_B, distance_B = nearest_neighbor(query_point, child_B, depth+1)
-            if distance_B < best_distance:
+        if np.abs(displacement_to_splitting_plane)**2 < best_distance_squared:
+            point_B, distance_squared_B = nearest_neighbor(query_point, child_B, depth+1)
+            if distance_squared_B < best_distance_squared:
                 best_point = point_B
-                best_distance = distance_B
+                best_distance_squared = distance_squared_B
 
-    return best_point, best_distance
+    return best_point, best_distance_squared
 
 
 
@@ -71,13 +70,13 @@ root = kdtree(pp, 0)
 q = np.random.randn(2)
 print('q=', q)
 
-p_nearest, dist_nearest = nearest_neighbor(q, root, 0)
+p_nearest, dsq_nearest = nearest_neighbor(q, root, 0)
 print('p_nearest=', p_nearest)
-print('dist_nearest=', dist_nearest)
+print('dds_nearest=', dsq_nearest)
 
 
 nearest_ind = np.argmin(np.linalg.norm(pp - q, axis=1))
 p_nearest_true = pp[nearest_ind, :]
-dist_nearest_true = np.linalg.norm(p_nearest_true - q)
+dsq_nearest_true = np.linalg.norm(p_nearest_true - q)**2
 print('p_nearest_true=', p_nearest_true)
-print('dist_nearest_true=', dist_nearest_true)
+print('dsq_nearest_true=', dsq_nearest_true)
