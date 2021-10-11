@@ -5,11 +5,14 @@
 #include <CGAL/AABB_tree.h>
 #include <CGAL/AABB_traits.h>
 #include <CGAL/AABB_triangle_primitive.h>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+//#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 
 #include <math.h>
 #include <Eigen/Dense>
 
-typedef CGAL::Simple_cartesian<double> K;
+//typedef CGAL::Simple_cartesian<double> K;
+typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef K::FT FT;
 typedef K::Ray_3 Ray;
 typedef K::Line_3 Line;
@@ -77,6 +80,20 @@ Vector2d AABBTreeWrapper::closest_point( Vector2d p )
     return closest_p;
 }
 
+Array<double, Dynamic, 2> AABBTreeWrapper::closest_points( Array<double, Dynamic, 2> const & points_array )
+{
+    int num_points = points_array.rows();
+    Array<double, Dynamic, 2> closest_points_array(num_points, 2);
+    for (int ii=0; ii<num_points; ++ii)
+    {
+        Point p_CGAL(points_array(ii, 0), points_array(ii, 1), 0.0);
+        Point closest_p_CGAL = aabb_tree.closest_point( p_CGAL );
+        closest_points_array(ii, 0) = closest_p_CGAL[0];
+        closest_points_array(ii, 1) = closest_p_CGAL[1];
+    }
+    return closest_points_array;
+}
+
 /*
 import numpy as np
 import dolfin as dl
@@ -86,4 +103,12 @@ hcpp = hpro.hpro_cpp
 mesh = dl.UnitSquareMesh(10,23)
 T = hcpp.AABBTreeWrapper(mesh.coordinates(), mesh.cells())
 T.closest_point(np.array([-0.3, 0.62345]))
+
+p = np.random.randn(2)
+print('p=', p)
+q = T.closest_point(p)
+print('q=', q)
+
+pp = np.random.randn(100, 2) + np.array([0.5, 0.5])
+pp_closest = T.closest_points(pp)
 */

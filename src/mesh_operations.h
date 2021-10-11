@@ -4,11 +4,13 @@
 #include <CGAL/AABB_tree.h>
 #include <CGAL/AABB_traits.h>
 #include <CGAL/AABB_triangle_primitive.h>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 
 #include <math.h>
 #include <Eigen/Dense>
 
-typedef CGAL::Simple_cartesian<double> K;
+//typedef CGAL::Simple_cartesian<double> K;
+typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef K::FT FT;
 typedef K::Ray_3 Ray;
 typedef K::Line_3 Line;
@@ -38,5 +40,6 @@ public:
                      Array<int, Dynamic, 3> const &    triangles_array );
 
     Vector2d closest_point( Vector2d p );
+    Array<double, Dynamic, 2> closest_points( Array<double, Dynamic, 2> const & points_array );
 };
 

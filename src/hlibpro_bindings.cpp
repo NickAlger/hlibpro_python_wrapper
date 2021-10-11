@@ -734,6 +734,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< Array<double, Dynamic, 2> const &,
                        Array<int, Dynamic, 3> const &
                       >())
-        .def("closest_point", &AABBTreeWrapper::closest_point);
+        .def("closest_point", &AABBTreeWrapper::closest_point)
+        .def("closest_points", &AABBTreeWrapper::closest_points);
 }
+
 
