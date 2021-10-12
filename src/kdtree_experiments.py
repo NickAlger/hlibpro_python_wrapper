@@ -8,24 +8,61 @@ class Node:
         me.right_child = right_child
 
 
-def kdtree(pp, depth):
-    if pp.shape[0] < 1:
+def kdtree(pp, begin, end, depth) -> Node:
+    num_pts = end - begin
+    if num_pts < 1:
         return None
 
-    num_pts, dim = pp.shape
+    dim = pp.shape[1]
     axis = depth % dim
 
-    pp = pp[np.argsort(pp[:,axis]),:] # might be a lot of work in c++
-    mid_ind = num_pts // 2
+    local_inds = np.argsort(pp[begin:end, axis])
+    global_inds = local_inds + begin
+    print('local_inds=', local_inds)
+    print('global_inds=', global_inds)
+    pp[begin:end, :] = pp[global_inds, :]
 
-    left_pts = pp[: mid_ind, :]
-    mid_pt = pp[mid_ind, :]
-    right_pts = pp[mid_ind+1 :]
+    # pp = pp[np.argsort(pp[:,axis]),:] # might be a lot of work in c++
+    mid_ind_local = num_pts // 2
 
-    left_kdtree = kdtree(left_pts, depth+1)
-    right_kdtree = kdtree(right_pts, depth + 1)
+    mid_ind_global = begin + mid_ind_local
 
-    return Node(mid_pt, left_kdtree, right_kdtree)
+    left_begin = begin
+    left_end = mid_ind_global
+
+    right_begin = mid_ind_global + 1
+    right_end = end
+
+    # left_pts = pp[: begin + mid_ind, :]
+    mid_pt = pp[mid_ind_global, :]
+    # right_pts = pp[begin + mid_ind+1 :]
+
+
+    print('left_begin=', left_begin)
+    print('left_end=', left_end)
+    left_child = kdtree(pp, left_begin, left_end, depth + 1)
+    right_child = kdtree(pp, right_begin, right_end, depth + 1)
+
+    return Node(mid_pt, left_child, right_child)
+
+# def kdtree(pp, depth) -> Node:
+#     if pp.shape[0] < 1:
+#         return None
+#
+#     num_pts, dim = pp.shape
+#     axis = depth % dim
+#
+#     pp = pp[np.argsort(pp[:,axis]),:] # might be a lot of work in c++
+#     mid_ind = num_pts // 2
+#
+#     left_pts = pp[: mid_ind, :]
+#     mid_pt = pp[mid_ind, :]
+#     right_pts = pp[mid_ind+1 :]
+#
+#     left_child = kdtree(left_pts, depth + 1)
+#     right_child = kdtree(right_pts, depth + 1)
+#
+#     return Node(mid_pt, left_child, right_child)
 
 
 def nearest_neighbor(query_point, tree_node, depth):
@@ -62,12 +99,12 @@ def nearest_neighbor(query_point, tree_node, depth):
 
 
 
+dim=3
 
+pp = np.random.randn(100, dim)
+root = kdtree(pp, 0, pp.shape[0], 0)
 
-pp = np.random.randn(100, 2)
-root = kdtree(pp, 0)
-
-q = np.random.randn(2)
+q = np.random.randn(dim)
 print('q=', q)
 
 p_nearest, dsq_nearest = nearest_neighbor(q, root, 0)
