@@ -94,6 +94,11 @@ Array<double, Dynamic, 2> AABBTreeWrapper::closest_points( Array<double, Dynamic
     return closest_points_array;
 }
 
+
+
+
+
+
 /*
 import numpy as np
 import dolfin as dl
