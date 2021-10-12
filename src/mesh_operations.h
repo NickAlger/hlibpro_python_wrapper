@@ -202,6 +202,33 @@ public:
         return std::make_pair(nearest_point, nearest_distance_squared);
     }
 
+    std::pair< Array<double, Dynamic, 2>, VectorXd > nearest_neighbor_vectorized( Array<double, Dynamic, 2> query_points_array )
+    {
+        int num_query_points = query_points_array.rows();
+
+        Array<double, Dynamic, 2> closest_points_array;
+        closest_points_array.resize(num_query_points, 2);
+
+        VectorXd squared_distances(num_query_points);
+
+        for ( int ii=0; ii<num_query_points; ++ii )
+        {
+            std::tuple<double, double> qi = std::make_tuple(query_points_array(ii,0),
+                                                            query_points_array(ii,1));
+
+            std::pair<std::tuple<double, double>, double> nn_result = nearest_neighbor( qi );
+
+            std::tuple<double, double> nearest_point = nn_result.first;
+            double nearest_distance_squared = nn_result.second;
+
+            closest_points_array(ii,0) = std::get<0>(nearest_point);
+            closest_points_array(ii,1) = std::get<1>(nearest_point);
+            squared_distances(ii) = nearest_distance_squared;
+        }
+
+        return std::make_pair(closest_points_array, squared_distances);
+    }
+
 };
 
 
@@ -227,4 +254,16 @@ nearest_ind = np.argmin(np.linalg.norm(pp - q, axis=1))
 nearest_point_true = pp[nearest_ind, :]
 dsq_true = np.linalg.norm(nearest_point_true - q)**2
 
+qq = np.random.randn(77, 2)
+nearest_points, dsqq = KDT.nearest_neighbor_vectorized(qq)
+
+nearest_inds = np.argmin(np.linalg.norm(pp[:,None,:] - qq[None,:,:], axis=2), axis=0)
+nearest_points_true = pp[nearest_inds,:]
+dsqq_true = np.linalg.norm(qq - nearest_points_true, axis=1)**2
+
+err_nearest = np.linalg.norm(nearest_points - nearest_points_true)
+print('err_nearest=', err_nearest)
+
+err_dsqq = np.linalg.norm(dsqq - dsqq_true)
+print('err_dsqq=', err_dsqq)
 */
