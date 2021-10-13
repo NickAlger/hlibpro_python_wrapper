@@ -124,9 +124,9 @@ int KDTree2D::make_subtree( int start, int stop, int depth,
     return current_node_ind; }
 
 
-KDTree2D::Result KDTree2D::nn_subtree( const Vector2d & query,
-                                       int              root_index,
-                                       int              depth) {
+KDTree2D::SubtreeResult KDTree2D::nn_subtree( const Vector2d & query,
+                                              int              root_index,
+                                              int              depth) {
     KDTree2D::Node root = nodes[root_index];
 
     Vector2d delta = query - root.point;
@@ -147,19 +147,19 @@ KDTree2D::Result KDTree2D::nn_subtree( const Vector2d & query,
         B = root.left; }
 
     if (A >= 0) {
-        KDTree2D::Result nn_A = nn_subtree( query, A, depth + 1);
+        KDTree2D::SubtreeResult nn_A = nn_subtree( query, A, depth + 1);
         if (nn_A.distance_squared < best_distance_squared) {
             best_index = nn_A.index;
             best_distance_squared = nn_A.distance_squared; } }
 
     if (B >= 0) {
         if (displacement_to_splitting_plane*displacement_to_splitting_plane < best_distance_squared) {
-            KDTree2D::Result nn_B = nn_subtree( query, B, depth + 1);
+            KDTree2D::SubtreeResult nn_B = nn_subtree( query, B, depth + 1);
             if (nn_B.distance_squared < best_distance_squared) {
                 best_index = nn_B.index;
                 best_distance_squared = nn_B.distance_squared; } } }
 
-    return KDTree2D::Result { best_index, best_distance_squared }; }
+    return KDTree2D::SubtreeResult { best_index, best_distance_squared }; }
 
 
 KDTree2D::KDTree2D( Array<double, Dynamic, 2> & points_array ) {
@@ -176,7 +176,7 @@ KDTree2D::KDTree2D( Array<double, Dynamic, 2> & points_array ) {
 
 
 pair<Vector2d, double> KDTree2D::nearest_neighbor( Vector2d point ) {
-    KDTree2D::Result nn_result = nn_subtree( point, 0, 0 );
+    KDTree2D::SubtreeResult nn_result = nn_subtree( point, 0, 0 );
     return make_pair(nodes[nn_result.index].point,
                           nn_result.distance_squared); }
 
@@ -192,7 +192,7 @@ pair< Array<double, Dynamic, 2>, VectorXd >
 
     for ( int ii=0; ii<num_querys; ++ii ) {
         Vector2d query = query_array.row(ii);
-        KDTree2D::Result nn_result = nn_subtree( query, 0, 0 );
+        KDTree2D::SubtreeResult nn_result = nn_subtree( query, 0, 0 );
         closest_points_array.row(ii) = nodes[nn_result.index].point;
         squared_distances(ii) = nn_result.distance_squared; }
 

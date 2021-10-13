@@ -51,22 +51,22 @@ private:
                   int      left;       // index of left child
                   int      right; };   // index of right child
 
-    // Nearest neighbor to query point in KDTree
-    struct Result { int index; // index of nearest neighbor
-                    double distance_squared; }; // distance squared to nearest neighbor
+    // Nearest neighbor in subtree to query point
+    struct SubtreeResult { int index; // index of nearest neighbor
+                           double distance_squared; }; // distance squared to nearest neighbor
 
-    vector< Node > nodes;
-    int dim = 2;
+    vector< Node > nodes; // All nodes in the tree
+    int dim = 2; // spatial dimension
 
-    // returns the index for root of subtree
+    // creates subtree and returns the index for root of subtree
     int make_subtree( int start, int stop, int depth,
                      vector< Vector2d > & points,
                      int & counter );
 
     // finds nearest neighbor of query in subtree
-    Result nn_subtree( const Vector2d & query,
-                       int              root_index, // index for the root of the subtree
-                       int              depth);
+    SubtreeResult nn_subtree( const Vector2d & query,
+                              int              root_index, // index for the root of the subtree
+                              int              depth);
 
 public:
     KDTree2D( Array<double, Dynamic, 2> & points_array );
