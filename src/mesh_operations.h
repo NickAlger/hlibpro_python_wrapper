@@ -298,7 +298,9 @@ print('dt_query_scipy=', dt_query_scipy)
 
 
 # std::tuple<double, double>
-# n_pts= 10000 , dt_build= 0.008599281311035156
-# n_query= 10000000 , dt_query= 10.25151014328003
+n_pts= 10000 , dt_build= 0.006009817123413086
+n_query= 10000000 , dt_query= 10.365345478057861
+dt_build_scipy= 0.0027518272399902344
+dt_query_scipy= 6.627758979797363
 
 */
