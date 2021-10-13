@@ -737,10 +737,25 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("closest_point", &AABBTreeWrapper::closest_point)
         .def("closest_points", &AABBTreeWrapper::closest_points);
 
-    py::class_<KDTree2D>(m, "KDTree2D")
+    py::class_<KDTree<1>>(m, "KDTree1D")
+        .def(py::init< Array<double, Dynamic, 1> & >())
+        .def("nearest_neighbor", &KDTree<1>::nearest_neighbor)
+        .def("nearest_neighbor_vectorized", &KDTree<1>::nearest_neighbor_vectorized);
+
+    py::class_<KDTree<2>>(m, "KDTree2D")
         .def(py::init< Array<double, Dynamic, 2> & >())
-        .def("nearest_neighbor", &KDTree2D::nearest_neighbor)
-        .def("nearest_neighbor_vectorized", &KDTree2D::nearest_neighbor_vectorized);
+        .def("nearest_neighbor", &KDTree<2>::nearest_neighbor)
+        .def("nearest_neighbor_vectorized", &KDTree<2>::nearest_neighbor_vectorized);
+
+    py::class_<KDTree<3>>(m, "KDTree3D")
+        .def(py::init< Array<double, Dynamic, 3> & >())
+        .def("nearest_neighbor", &KDTree<3>::nearest_neighbor)
+        .def("nearest_neighbor_vectorized", &KDTree<3>::nearest_neighbor_vectorized);
+
+    py::class_<KDTree<4>>(m, "KDTree4D")
+        .def(py::init< Array<double, Dynamic, 4> & >())
+        .def("nearest_neighbor", &KDTree<4>::nearest_neighbor)
+        .def("nearest_neighbor_vectorized", &KDTree<4>::nearest_neighbor_vectorized);
 }
 
 

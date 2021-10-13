@@ -44,10 +44,13 @@ public:
 };
 
 
-class KDTree2D {
+template <int K>
+class KDTree {
 private:
+    typedef Matrix<double, K, 1> KDVector;
+
     // Node in KD tree
-    struct Node { Vector2d point;
+    struct Node { KDVector point;
                   int      left;       // index of left child
                   int      right; };   // index of right child
 
@@ -56,22 +59,273 @@ private:
                            double distance_squared; }; // distance squared to nearest neighbor
 
     vector< Node > nodes; // All nodes in the tree
-    int dim = 2; // spatial dimension
 
     // creates subtree and returns the index for root of subtree
     int make_subtree( int start, int stop, int depth,
-                     vector< Vector2d > & points,
-                     int & counter );
+                      vector< KDVector > & points,
+                      int & counter ) {
+        int num_pts_local = stop - start;
+        int current_node_ind = -1; // -1 indicates node does not exist
+        if (num_pts_local >= 1) {
+            current_node_ind = counter;
+            counter = counter + 1;
+
+            int axis = depth % K;
+            sort( points.begin() + start, points.begin() + stop,
+                  [axis](KDVector u, KDVector v) {return u(axis) > v(axis);} );
+
+            int mid = start + (num_pts_local / 2);
+
+            int left_start = start;
+            int left_stop = mid;
+
+            int right_start = mid + 1;
+            int right_stop = stop;
+
+            int left = make_subtree(left_start, left_stop, depth + 1, points, counter);
+            int right = make_subtree(right_start, right_stop, depth + 1, points, counter);
+
+            nodes[current_node_ind] = Node { points[mid], left, right }; }
+        return current_node_ind; }
 
     // finds nearest neighbor of query in subtree
-    SubtreeResult nn_subtree( const Vector2d & query,
-                              int              root_index, // index for the root of the subtree
-                              int              depth);
+    SubtreeResult nn_subtree( const KDVector & query,
+                              int              root_index,
+                              int              depth) {
+        Node root = nodes[root_index];
+
+        KDVector delta = query - root.point;
+
+        int best_index = root_index;
+        double best_distance_squared = delta.squaredNorm();
+
+        int axis = depth % K;
+        double displacement_to_splitting_plane = delta(axis);
+
+        int A;
+        int B;
+        if (displacement_to_splitting_plane >= 0) {
+            A = root.left;
+            B = root.right;
+        } else {
+            A = root.right;
+            B = root.left; }
+
+        if (A >= 0) {
+            SubtreeResult nn_A = nn_subtree( query, A, depth + 1);
+            if (nn_A.distance_squared < best_distance_squared) {
+                best_index = nn_A.index;
+                best_distance_squared = nn_A.distance_squared; } }
+
+        if (B >= 0) {
+            bool nearest_neighbor_might_be_in_B_subtree =
+                displacement_to_splitting_plane*displacement_to_splitting_plane < best_distance_squared;
+            if (nearest_neighbor_might_be_in_B_subtree) {
+                SubtreeResult nn_B = nn_subtree( query, B, depth + 1);
+                if (nn_B.distance_squared < best_distance_squared) {
+                    best_index = nn_B.index;
+                    best_distance_squared = nn_B.distance_squared; } } }
+
+        return SubtreeResult { best_index, best_distance_squared }; }
 
 public:
-    KDTree2D( Array<double, Dynamic, 2> & points_array );
+    KDTree( Array<double, Dynamic, K> & points_array ) {
+        int num_pts = points_array.rows();
 
-    pair<Vector2d, double> nearest_neighbor( Vector2d point );
+        // Copy eigen matrix input into std::vector of tuples which will be re-ordered
+        vector< KDVector > points(num_pts);
+        for ( int ii=0; ii<num_pts; ++ii) {
+            points[ii] = points_array.row(ii); }
 
-    pair< Array<double, Dynamic, 2>, VectorXd >
-        nearest_neighbor_vectorized( Array<double, Dynamic, 2> & query_array ); };
+        nodes.reserve(num_pts);
+        int counter = 0;
+        int zero = make_subtree(0, num_pts, 0, points, counter); }
+
+    pair<KDVector, double> nearest_neighbor( KDVector point ) {
+        SubtreeResult nn_result = nn_subtree( point, 0, 0 );
+        return make_pair(nodes[nn_result.index].point,
+                         nn_result.distance_squared); }
+
+    pair< Array<double, Dynamic, K>, VectorXd >
+        nearest_neighbor_vectorized( Array<double, Dynamic, K> & query_array ) {
+        int num_querys = query_array.rows();
+
+        Array<double, Dynamic, K> closest_points_array;
+        closest_points_array.resize(num_querys, K);
+
+        VectorXd squared_distances(num_querys);
+
+        for ( int ii=0; ii<num_querys; ++ii ) {
+            KDVector query = query_array.row(ii);
+            SubtreeResult nn_result = nn_subtree( query, 0, 0 );
+            closest_points_array.row(ii) = nodes[nn_result.index].point;
+            squared_distances(ii) = nn_result.distance_squared; }
+
+        return make_pair(closest_points_array, squared_distances); } };
+
+
+/*
+import numpy as np
+import dolfin as dl
+import hlibpro_python_wrapper as hpro
+
+hcpp = hpro.hpro_cpp
+mesh = dl.UnitSquareMesh(3,4)
+pp = mesh.coordinates()
+
+KDT = hcpp.KDTree2D(pp)
+
+pp = np.random.randn(100,2)
+KDT = hcpp.KDTree2D(pp)
+
+q = np.random.randn(2)
+
+nearest_point, dsq = KDT.nearest_neighbor(q)
+
+nearest_ind = np.argmin(np.linalg.norm(pp - q, axis=1))
+nearest_point_true = pp[nearest_ind, :]
+dsq_true = np.linalg.norm(nearest_point_true - q)**2
+err_nearest_one_point = np.linalg.norm(nearest_point - nearest_point_true)
+err_dsq_one_point = np.abs(dsq - dsq_true)
+print('err_nearest_one_point=', err_nearest_one_point)
+print('err_dsq_one_point=', err_dsq_one_point)
+
+qq = np.random.randn(77, 2)
+nearest_points, dsqq = KDT.nearest_neighbor_vectorized(qq)
+
+nearest_inds = np.argmin(np.linalg.norm(pp[:,None,:] - qq[None,:,:], axis=2), axis=0)
+nearest_points_true = pp[nearest_inds,:]
+dsqq_true = np.linalg.norm(qq - nearest_points_true, axis=1)**2
+
+err_nearest = np.linalg.norm(nearest_points - nearest_points_true)
+print('err_nearest=', err_nearest)
+
+err_dsqq = np.linalg.norm(dsqq - dsqq_true)
+print('err_dsqq=', err_dsqq)
+
+from time import time
+
+n_pts = int(1e6)
+n_query = int(1e7)
+
+pp = np.random.randn(n_pts, 2)
+t = time()
+KDT = hcpp.KDTree2D(pp)
+dt_build = time() - t
+print('n_pts=', n_pts, ', dt_build=', dt_build)
+
+qq = np.random.randn(n_query, 2)
+t = time()
+KDT.nearest_neighbor_vectorized(qq)
+dt_query = time() - t
+print('n_query=', n_query, ', dt_query=', dt_query)
+
+from scipy.spatial import KDTree
+
+t = time()
+KDT_scipy = KDTree(pp)
+dt_build_scipy = time() - t
+print('dt_build_scipy=', dt_build_scipy)
+
+t = time()
+KDT_scipy.query(qq)
+dt_query_scipy = time() - t
+print('dt_query_scipy=', dt_query_scipy)
+
+
+# std::tuple<double, double>
+# n_pts= 10000 , dt_build= 0.006009817123413086
+# n_query= 10000000 , dt_query= 10.365345478057861
+# dt_build_scipy= 0.0027518272399902344
+# dt_query_scipy= 6.627758979797363
+
+# Eigen Vector2d
+# n_pts= 10000 , dt_build= 0.00654149055480957
+# n_query= 10000000 , dt_query= 3.3113129138946533
+# dt_build_scipy= 0.0027768611907958984
+# dt_query_scipy= 6.6427671909332275
+
+*/
+
+
+/*
+import numpy as np
+import dolfin as dl
+import hlibpro_python_wrapper as hpro
+hcpp = hpro.hpro_cpp
+
+K = 4
+
+def make_KDT(pp):
+    dim = pp.shape[1]
+    if dim == 1:
+        KDT = hcpp.KDTree1D(pp)
+    elif dim == 2:
+        KDT = hcpp.KDTree2D(pp)
+    elif dim == 3:
+        KDT = hcpp.KDTree3D(pp)
+    elif dim == 4:
+        KDT = hcpp.KDTree4D(pp)
+    else:
+        raise RuntimeError('KDT only implemented for K<=4')
+    return KDT
+
+pp = np.random.randn(100,K)
+KDT = make_KDT(pp)
+
+q = np.random.randn(K)
+
+nearest_point, dsq = KDT.nearest_neighbor(q)
+
+nearest_ind = np.argmin(np.linalg.norm(pp - q, axis=1))
+nearest_point_true = pp[nearest_ind, :]
+dsq_true = np.linalg.norm(nearest_point_true - q)**2
+err_nearest_one_point = np.linalg.norm(nearest_point - nearest_point_true)
+err_dsq_one_point = np.abs(dsq - dsq_true)
+print('err_nearest_one_point=', err_nearest_one_point)
+print('err_dsq_one_point=', err_dsq_one_point)
+
+qq = np.random.randn(77, K)
+nearest_points, dsqq = KDT.nearest_neighbor_vectorized(qq)
+
+nearest_inds = np.argmin(np.linalg.norm(pp[:,None,:] - qq[None,:,:], axis=2), axis=0)
+nearest_points_true = pp[nearest_inds,:]
+dsqq_true = np.linalg.norm(qq - nearest_points_true, axis=1)**2
+
+err_nearest = np.linalg.norm(nearest_points - nearest_points_true)
+print('err_nearest=', err_nearest)
+
+err_dsqq = np.linalg.norm(dsqq - dsqq_true)
+print('err_dsqq=', err_dsqq)
+
+from time import time
+
+n_pts = int(1e6)
+n_query = int(1e7)
+
+pp = np.random.randn(n_pts, K)
+t = time()
+KDT = make_KDT(pp)
+dt_build = time() - t
+print('n_pts=', n_pts, ', dt_build=', dt_build)
+
+qq = np.random.randn(n_query, K)
+t = time()
+KDT.nearest_neighbor_vectorized(qq)
+dt_query = time() - t
+print('n_query=', n_query, ', dt_query=', dt_query)
+
+from scipy.spatial import KDTree
+
+t = time()
+KDT_scipy = KDTree(pp)
+dt_build_scipy = time() - t
+print('dt_build_scipy=', dt_build_scipy)
+
+t = time()
+KDT_scipy.query(qq)
+dt_query_scipy = time() - t
+print('dt_query_scipy=', dt_query_scipy)
+
+*/
+
