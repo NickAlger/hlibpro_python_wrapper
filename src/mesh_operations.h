@@ -234,11 +234,26 @@ public:
 class KDTree2D
 {
 private:
-    std::vector< std::tuple<Vector2d, int, int> > nodes; // (x, y, left_child_ind, right_child_ind)
+    struct Node
+    {
+        Vector2d point;
+        int left; // index of left child
+        int right; // index of right child
+    };
+
+    std::vector< Node > nodes;
     std::vector< Vector2d > points_vector;
     int num_pts;
     int dim = 2;
     int current_node_ind = 0;
+
+
+
+    struct NNResult
+    {
+        int index;
+        double distance_squared;
+    };
 
     int make_kdtree(int begin_ind, int end_ind, int depth)
     {
@@ -266,73 +281,62 @@ private:
             int left_node_ind = make_kdtree(left_begin_ind, left_end_ind, depth + 1);
             int right_node_ind = make_kdtree(right_begin_ind, right_end_ind, depth + 1);
 
-            nodes[mid_node_ind] = std::make_tuple(points_vector[mid_points_ind],
-                                                  left_node_ind,
-                                                  right_node_ind);
+            nodes[mid_node_ind] = Node { points_vector[mid_points_ind],
+                                         left_node_ind,
+                                         right_node_ind };
         }
         return mid_node_ind;
     }
 
-    std::pair< int, double > // (node index of nearest neighbor, squared distance)
-        nearest_neighbor_subtree( Vector2d query_point,
-                                  int    root_index,
-                                  int    depth)
+    NNResult nn_subtree( Vector2d query_point,
+                         int    root_index,
+                         int    depth)
     {
-        std::tuple<Vector2d, int, int> root_node = nodes[root_index];
+        Node root = nodes[root_index];
 
-        Vector2d root_vector = std::get<0>(root_node);
-        int left_child_index = std::get<1>(root_node);
-        int right_child_index = std::get<2>(root_node);
+        Vector2d delta = query_point - root.point;
 
-        Vector2d root_delta = query_point - root_vector;
-
-        int best_node_index = root_index;
-        double best_distance_squared = root_delta.squaredNorm();
+        int best_index = root_index;
+        double best_distance_squared = delta.squaredNorm();
 
         int axis = depth % dim;
-        double displacement_to_splitting_plane = root_delta(axis);
+        double displacement_to_splitting_plane = delta(axis);
 
-        int child_A_index;
-        int child_B_index;
+        int A;
+        int B;
         if (displacement_to_splitting_plane >= 0)
         {
-            child_A_index = left_child_index;
-            child_B_index = right_child_index;
+            A = root.left;
+            B = root.right;
         } else {
-            child_A_index = right_child_index;
-            child_B_index = left_child_index;
+            A = root.right;
+            B = root.left;
         }
 
-        if (child_A_index >= 0)
+        if (A >= 0)
         {
-            std::pair< int, double > nn_result_A =
-                nearest_neighbor_subtree( query_point, child_A_index, depth + 1);
-            int A_best_index = nn_result_A.first;
-            double A_distance_squared = nn_result_A.second;
-            if (A_distance_squared < best_distance_squared)
+            NNResult nn_A = nn_subtree( query_point, A, depth + 1);
+            if (nn_A.distance_squared < best_distance_squared)
             {
-                best_node_index = A_best_index;
-                best_distance_squared = A_distance_squared;
+                best_index = nn_A.index;
+                best_distance_squared = nn_A.distance_squared;
             }
         }
 
-        if (child_B_index >= 0)
+        if (B >= 0)
         {
             if (displacement_to_splitting_plane*displacement_to_splitting_plane < best_distance_squared)
             {
-                std::pair< int, double > nn_result_B =
-                    nearest_neighbor_subtree( query_point, child_B_index, depth + 1);
-                int B_best_index = nn_result_B.first;
-                double B_distance_squared = nn_result_B.second;
-                if (B_distance_squared < best_distance_squared)
+                NNResult nn_B = nn_subtree( query_point, B, depth + 1);
+                if (nn_B.distance_squared < best_distance_squared)
                 {
-                    best_node_index = B_best_index;
-                    best_distance_squared = B_distance_squared;
+                    best_index = nn_B.index;
+                    best_distance_squared = nn_B.distance_squared;
                 }
             }
         }
 
-        return std::make_pair(best_node_index, best_distance_squared);
+        return NNResult { best_index, best_distance_squared };
     }
 
 public:
@@ -353,11 +357,9 @@ public:
 
     std::pair<Vector2d, double> nearest_neighbor( Vector2d point )
     {
-        std::pair< int, double > nn_result = nearest_neighbor_subtree( point, 0, 0);
-        int nearest_ind = nn_result.first;
-        double nearest_distance_squared = nn_result.second;
-        Vector2d nearest_point = std::get<0>(nodes[nearest_ind]);
-        return std::make_pair(nearest_point, nearest_distance_squared);
+        NNResult nn_result = nn_subtree( point, 0, 0 );
+        return std::make_pair(nodes[nn_result.index].point,
+                              nn_result.distance_squared);
     }
 
     std::pair< Array<double, Dynamic, 2>, VectorXd > nearest_neighbor_vectorized( Array<double, Dynamic, 2> query_points_array )
@@ -371,14 +373,13 @@ public:
 
         for ( int ii=0; ii<num_query_points; ++ii )
         {
-            std::pair<Vector2d, double> nn_result = nearest_neighbor( query_points_array.row(ii) );
-            closest_points_array.row(ii) = nn_result.first;
-            squared_distances(ii) = nn_result.second;
+            NNResult nn_result = nn_subtree( query_points_array.row(ii), 0, 0 );
+            closest_points_array.row(ii) = nodes[nn_result.index].point;
+            squared_distances(ii) = nn_result.distance_squared;
         }
 
         return std::make_pair(closest_points_array, squared_distances);
     }
-
 };
 
 
