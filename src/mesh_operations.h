@@ -266,4 +266,39 @@ print('err_nearest=', err_nearest)
 
 err_dsqq = np.linalg.norm(dsqq - dsqq_true)
 print('err_dsqq=', err_dsqq)
+
+from time import time
+
+n_pts = int(1e4)
+n_query = int(1e7)
+
+pp = np.random.randn(n_pts, 2)
+t = time()
+KDT = hcpp.KDTree2D(pp)
+dt_build = time() - t
+print('n_pts=', n_pts, ', dt_build=', dt_build)
+
+qq = np.random.randn(n_query, 2)
+t = time()
+KDT.nearest_neighbor_vectorized(qq)
+dt_query = time() - t
+print('n_query=', n_query, ', dt_query=', dt_query)
+
+from scipy.spatial import KDTree
+
+t = time()
+KDT_scipy = KDTree(pp)
+dt_build_scipy = time() - t
+print('dt_build_scipy=', dt_build_scipy)
+
+t = time()
+KDT_scipy.query(qq)
+dt_query_scipy = time() - t
+print('dt_query_scipy=', dt_query_scipy)
+
+
+# std::tuple<double, double>
+# n_pts= 10000 , dt_build= 0.008599281311035156
+# n_query= 10000000 , dt_query= 10.25151014328003
+
 */
