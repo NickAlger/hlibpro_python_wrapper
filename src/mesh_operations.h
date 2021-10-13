@@ -241,23 +241,20 @@ private:
         int right; // index of right child
     };
 
-    std::vector< Node > nodes;
-    std::vector< Vector2d > points_vector;
-    int num_pts;
-    int dim = 2;
-    int current_node_ind = 0;
-
-
-
     struct NNResult
     {
         int index;
         double distance_squared;
     };
 
-    int make_kdtree(int begin_ind, int end_ind, int depth)
+    std::vector< Node > nodes;
+    int dim = 2;
+
+    int make_kdtree(int start, int stop, int depth,
+                    std::vector< Vector2d > & points_vector,
+                    int & current_node_ind)
     {
-        int num_pts_local = end_ind - begin_ind;
+        int num_pts_local = stop - start;
         int mid_node_ind = -1; // -1 indicates node does not exist
         if (num_pts_local >= 1)
         {
@@ -265,21 +262,21 @@ private:
             current_node_ind = current_node_ind + 1;
 
             int axis = depth % dim;
-            std::sort(points_vector.begin() + begin_ind,
-                      points_vector.begin() + end_ind,
+            std::sort(points_vector.begin() + start,
+                      points_vector.begin() + stop,
                       [axis](Vector2d u, Vector2d v)
                                     {return u(axis) > v(axis);} );
 
-            int mid_points_ind = begin_ind + (num_pts_local / 2);
+            int mid_points_ind = start + (num_pts_local / 2);
 
-            int left_begin_ind = begin_ind;
-            int left_end_ind = mid_points_ind;
+            int left_start = start;
+            int left_stop = mid_points_ind;
 
-            int right_begin_ind = mid_points_ind + 1;
-            int right_end_ind = end_ind;
+            int right_start = mid_points_ind + 1;
+            int right_stop = stop;
 
-            int left_node_ind = make_kdtree(left_begin_ind, left_end_ind, depth + 1);
-            int right_node_ind = make_kdtree(right_begin_ind, right_end_ind, depth + 1);
+            int left_node_ind = make_kdtree(left_start, left_stop, depth + 1, points_vector, current_node_ind);
+            int right_node_ind = make_kdtree(right_start, right_stop, depth + 1, points_vector, current_node_ind);
 
             nodes[mid_node_ind] = Node { points_vector[mid_points_ind],
                                          left_node_ind,
@@ -342,17 +339,18 @@ private:
 public:
     KDTree2D( Array<double, Dynamic, 2> points_array )
     {
-        num_pts = points_array.rows();
+        int num_pts = points_array.rows();
 
         // Copy eigen matrix input into std::vector of tuples
-        points_vector.reserve(num_pts);
+        std::vector< Vector2d > points_vector(num_pts);
         for ( int ii=0; ii<num_pts; ++ii)
         {
             points_vector[ii] = points_array.row(ii);
         }
 
         nodes.reserve(num_pts);
-        int zero = make_kdtree(0, num_pts, 0);
+        int current_node_ind = 0;
+        int zero = make_kdtree(0, num_pts, 0, points_vector, current_node_ind);
     }
 
     std::pair<Vector2d, double> nearest_neighbor( Vector2d point )
@@ -420,7 +418,7 @@ print('err_dsqq=', err_dsqq)
 
 from time import time
 
-n_pts = int(1e5)
+n_pts = int(1e6)
 n_query = int(1e7)
 
 pp = np.random.randn(n_pts, 2)
