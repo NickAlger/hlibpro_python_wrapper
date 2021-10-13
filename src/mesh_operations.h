@@ -43,255 +43,54 @@ public:
     Array<double, Dynamic, 2> closest_points( Array<double, Dynamic, 2> const & points_array );
 };
 
-//class KDTree2D
-//{
-//private:
-//    std::vector< std::tuple<double, double, int, int> > nodes; // (x, y, left_child_ind, right_child_ind)
-//    std::vector< std::tuple<double, double> > points_vector;
-//    int num_pts;
-//    int dim = 2;
-//    int current_node_ind = 0;
-//
-//    int make_kdtree(int begin_ind, int end_ind, int depth)
-//    {
-//        int num_pts_local = end_ind - begin_ind;
-//        int mid_node_ind = -1; // -1 indicates node does not exist
-//        if (num_pts_local >= 1)
-//        {
-//            mid_node_ind = current_node_ind;
-//            current_node_ind = current_node_ind + 1;
-//
-//            int axis = depth % dim;
-//            switch(axis)
-//            {
-//                case 0: std::sort(points_vector.begin() + begin_ind,
-//                                  points_vector.begin() + end_ind,
-//                                  [](std::tuple<double, double> u, std::tuple<double, double> v)
-//                                    {return std::get<0>(u) > std::get<0>(v);} );
-//                case 1: std::sort(points_vector.begin() + begin_ind,
-//                                  points_vector.begin() + end_ind,
-//                                  [](std::tuple<double, double> u, std::tuple<double, double> v)
-//                                    {return std::get<1>(u) > std::get<1>(v);} );
-//            }
-////            std::sort(points_vector.begin()+begin_ind, points_vector.begin()+end_ind,
-////                      [axis](Vector2d u, Vector2d v) {return u(axis) > v(axis);} );
-//
-//            int mid_points_ind = begin_ind + (num_pts_local / 2);
-//
-//            int left_begin_ind = begin_ind;
-//            int left_end_ind = mid_points_ind;
-//
-//            int right_begin_ind = mid_points_ind + 1;
-//            int right_end_ind = end_ind;
-//
-//            int left_node_ind = make_kdtree(left_begin_ind, left_end_ind, depth + 1);
-//            int right_node_ind = make_kdtree(right_begin_ind, right_end_ind, depth + 1);
-//
-//            nodes[mid_node_ind] = std::make_tuple(std::get<0>(points_vector[mid_points_ind]),
-//                                                  std::get<1>(points_vector[mid_points_ind]),
-//                                                  left_node_ind,
-//                                                  right_node_ind);
-//        }
-//        return mid_node_ind;
-//    }
-//
-//    std::pair< int, double > // (node index of nearest neighbor, squared distance)
-//        nearest_neighbor_subtree( double query_point_x,
-//                                  double query_point_y,
-//                                  int    root_index,
-//                                  int    depth)
-//    {
-//        std::tuple<double, double, int, int> root_node = nodes[root_index];
-//
-//        double root_x = std::get<0>(root_node);
-//        double root_y = std::get<1>(root_node);
-//        int left_child_index = std::get<2>(root_node);
-//        int right_child_index = std::get<3>(root_node);
-//
-//        double root_delta_x = query_point_x - root_x;
-//        double root_delta_y = query_point_y - root_y;
-//
-//        int best_node_index = root_index;
-//        double best_distance_squared = root_delta_x*root_delta_x + root_delta_y*root_delta_y;
-//
-//        int axis = depth % dim;
-//        double displacement_to_splitting_plane = 0.0;
-//        switch (axis)
-//        {
-//            case 0: displacement_to_splitting_plane = root_delta_x;
-//            case 1: displacement_to_splitting_plane = root_delta_y;
-//        }
-//
-//        int child_A_index;
-//        int child_B_index;
-//        if (displacement_to_splitting_plane >= 0)
-//        {
-//            child_A_index = left_child_index;
-//            child_B_index = right_child_index;
-//        } else {
-//            child_A_index = right_child_index;
-//            child_B_index = left_child_index;
-//        }
-//
-//        if (child_A_index >= 0)
-//        {
-//            std::pair< int, double > nn_result_A =
-//                nearest_neighbor_subtree( query_point_x, query_point_y, child_A_index, depth + 1);
-//            int A_best_index = nn_result_A.first;
-//            double A_distance_squared = nn_result_A.second;
-//            if (A_distance_squared < best_distance_squared)
-//            {
-//                best_node_index = A_best_index;
-//                best_distance_squared = A_distance_squared;
-//            }
-//        }
-//
-//        if (child_B_index >= 0)
-//        {
-//            if (displacement_to_splitting_plane*displacement_to_splitting_plane < best_distance_squared)
-//            {
-//                std::pair< int, double > nn_result_B =
-//                    nearest_neighbor_subtree( query_point_x, query_point_y, child_B_index, depth + 1);
-//                int B_best_index = nn_result_B.first;
-//                double B_distance_squared = nn_result_B.second;
-//                if (B_distance_squared < best_distance_squared)
-//                {
-//                    best_node_index = B_best_index;
-//                    best_distance_squared = B_distance_squared;
-//                }
-//            }
-//        }
-//
-//        return std::make_pair(best_node_index, best_distance_squared);
-//    }
-//
-//public:
-//    KDTree2D( Array<double, Dynamic, 2> points_array )
-//    {
-//        num_pts = points_array.rows();
-//
-//        // Copy eigen matrix input into std::vector of tuples
-//        points_vector.reserve(num_pts);
-//        for ( int ii=0; ii<num_pts; ++ii)
-//        {
-//            points_vector[ii] = std::make_tuple(points_array(ii,0), points_array(ii,1));
-////            points_vector[ii] = points_array.row(ii);
-//        }
-//
-//        nodes.reserve(num_pts);
-//        int zero = make_kdtree(0, num_pts, 0);
-//
-////        for ( int ii=0; ii<num_pts; ++ii)
-////        {
-////            std::tuple<Vector2d, int, int> n = nodes[ii];
-////            cout << "ii=" << ii << ", vec=" << std::get<0>(n) << endl;
-////        }
-//    }
-//
-//    std::pair<std::tuple<double, double>, double> nearest_neighbor( std::tuple<double, double> point )
-//    {
-//        std::pair< int, double > nn_result =
-//            nearest_neighbor_subtree( std::get<0>(point),
-//                                      std::get<1>(point),
-//                                      0, 0);
-//        int nearest_ind = nn_result.first;
-//        double nearest_distance_squared = nn_result.second;
-//        std::tuple<double, double, int, int> nearest_node = nodes[nearest_ind];
-//        std::tuple<double, double> nearest_point = std::make_tuple(std::get<0>(nearest_node),
-//                                                                   std::get<1>(nearest_node));
-//        return std::make_pair(nearest_point, nearest_distance_squared);
-//    }
-//
-//    std::pair< Array<double, Dynamic, 2>, VectorXd > nearest_neighbor_vectorized( Array<double, Dynamic, 2> query_points_array )
-//    {
-//        int num_query_points = query_points_array.rows();
-//
-//        Array<double, Dynamic, 2> closest_points_array;
-//        closest_points_array.resize(num_query_points, 2);
-//
-//        VectorXd squared_distances(num_query_points);
-//
-//        for ( int ii=0; ii<num_query_points; ++ii )
-//        {
-//            std::tuple<double, double> qi = std::make_tuple(query_points_array(ii,0),
-//                                                            query_points_array(ii,1));
-//
-//            std::pair<std::tuple<double, double>, double> nn_result = nearest_neighbor( qi );
-//
-//            std::tuple<double, double> nearest_point = nn_result.first;
-//            double nearest_distance_squared = nn_result.second;
-//
-//            closest_points_array(ii,0) = std::get<0>(nearest_point);
-//            closest_points_array(ii,1) = std::get<1>(nearest_point);
-//            squared_distances(ii) = nearest_distance_squared;
-//        }
-//
-//        return std::make_pair(closest_points_array, squared_distances);
-//    }
-//
-//};
 
-class KDTree2D
-{
+class KDTree2D {
 private:
-    struct Node
-    {
+    struct Node {
         Vector2d point;
-        int left; // index of left child
-        int right; // index of right child
-    };
+        int left;       // index of left child
+        int right; };   // index of right child
 
-    struct NNResult
-    {
-        int index;
-        double distance_squared;
-    };
+    struct NNResult {
+        int index; // index of nearest node with respect to vector of nodes
+        double distance_squared; };
 
-    std::vector< Node > nodes;
+    vector< Node > nodes;
     int dim = 2;
 
-    int make_kdtree(int start, int stop, int depth,
-                    std::vector< Vector2d > & points_vector,
-                    int & current_node_ind)
-    {
+    int make_kdtree( int start, int stop, int depth,
+                     vector< Vector2d > & points,
+                     int & counter ) {
         int num_pts_local = stop - start;
-        int mid_node_ind = -1; // -1 indicates node does not exist
-        if (num_pts_local >= 1)
-        {
-            mid_node_ind = current_node_ind;
-            current_node_ind = current_node_ind + 1;
+        int current_node_ind = -1; // -1 indicates node does not exist
+        if (num_pts_local >= 1) {
+            current_node_ind = counter;
+            counter = counter + 1;
 
             int axis = depth % dim;
-            std::sort(points_vector.begin() + start,
-                      points_vector.begin() + stop,
-                      [axis](Vector2d u, Vector2d v)
-                                    {return u(axis) > v(axis);} );
+            sort( points.begin() + start, points.begin() + stop,
+                  [axis](Vector2d u, Vector2d v) {return u(axis) > v(axis);} );
 
-            int mid_points_ind = start + (num_pts_local / 2);
+            int mid = start + (num_pts_local / 2);
 
             int left_start = start;
-            int left_stop = mid_points_ind;
+            int left_stop = mid;
 
-            int right_start = mid_points_ind + 1;
+            int right_start = mid + 1;
             int right_stop = stop;
 
-            int left_node_ind = make_kdtree(left_start, left_stop, depth + 1, points_vector, current_node_ind);
-            int right_node_ind = make_kdtree(right_start, right_stop, depth + 1, points_vector, current_node_ind);
+            int left = make_kdtree(left_start, left_stop, depth + 1, points, counter);
+            int right = make_kdtree(right_start, right_stop, depth + 1, points, counter);
 
-            nodes[mid_node_ind] = Node { points_vector[mid_points_ind],
-                                         left_node_ind,
-                                         right_node_ind };
-        }
-        return mid_node_ind;
-    }
+            nodes[current_node_ind] = Node { points[mid], left, right }; }
+        return current_node_ind; }
 
-    NNResult nn_subtree( Vector2d query_point,
-                         int    root_index,
-                         int    depth)
-    {
+    NNResult nn_subtree( const Vector2d & query,
+                         int              root_index,
+                         int              depth) {
         Node root = nodes[root_index];
 
-        Vector2d delta = query_point - root.point;
+        Vector2d delta = query - root.point;
 
         int best_index = root_index;
         double best_distance_squared = delta.squaredNorm();
@@ -301,84 +100,62 @@ private:
 
         int A;
         int B;
-        if (displacement_to_splitting_plane >= 0)
-        {
+        if (displacement_to_splitting_plane >= 0) {
             A = root.left;
             B = root.right;
         } else {
             A = root.right;
-            B = root.left;
-        }
+            B = root.left; }
 
-        if (A >= 0)
-        {
-            NNResult nn_A = nn_subtree( query_point, A, depth + 1);
-            if (nn_A.distance_squared < best_distance_squared)
-            {
+        if (A >= 0) {
+            NNResult nn_A = nn_subtree( query, A, depth + 1);
+            if (nn_A.distance_squared < best_distance_squared) {
                 best_index = nn_A.index;
-                best_distance_squared = nn_A.distance_squared;
-            }
-        }
+                best_distance_squared = nn_A.distance_squared; } }
 
-        if (B >= 0)
-        {
-            if (displacement_to_splitting_plane*displacement_to_splitting_plane < best_distance_squared)
-            {
-                NNResult nn_B = nn_subtree( query_point, B, depth + 1);
-                if (nn_B.distance_squared < best_distance_squared)
-                {
+        if (B >= 0) {
+            if (displacement_to_splitting_plane*displacement_to_splitting_plane < best_distance_squared) {
+                NNResult nn_B = nn_subtree( query, B, depth + 1);
+                if (nn_B.distance_squared < best_distance_squared) {
                     best_index = nn_B.index;
-                    best_distance_squared = nn_B.distance_squared;
-                }
-            }
-        }
+                    best_distance_squared = nn_B.distance_squared; } } }
 
-        return NNResult { best_index, best_distance_squared };
-    }
+        return NNResult { best_index, best_distance_squared }; }
 
 public:
-    KDTree2D( Array<double, Dynamic, 2> points_array )
-    {
+    KDTree2D( Array<double, Dynamic, 2> & points_array ) {
         int num_pts = points_array.rows();
 
-        // Copy eigen matrix input into std::vector of tuples
-        std::vector< Vector2d > points_vector(num_pts);
-        for ( int ii=0; ii<num_pts; ++ii)
-        {
-            points_vector[ii] = points_array.row(ii);
-        }
+        // Copy eigen matrix input into std::vector of tuples which will be re-ordered
+        vector< Vector2d > points(num_pts);
+        for ( int ii=0; ii<num_pts; ++ii) {
+            points[ii] = points_array.row(ii); }
 
         nodes.reserve(num_pts);
-        int current_node_ind = 0;
-        int zero = make_kdtree(0, num_pts, 0, points_vector, current_node_ind);
-    }
+        int counter = 0;
+        int zero = make_kdtree(0, num_pts, 0, points, counter); }
 
-    std::pair<Vector2d, double> nearest_neighbor( Vector2d point )
-    {
+    pair<Vector2d, double> nearest_neighbor( Vector2d point ) {
         NNResult nn_result = nn_subtree( point, 0, 0 );
-        return std::make_pair(nodes[nn_result.index].point,
-                              nn_result.distance_squared);
-    }
+        return make_pair(nodes[nn_result.index].point,
+                              nn_result.distance_squared); }
 
-    std::pair< Array<double, Dynamic, 2>, VectorXd > nearest_neighbor_vectorized( Array<double, Dynamic, 2> query_points_array )
-    {
-        int num_query_points = query_points_array.rows();
+    pair< Array<double, Dynamic, 2>, VectorXd >
+        nearest_neighbor_vectorized( Array<double, Dynamic, 2> & query_array ) {
+        int num_querys = query_array.rows();
 
         Array<double, Dynamic, 2> closest_points_array;
-        closest_points_array.resize(num_query_points, 2);
+        closest_points_array.resize(num_querys, 2);
 
-        VectorXd squared_distances(num_query_points);
+        VectorXd squared_distances(num_querys);
 
-        for ( int ii=0; ii<num_query_points; ++ii )
-        {
-            NNResult nn_result = nn_subtree( query_points_array.row(ii), 0, 0 );
+        for ( int ii=0; ii<num_querys; ++ii ) {
+            Vector2d query = query_array.row(ii);
+            NNResult nn_result = nn_subtree( query, 0, 0 );
             closest_points_array.row(ii) = nodes[nn_result.index].point;
-            squared_distances(ii) = nn_result.distance_squared;
-        }
+            squared_distances(ii) = nn_result.distance_squared; }
 
-        return std::make_pair(closest_points_array, squared_distances);
-    }
-};
+        return make_pair(closest_points_array, squared_distances); } };
 
 
 /*

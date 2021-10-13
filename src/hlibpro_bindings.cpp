@@ -738,10 +738,15 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("closest_points", &AABBTreeWrapper::closest_points);
 
     py::class_<KDTree2D>(m, "KDTree2D")
-        .def(py::init< Array<double, Dynamic, 2> >())
+        .def(py::init< Array<double, Dynamic, 2> & >())
 //        .def("nearest_neighbor", &KDTree2D::nearest_neighbor)
         .def("nearest_neighbor_vectorized", &KDTree2D::nearest_neighbor_vectorized);
 }
+
+
+
+
+
 
 
 
