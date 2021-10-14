@@ -109,7 +109,7 @@ private:
 
             // If all boxes happen to be on one side, split them evenly
             // (theoretically possible, e.g., if all boxes have the same centerpoint)
-            if ( mid == stop )
+            if ( (mid == start) || (mid == stop) )
             {
                 mid = start + (num_boxes_local / 2);
             }
@@ -160,7 +160,7 @@ private:
 
 public:
     AABBTree( Array<double, Dynamic, K> & box_mins,
-              Array<double, Dynamic, K> & box_maxes)
+              Array<double, Dynamic, K> & box_maxes )
     {
         int num_leaf_boxes = box_mins.rows();
 
