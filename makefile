@@ -70,20 +70,12 @@ $(OBJ_DIR)/rbf_interpolation.o: $(SRC_DIR)/rbf_interpolation.cpp
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-# $(OBJ_DIR)/mesh_operations.o: $(SRC_DIR)/mesh_operations.cpp
-# 	@echo 'Building target: $@'
-# 	g++ -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
-# # 	cc -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
-# 	@echo 'Finished building target: $@'
-# 	@echo ' '
-
 
 clean:
 	-rm -rf $(OBJ_DIR)/product_convolution_hmatrix.o
 	-rm -rf $(OBJ_DIR)/hlibpro_bindings.o
 	-rm -rf $(OBJ_DIR)/grid_interpolate.o
 	-rm -rf $(OBJ_DIR)/rbf_interpolation.o
-# 	-rm -rf $(OBJ_DIR)/mesh_operations.o
 	-rm -rf $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET)
 	-@echo ' '
 

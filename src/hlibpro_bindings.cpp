@@ -18,7 +18,7 @@
 #include "grid_interpolate.h"
 #include "product_convolution_hmatrix.h"
 #include "rbf_interpolation.h"
-#include "mesh_operations.h"
+#include "kdtree.h"
 
 using namespace Eigen;
 
