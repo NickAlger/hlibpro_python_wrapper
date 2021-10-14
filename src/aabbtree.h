@@ -15,7 +15,7 @@ private:
 
     struct Box { KDVector min;
                  KDVector max;
-                 int      index;}
+                 int      index;} // 0,...,N for leaf nodes, and -1 for internal node
 
     // Node in KD tree
     struct Node { Box box;
@@ -30,7 +30,15 @@ private:
                       int & counter ) {
         int num_boxes_local = stop - start;
         int current_node_ind = -1; // -1 indicates node does not exist
-        if (num_boxes_local >= 1) {
+        if ( num_boxes_local == 1)
+        {
+            current_node_ind = counter;
+            counter = counter + 1;
+            B = leaf_boxes[start];
+            nodes[current_node_ind] = Node big_box_node { B, -1, -1 };
+        }
+        else if (num_boxes_local > 1)
+        {
             current_node_ind = counter;
             counter = counter + 1;
 
@@ -86,99 +94,105 @@ private:
                   [axis](Box A, Box B) {return 0.5*(A.max(axis)+A.min(axis))
                                              > 0.5*(B.max(axis)+B.min(axis));} ); // 0.5*(...) for clarity (unnecessary)
 
-            // Find index of first box on "right" side of biggest axis
-            double centerpoint = 0.5*(big_box.max(axis) + big_box.min(axis));
-            int mid = 0;
-            for ( int bb=0; bb<num_boxes_local; ++bb )
+            // Find index of first leaf box with centerpoint in the "right" half of big box
+            double big_box_centerpoint = 0.5*(big_box.max(axis) + big_box.min(axis));
+            int mid = stop;
+            for ( int bb=start; bb<stop; ++bb )
             {
-                double box_centerpoint = 0.5*(leaf_boxes[bb].max(axis) + leaf_boxes[bb].min(axis));
-                if ( box_centerpoint < centerpoint )
+                box L = leaf_boxes[bb];
+                double L_centerpoint = 0.5*(L.max(axis) + L.min(axis));
+                if ( big_box_centerpoint < L_centerpoint )
                 {
-                    mid = bb+1;
+                    mid = bb;
+                    break;
                 }
             }
 
-            int left  = make_subtree(start,    mid, leaf_boxes, counter);
-            int right = make_subtree(mid + 1, stop, leaf_boxes, counter);
+            // If all boxes happen to be on one side, split them evenly
+            // (theoretically possible, e.g., if all boxes have the same centerpoint)
+            if ( mid == stop )
+            {
+                int mid = start + (num_boxes_local / 2);
+            }
 
-            Node big_box_node { big_box, left, right };
-            nodes.push_back(big_box_node);
+            int left  = make_subtree(start,  mid, leaf_boxes, counter);
+            int right = make_subtree(mid,   stop, leaf_boxes, counter);
+
+            nodes[current_node_ind] = Node { big_box, left, right };
             }
         return current_node_ind;
         }
 
+
     // finds nearest neighbor of query in subtree
-    SubtreeResult nn_subtree( const KDVector & query,
-                              int              root_index,
-                              int              depth) {
-        Node root = nodes[root_index];
+    int first_point_intersection_subtree( const KDVector & query,
+                                          int              current )
+    {
+        Node current_node = nodes[current];
+        Box B = current_node.box;
 
-        KDVector delta = query - root.point;
+        bool query_is_in_current_box = True;
+        for ( int kk=0; kk<K; ++kk)
+        {
+            if ( (query(kk) < B.min(kk)) || (B.max(kk) < query(kk)) )
+            {
+                query_is_in_current_box = False;
+            }
+        }
 
-        int best_index = root_index;
-        double best_distance_squared = delta.squaredNorm();
+        int first_intersection = -1;
+        if ( query_is_in_current_box )
+        {
+            if ( B.index >= 0 ) // if box is leaf
+            {
+                first_intersection = B.index;
+            } else { // box is internal node
+                first_intersection = first_point_intersection_subtree( query, current_node.left );
+                if (first_intersection < 0 ) // point didn't intersect with left subtree
+                {
+                    first_intersection = first_point_intersection_subtree( query, current_node.right );
+                }
+            }
+        }
 
-        int axis = depth % K;
-        double displacement_to_splitting_plane = delta(axis);
-
-        int A;
-        int B;
-        if (displacement_to_splitting_plane >= 0) {
-            A = root.left;
-            B = root.right;
-        } else {
-            A = root.right;
-            B = root.left; }
-
-        if (A >= 0) {
-            SubtreeResult nn_A = nn_subtree( query, A, depth + 1);
-            if (nn_A.distance_squared < best_distance_squared) {
-                best_index = nn_A.index;
-                best_distance_squared = nn_A.distance_squared; } }
-
-        if (B >= 0) {
-            bool nearest_neighbor_might_be_in_B_subtree =
-                displacement_to_splitting_plane*displacement_to_splitting_plane < best_distance_squared;
-            if (nearest_neighbor_might_be_in_B_subtree) {
-                SubtreeResult nn_B = nn_subtree( query, B, depth + 1);
-                if (nn_B.distance_squared < best_distance_squared) {
-                    best_index = nn_B.index;
-                    best_distance_squared = nn_B.distance_squared; } } }
-
-        return SubtreeResult { best_index, best_distance_squared }; }
+        return first_intersection;
+    }
 
 public:
-    KDTree( Array<double, Dynamic, K> & points_array ) {
-        int num_pts = points_array.rows();
+    AABBTree( Array<double, Dynamic, K> & box_mins,
+              Array<double, Dynamic, K> & box_maxes)
+    {
+        int num_leaf_boxes = box_mins.rows();
 
-        // Copy eigen matrix input into std::vector of tuples which will be re-ordered
-        vector< KDVector > points(num_pts);
-        for ( int ii=0; ii<num_pts; ++ii) {
-            points[ii] = points_array.row(ii); }
+        // Copy eigen matrix input into std::vector of Boxes which will be re-ordered
+        vector< Box > leaf_boxes(num_leaf_boxes);
+        for ( int ii=0; ii<num_leaf_boxes; ++ii)
+        {
+            leaf_boxes[ii] = Box { box_mins.row(ii), box_maxes.row(ii), ii };
+        }
 
-        nodes.reserve(num_pts);
+        int num_boxes = 2*num_leaf_boxes - 1; // full binary tree with n leafs has 2n-1 nodes
+        nodes.reserve(num_boxes);
         int counter = 0;
-        int zero = make_subtree(0, num_pts, 0, points, counter); }
+        int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
+    }
 
-    pair<KDVector, double> nearest_neighbor( KDVector point ) {
-        SubtreeResult nn_result = nn_subtree( point, 0, 0 );
-        return make_pair(nodes[nn_result.index].point,
-                         nn_result.distance_squared); }
+    int first_point_intersection( KDVector query )
+    {
+        return first_point_intersection_subtree( query, 0 );
+    }
 
-    pair< Array<double, Dynamic, K>, VectorXd >
-        nearest_neighbor_vectorized( Array<double, Dynamic, K> & query_array ) {
+    VectorXi first_point_intersection_vectorized( Array<double, Dynamic, K> & query_array )
+    {
         int num_querys = query_array.rows();
-
-        Array<double, Dynamic, K> closest_points_array;
-        closest_points_array.resize(num_querys, K);
-
-        VectorXd squared_distances(num_querys);
-
-        for ( int ii=0; ii<num_querys; ++ii ) {
+        VectorXi first_intersection_inds(num_querys);
+        for (int ii=0; ii<num_querys; ++ii)
+        {
             KDVector query = query_array.row(ii);
-            SubtreeResult nn_result = nn_subtree( query, 0, 0 );
-            closest_points_array.row(ii) = nodes[nn_result.index].point;
-            squared_distances(ii) = nn_result.distance_squared; }
+            first_intersection_inds(ii) = first_point_intersection_subtree( query, 0 );
+        }
+        return first_intersection_inds;
+    }
 
-        return make_pair(closest_points_array, squared_distances); } };
+};
 

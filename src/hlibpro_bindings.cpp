@@ -19,6 +19,7 @@
 #include "product_convolution_hmatrix.h"
 #include "rbf_interpolation.h"
 #include "kdtree.h"
+#include "aabbtree.h"
 
 using namespace Eigen;
 
@@ -730,13 +731,6 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< const Array<double, Dynamic, 2> >())
         .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
 
-//    py::class_<AABBTreeWrapper>(m, "AABBTreeWrapper")
-//        .def(py::init< Array<double, Dynamic, 2> const &,
-//                       Array<int, Dynamic, 3> const &
-//                      >())
-//        .def("closest_point", &AABBTreeWrapper::closest_point)
-//        .def("closest_points", &AABBTreeWrapper::closest_points);
-
     py::class_<KDTree<1>>(m, "KDTree1D")
         .def(py::init< Array<double, Dynamic, 1> & >())
         .def("nearest_neighbor", &KDTree<1>::nearest_neighbor)
@@ -756,9 +750,13 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< Array<double, Dynamic, 4> & >())
         .def("nearest_neighbor", &KDTree<4>::nearest_neighbor)
         .def("nearest_neighbor_vectorized", &KDTree<4>::nearest_neighbor_vectorized);
+
+    py::class_<AABBTree<2>>(m, "AABBTree2D")
+        .def(py::init< Array<double, Dynamic, 2> &,
+                       Array<double, Dynamic, 2> & >())
+        .def("first_point_intersection", &KDTree<2>::first_point_intersection)
+        .def("first_point_intersection_vectorized", &KDTree<2>::first_point_intersection_vectorized);
 }
-
-
 
 
 
