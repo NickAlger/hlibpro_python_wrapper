@@ -730,12 +730,12 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< const Array<double, Dynamic, 2> >())
         .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
 
-    py::class_<AABBTreeWrapper>(m, "AABBTreeWrapper")
-        .def(py::init< Array<double, Dynamic, 2> const &,
-                       Array<int, Dynamic, 3> const &
-                      >())
-        .def("closest_point", &AABBTreeWrapper::closest_point)
-        .def("closest_points", &AABBTreeWrapper::closest_points);
+//    py::class_<AABBTreeWrapper>(m, "AABBTreeWrapper")
+//        .def(py::init< Array<double, Dynamic, 2> const &,
+//                       Array<int, Dynamic, 3> const &
+//                      >())
+//        .def("closest_point", &AABBTreeWrapper::closest_point)
+//        .def("closest_points", &AABBTreeWrapper::closest_points);
 
     py::class_<KDTree<1>>(m, "KDTree1D")
         .def(py::init< Array<double, Dynamic, 1> & >())
