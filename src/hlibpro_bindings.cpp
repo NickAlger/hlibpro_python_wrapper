@@ -754,9 +754,10 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     py::class_<AABBTree<2>>(m, "AABBTree2D")
         .def(py::init< Array<double, Dynamic, 2> &,
                        Array<double, Dynamic, 2> & >())
-        .def("first_point_intersection", &KDTree<2>::first_point_intersection)
-        .def("first_point_intersection_vectorized", &KDTree<2>::first_point_intersection_vectorized);
+        .def("first_point_intersection", &AABBTree<2>::first_point_intersection)
+        .def("first_point_intersection_vectorized", &AABBTree<2>::first_point_intersection_vectorized);
 }
+
 
 
 

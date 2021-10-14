@@ -15,7 +15,7 @@ private:
 
     struct Box { KDVector min;
                  KDVector max;
-                 int      index;} // 0,...,N for leaf nodes, and -1 for internal node
+                 int      index;}; // 0,...,N for leaf nodes, and -1 for internal node
 
     // Node in KD tree
     struct Node { Box box;
@@ -34,15 +34,14 @@ private:
         {
             current_node_ind = counter;
             counter = counter + 1;
-            B = leaf_boxes[start];
-            nodes[current_node_ind] = Node big_box_node { B, -1, -1 };
+            nodes[current_node_ind] = Node { leaf_boxes[start], -1, -1 };
         }
         else if (num_boxes_local > 1)
         {
             current_node_ind = counter;
             counter = counter + 1;
 
-            // Find big box containing all boxes in this group
+            // compute limits of big box containing all boxes in this group
             KDVector big_box_min;
             for ( int kk=0; kk<K; ++kk )
             {
@@ -83,7 +82,7 @@ private:
                 double kth_axis_size = big_box_max(kk) - big_box_min(kk);
                 if (kth_axis_size > biggest_axis_size)
                 {
-                    axis = k;
+                    axis = kk;
                     biggest_axis_size = kth_axis_size;
                 }
             }
@@ -99,7 +98,7 @@ private:
             int mid = stop;
             for ( int bb=start; bb<stop; ++bb )
             {
-                box L = leaf_boxes[bb];
+                Box L = leaf_boxes[bb];
                 double L_centerpoint = 0.5*(L.max(axis) + L.min(axis));
                 if ( big_box_centerpoint < L_centerpoint )
                 {
@@ -112,7 +111,7 @@ private:
             // (theoretically possible, e.g., if all boxes have the same centerpoint)
             if ( mid == stop )
             {
-                int mid = start + (num_boxes_local / 2);
+                mid = start + (num_boxes_local / 2);
             }
 
             int left  = make_subtree(start,  mid, leaf_boxes, counter);
@@ -131,12 +130,13 @@ private:
         Node current_node = nodes[current];
         Box B = current_node.box;
 
-        bool query_is_in_current_box = True;
+        bool query_is_in_current_box = true;
         for ( int kk=0; kk<K; ++kk)
         {
             if ( (query(kk) < B.min(kk)) || (B.max(kk) < query(kk)) )
             {
-                query_is_in_current_box = False;
+                query_is_in_current_box = false;
+                break;
             }
         }
 
