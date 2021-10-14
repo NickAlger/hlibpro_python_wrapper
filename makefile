@@ -37,14 +37,13 @@ all: $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-# $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET): $(OBJ_DIR)/hlibpro_bindings.o $(OBJ_DIR)/grid_interpolate.o $(OBJ_DIR)/product_convolution_hmatrix.o $(OBJ_DIR)/rbf_interpolation.o $(SRC_DIR)/aabbtree.h
 $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET): $(OBJ_DIR)/hlibpro_bindings.o $(OBJ_DIR)/grid_interpolate.o $(OBJ_DIR)/product_convolution_hmatrix.o $(OBJ_DIR)/rbf_interpolation.o
 	@echo 'Building target: $@'
 	g++ -o "$@" $^ $(ALL_COMPILE_STUFF)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-$(OBJ_DIR)/hlibpro_bindings.o: $(SRC_DIR)/hlibpro_bindings.cpp
+$(OBJ_DIR)/hlibpro_bindings.o: $(SRC_DIR)/hlibpro_bindings.cpp $(SRC_DIR)/aabbtree.h $(SRC_DIR)/kdtree.h
 	@echo 'Building target: $@'
 	g++ -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
 # 	cc -o "$@" -c "$<" $(ALL_COMPILE_STUFF)

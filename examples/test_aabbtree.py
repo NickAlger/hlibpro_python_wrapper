@@ -27,8 +27,8 @@ num_boxes = 191
 num_pts = 549
 
 bb0 = np.random.randn(num_boxes, K, 2)
-b_mins = np.min(bb0, axis=2)
-b_maxes = np.max(bb0, axis=2)
+b_mins = np.min(bb0, axis=2).copy()
+b_maxes = np.max(bb0, axis=2).copy()
 
 AABB = hcpp.AABBTree2D(b_mins, b_maxes)
 qq = 2.5 * np.random.randn(num_pts, K)
@@ -45,13 +45,9 @@ all_good_points_are_in_their_boxes = np.all(good_points_that_are_in_their_box)
 print('all_good_points_are_in_their_boxes=', all_good_points_are_in_their_boxes)
 
 
-bad_qq = qq[bad_points, :]
-T1 = np.any(np.all(b_mins[None, :, :] <= bad_qq[:, None, :], axis=2), axis=1)
-T2 = np.any(np.all(bad_qq[:, None, :] <= b_maxes[None, :, :], axis=2), axis=1)
-bad_points_that_are_in_a_box = np.logical_and(T1, T2)
-all_bad_points_are_outside_all_boxes = (not np.any(bad_points_that_are_in_a_box))
-print('all_bad_points_are_outside_all_boxes=', all_bad_points_are_outside_all_boxes)
+points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[None, :, :] <= qq[:, None, :],
+                                                                   qq[:, None, :] <= b_maxes[None, :, :]), axis=2), axis=1)
 
-bad_points_that_are_in_a_box
-
-bad_qq_in_a_box = bad_qq[bad_points_that_are_in_a_box, :]
+points_that_are_not_in_any_box = np.logical_not(points_that_are_in_at_least_one_box)
+bad_points_are_the_points_outside_all_boxes = np.all(points_that_are_not_in_any_box == bad_points)
+print('bad_points_are_the_points_outside_all_boxes=', bad_points_are_the_points_outside_all_boxes)

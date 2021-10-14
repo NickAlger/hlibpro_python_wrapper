@@ -29,50 +29,48 @@ private:
                       vector<Box> & leaf_boxes,
                       int & counter ) {
         int num_boxes_local = stop - start;
-        int current_node_ind = -1; // -1 indicates node does not exist
-        if ( num_boxes_local == 1)
+
+        int current_node_ind = counter;
+        counter = counter + 1;
+
+        if ( num_boxes_local == 1 )
         {
-            current_node_ind = counter;
-            counter = counter + 1;
             nodes[current_node_ind] = Node { leaf_boxes[start], -1, -1 };
         }
         else if (num_boxes_local > 1)
         {
-            current_node_ind = counter;
-            counter = counter + 1;
-
             // compute limits of big box containing all boxes in this group
             KDVector big_box_min;
             for ( int kk=0; kk<K; ++kk )
             {
-                double min_k = leaf_boxes[start].min(kk);
+                double best_min_k = leaf_boxes[start].min(kk);
                 for ( int bb=start+1; bb<stop; ++bb)
                 {
                     double candidate_min_k = leaf_boxes[bb].min(kk);
-                    if (candidate_min_k < min_k)
+                    if (candidate_min_k < best_min_k)
                     {
-                        min_k = candidate_min_k;
+                        best_min_k = candidate_min_k;
                     }
                 }
-                big_box_min(kk) = min_k;
+                big_box_min(kk) = best_min_k;
             }
 
             KDVector big_box_max;
             for ( int kk=0; kk<K; ++kk )
             {
-                double max_k = leaf_boxes[start].max(kk);
+                double best_max_k = leaf_boxes[start].max(kk);
                 for ( int bb=start+1; bb<stop; ++bb)
                 {
                     double candidate_max_k = leaf_boxes[bb].max(kk);
-                    if (candidate_max_k > max_k)
+                    if ( candidate_max_k > best_max_k )
                     {
-                        max_k = candidate_max_k;
+                        best_max_k = candidate_max_k;
                     }
                 }
-                big_box_max(kk) = max_k;
+                big_box_max(kk) = best_max_k;
             }
 
-            Box big_box {big_box_min, big_box_max, -1};
+            Box big_box {big_box_min, big_box_max, -1}; // -1 indicates internal node
 
             // Find biggest axis of box
             int axis = 0;
@@ -87,11 +85,11 @@ private:
                 }
             }
 
-            // Sort boxes by centerpoint along biggest axis
+            // Sort leaf boxes by centerpoint along biggest axis
             sort( leaf_boxes.begin() + start,
                   leaf_boxes.begin() + stop,
                   [axis](Box A, Box B) {return 0.5*(A.max(axis)+A.min(axis))
-                                             > 0.5*(B.max(axis)+B.min(axis));} ); // 0.5*(...) for clarity (unnecessary)
+                                             > 0.5*(B.max(axis)+B.min(axis));} ); // 0.5*(...) for clarity
 
             // Find index of first leaf box with centerpoint in the "right" half of big box
             double big_box_centerpoint = 0.5*(big_box.max(axis) + big_box.min(axis));
@@ -107,7 +105,7 @@ private:
                 }
             }
 
-            // If all boxes happen to be on one side, split them evenly
+            // If all boxes happen to be on one side, split them in equal numbers
             // (theoretically possible, e.g., if all boxes have the same centerpoint)
             if ( (mid == start) || (mid == stop) )
             {
@@ -118,6 +116,12 @@ private:
             int right = make_subtree(mid,   stop, leaf_boxes, counter);
 
             nodes[current_node_ind] = Node { big_box, left, right };
+            }
+            else
+            {
+                cout << "BAD: trying to make subtree of leaf box!"
+                     << " start=" << start << " stop=" << stop << " counter=" << counter
+                     << endl;
             }
         return current_node_ind;
         }
@@ -140,15 +144,18 @@ private:
             }
         }
 
+        bool current_box_is_leaf = (B.index >= 0);
+
         int first_intersection = -1;
         if ( query_is_in_current_box )
         {
-            if ( B.index >= 0 ) // if box is leaf
+            if ( current_box_is_leaf )
             {
                 first_intersection = B.index;
-            } else { // box is internal node
+            } else { // current box is internal node
                 first_intersection = first_point_intersection_subtree( query, current_node.left );
-                if (first_intersection < 0 ) // point didn't intersect with left subtree
+                bool no_intersection_in_left_subtree = (first_intersection < 0);
+                if ( no_intersection_in_left_subtree )
                 {
                     first_intersection = first_point_intersection_subtree( query, current_node.right );
                 }
