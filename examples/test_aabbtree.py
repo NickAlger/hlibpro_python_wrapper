@@ -52,10 +52,47 @@ points_that_are_not_in_any_box = np.logical_not(points_that_are_in_at_least_one_
 bad_points_are_the_points_outside_all_boxes = np.all(points_that_are_not_in_any_box == bad_points)
 print('bad_points_are_the_points_outside_all_boxes=', bad_points_are_the_points_outside_all_boxes)
 
-#
+# More realistic setting, check correctness
 
 num_boxes = int(1e3)
-num_pts = int(1e6)
+num_pts = int(1e4)
+
+box_area = 1. / num_boxes
+box_h = np.power(box_area, 1./K)
+
+box_centers = np.random.randn(num_boxes, K)
+box_widths = box_h * np.abs(np.random.randn(num_boxes, K))
+b_mins = box_centers - box_widths
+b_maxes = box_centers + box_widths
+
+qq = np.random.randn(num_pts, K)
+
+AABB = hcpp.AABBTree2D(b_mins, b_maxes)
+
+box_inds = AABB.first_point_intersection_vectorized(qq)
+
+good_points = (box_inds >= 0)
+bad_points = np.logical_not(good_points)
+
+good_qq = qq[good_points,:]
+S1 = b_mins[box_inds[good_points], :] <= good_qq
+S2 = good_qq <= b_maxes[box_inds[good_points], :]
+good_points_that_are_in_their_box = np.logical_and(S1, S2)
+all_good_points_are_in_their_boxes = np.all(good_points_that_are_in_their_box)
+print('all_good_points_are_in_their_boxes=', all_good_points_are_in_their_boxes)
+
+
+points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[None, :, :] <= qq[:, None, :],
+                                                                   qq[:, None, :] <= b_maxes[None, :, :]), axis=2), axis=1)
+
+points_that_are_not_in_any_box = np.logical_not(points_that_are_in_at_least_one_box)
+bad_points_are_the_points_outside_all_boxes = np.all(points_that_are_not_in_any_box == bad_points)
+print('bad_points_are_the_points_outside_all_boxes=', bad_points_are_the_points_outside_all_boxes)
+
+# More realistic setting, timing
+
+num_boxes = int(1e5)
+num_pts = int(1e7)
 
 print('num_boxes=', num_boxes, ', num_pts=', num_pts)
 
@@ -79,21 +116,7 @@ box_inds = AABB.first_point_intersection_vectorized(qq)
 dt_first_point_intersection_vectorized = time() - t
 print('dt_first_point_intersection_vectorized=', dt_first_point_intersection_vectorized)
 
-
-good_points = (box_inds >= 0)
-bad_points = np.logical_not(good_points)
-
-good_qq = qq[good_points,:]
-S1 = b_mins[box_inds[good_points], :] <= good_qq
-S2 = good_qq <= b_maxes[box_inds[good_points], :]
-good_points_that_are_in_their_box = np.logical_and(S1, S2)
-all_good_points_are_in_their_boxes = np.all(good_points_that_are_in_their_box)
-print('all_good_points_are_in_their_boxes=', all_good_points_are_in_their_boxes)
-
-
-points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[None, :, :] <= qq[:, None, :],
-                                                                   qq[:, None, :] <= b_maxes[None, :, :]), axis=2), axis=1)
-
-points_that_are_not_in_any_box = np.logical_not(points_that_are_in_at_least_one_box)
-bad_points_are_the_points_outside_all_boxes = np.all(points_that_are_not_in_any_box == bad_points)
-print('bad_points_are_the_points_outside_all_boxes=', bad_points_are_the_points_outside_all_boxes)
+# Recursive:
+# num_boxes= 100000 , num_pts= 10000000
+# dt_build= 0.11991548538208008
+# dt_first_point_intersection_vectorized= 5.488429069519043
