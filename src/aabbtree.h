@@ -23,6 +23,62 @@ private:
                   int right; };   // index of right child
 
     vector< Node > nodes; // All nodes in the tree
+    vector< int > nodes_under_consideration;
+
+    double box_center( const Box & B, int axis )
+    {
+        return 0.5*(B.max(axis)+B.min(axis));
+    }
+
+    int biggest_axis_of_box( const Box & B )
+    {
+        int axis = 0;
+        double biggest_axis_size = B.max(0) - B.min(0);
+        for ( int kk=1; kk<K; ++kk)
+        {
+            double kth_axis_size = B.max(kk) - B.min(kk);
+            if (kth_axis_size > biggest_axis_size)
+            {
+                axis = kk;
+                biggest_axis_size = kth_axis_size;
+            }
+        }
+        return axis;
+    }
+
+    void compute_bounding_box_of_many_boxes( int start, int stop,
+                                             const vector<Box> & boxes,
+                                             Box & bounding_box )
+    {
+        // compute limits of big box containing all boxes in this group
+        for ( int kk=0; kk<K; ++kk )
+        {
+            double best_min_k = boxes[start].min(kk);
+            for ( int bb=start+1; bb<stop; ++bb)
+            {
+                double candidate_min_k = boxes[bb].min(kk);
+                if (candidate_min_k < best_min_k)
+                {
+                    best_min_k = candidate_min_k;
+                }
+            }
+            bounding_box.min(kk) = best_min_k;
+        }
+
+        for ( int kk=0; kk<K; ++kk )
+        {
+            double best_max_k = boxes[start].max(kk);
+            for ( int bb=start+1; bb<stop; ++bb)
+            {
+                double candidate_max_k = boxes[bb].max(kk);
+                if ( candidate_max_k > best_max_k )
+                {
+                    best_max_k = candidate_max_k;
+                }
+            }
+            bounding_box.max(kk) = best_max_k;
+        }
+    }
 
     // creates subtree and returns the index for root of subtree
     int make_subtree( int start, int stop,
@@ -39,66 +95,23 @@ private:
         }
         else if (num_boxes_local > 1)
         {
-            // compute limits of big box containing all boxes in this group
-            KDVector big_box_min;
-            for ( int kk=0; kk<K; ++kk )
-            {
-                double best_min_k = leaf_boxes[start].min(kk);
-                for ( int bb=start+1; bb<stop; ++bb)
-                {
-                    double candidate_min_k = leaf_boxes[bb].min(kk);
-                    if (candidate_min_k < best_min_k)
-                    {
-                        best_min_k = candidate_min_k;
-                    }
-                }
-                big_box_min(kk) = best_min_k;
-            }
+            Box big_box; // bounding box for all leaf boxes in this group
+            big_box.index = -1; // -1 indicates internal node
+            compute_bounding_box_of_many_boxes( start, stop, leaf_boxes, big_box );
 
-            KDVector big_box_max;
-            for ( int kk=0; kk<K; ++kk )
-            {
-                double best_max_k = leaf_boxes[start].max(kk);
-                for ( int bb=start+1; bb<stop; ++bb)
-                {
-                    double candidate_max_k = leaf_boxes[bb].max(kk);
-                    if ( candidate_max_k > best_max_k )
-                    {
-                        best_max_k = candidate_max_k;
-                    }
-                }
-                big_box_max(kk) = best_max_k;
-            }
-
-            Box big_box {big_box_min, big_box_max, -1}; // -1 indicates internal node
-
-            // Find biggest axis of box
-            int axis = 0;
-            double biggest_axis_size = big_box_max(0) - big_box_min(0);
-            for ( int kk=1; kk<K; ++kk)
-            {
-                double kth_axis_size = big_box_max(kk) - big_box_min(kk);
-                if (kth_axis_size > biggest_axis_size)
-                {
-                    axis = kk;
-                    biggest_axis_size = kth_axis_size;
-                }
-            }
+            int axis = biggest_axis_of_box( big_box );
 
             // Sort leaf boxes by centerpoint along biggest axis
             sort( leaf_boxes.begin() + start,
                   leaf_boxes.begin() + stop,
-                  [axis](Box A, Box B) {return 0.5*(A.max(axis)+A.min(axis))
-                                             > 0.5*(B.max(axis)+B.min(axis));} ); // 0.5*(...) for clarity
+                  [&](Box A, Box B) {return (box_center(A, axis) > box_center(B, axis));} );
 
             // Find index of first leaf box with centerpoint in the "right" half of big box
-            double big_box_centerpoint = 0.5*(big_box.max(axis) + big_box.min(axis));
+            double big_box_centerpoint = box_center(big_box, axis);
             int mid = stop;
             for ( int bb=start; bb<stop; ++bb )
             {
-                Box L = leaf_boxes[bb];
-                double L_centerpoint = 0.5*(L.max(axis) + L.min(axis));
-                if ( big_box_centerpoint < L_centerpoint )
+                if ( big_box_centerpoint < box_center( leaf_boxes[bb], axis) )
                 {
                     mid = bb;
                     break;
@@ -126,6 +139,70 @@ private:
         return current_node_ind;
         }
 
+    bool point_is_in_box( const KDVector & p, const Box & B )
+    {
+        bool p_is_in_box = true;
+        for ( int kk=0; kk<K; ++kk)
+        {
+            if ( (p(kk) < B.min(kk)) || (B.max(kk) < p(kk)) )
+            {
+                p_is_in_box = false;
+                break;
+            }
+        }
+        return p_is_in_box;
+    }
+
+//    bool box_is_leaf( const Box & B )
+//    {
+//        return (B.index >= 0);
+//    }
+
+    int first_point_intersection_iterative( const KDVector & query )
+    {
+        int first_intersection = -1;
+
+        // Normal iterative traversal of a tree uses a list.
+        // However, I found that std::list is crazy slow.
+        // Here I use a pre-allocated vector to simulate a list. It is 2-3x faster.
+        int ii = 0; // <-- This is the "pointer" to the front of the list
+        nodes_under_consideration[ii] = 0; // <-- This is a "list" of ints
+        while ( ii >= 0 )
+        {
+            int current_node_ind =  nodes_under_consideration[ii];
+            ii = ii - 1;
+
+            Node & current_node = nodes[current_node_ind];
+            Box & B = current_node.box;
+
+            // Determine if query point is in current box
+            bool query_is_in_box = true;
+            for ( int kk=0; kk<K; ++kk)
+            {
+                if ( (query(kk) < B.min(kk)) || (B.max(kk) < query(kk)) )
+                {
+                    query_is_in_box = false;
+                    break;
+                }
+            }
+
+            if ( query_is_in_box )
+            {
+                if ( B.index >= 0 ) // if current box is leaf
+                {
+                    first_intersection = B.index;
+                    break;
+                }
+                else
+                { // current box is internal node
+                    nodes_under_consideration[ii+1] = current_node.right;
+                    nodes_under_consideration[ii+2] = current_node.left;
+                    ii = ii + 2;
+                }
+            }
+        }
+        return first_intersection;
+    }
 
     // finds nearest neighbor of query in subtree
     int first_point_intersection_subtree( const KDVector & query,
@@ -134,22 +211,10 @@ private:
         Node current_node = nodes[current];
         Box B = current_node.box;
 
-        bool query_is_in_current_box = true;
-        for ( int kk=0; kk<K; ++kk)
-        {
-            if ( (query(kk) < B.min(kk)) || (B.max(kk) < query(kk)) )
-            {
-                query_is_in_current_box = false;
-                break;
-            }
-        }
-
-        bool current_box_is_leaf = (B.index >= 0);
-
         int first_intersection = -1;
-        if ( query_is_in_current_box )
+        if ( point_is_in_box( query, B) )
         {
-            if ( current_box_is_leaf )
+            if ( box_is_leaf( B ) )
             {
                 first_intersection = B.index;
             } else { // current box is internal node
@@ -179,6 +244,7 @@ public:
         }
 
         int num_boxes = 2*num_leaf_boxes - 1; // full binary tree with n leafs has 2n-1 nodes
+        nodes_under_consideration.reserve(num_boxes);
         nodes.reserve(num_boxes);
         int counter = 0;
         int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
@@ -196,7 +262,8 @@ public:
         for (int ii=0; ii<num_querys; ++ii)
         {
             KDVector query = query_array.row(ii);
-            first_intersection_inds(ii) = first_point_intersection_subtree( query, 0 );
+//            first_intersection_inds(ii) = first_point_intersection_subtree( query, 0 );
+            first_intersection_inds(ii) = first_point_intersection_iterative( query );
         }
         return first_intersection_inds;
     }
