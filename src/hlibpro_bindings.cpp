@@ -755,7 +755,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< Array<double, Dynamic, 2> &,
                        Array<double, Dynamic, 2> & >())
         .def("first_point_intersection", &AABBTree<2>::first_point_intersection)
-        .def("first_point_intersection_vectorized", &AABBTree<2>::first_point_intersection_vectorized);
+        .def("first_point_intersection_vectorized", &AABBTree<2>::first_point_intersection_vectorized)
+        .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections);
 }
 
 

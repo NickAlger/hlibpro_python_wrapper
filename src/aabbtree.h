@@ -153,10 +153,10 @@ private:
         return p_is_in_box;
     }
 
-//    bool box_is_leaf( const Box & B )
-//    {
-//        return (B.index >= 0);
-//    }
+    bool box_is_leaf( const Box & B )
+    {
+        return (B.index >= 0);
+    }
 
     int first_point_intersection_iterative( const KDVector & query )
     {
@@ -164,9 +164,9 @@ private:
 
         // Normal iterative traversal of a tree uses a list.
         // However, I found that std::list is crazy slow.
-        // Here I use a pre-allocated vector to simulate a list. It is 2-3x faster.
+        // Here I use a pre-allocated vector<int> to simulate a list. It is 2-3x faster.
         int ii = 0; // <-- This is the "pointer" to the front of the list
-        nodes_under_consideration[ii] = 0; // <-- This is a "list" of ints
+        nodes_under_consideration[ii] = 0; // <-- This is the "list" of ints.
         while ( ii >= 0 )
         {
             int current_node_ind =  nodes_under_consideration[ii];
@@ -193,8 +193,8 @@ private:
                     first_intersection = B.index;
                     break;
                 }
-                else
-                { // current box is internal node
+                else // current box is internal node
+                {
                     nodes_under_consideration[ii+1] = current_node.right;
                     nodes_under_consideration[ii+2] = current_node.left;
                     ii = ii + 2;
@@ -266,6 +266,58 @@ public:
             first_intersection_inds(ii) = first_point_intersection_iterative( query );
         }
         return first_intersection_inds;
+    }
+
+    vector<int> all_ball_intersections( const KDVector & center, double radius )
+    {
+        vector<int> all_intersections;
+
+        int ii = 0; // <-- This is the "pointer" to the front of the list
+        nodes_under_consideration[ii] = 0; // <-- This is the "list" of ints.
+        while ( ii >= 0 )
+        {
+            int current_node_ind =  nodes_under_consideration[ii];
+            ii = ii - 1;
+
+            Node & current_node = nodes[current_node_ind];
+            Box & B = current_node.box;
+
+            // Construct point on box that is closest to ball center
+            KDVector closest_point;
+            for ( int kk=0; kk<K; ++kk)
+            {
+                if ( center(kk) < B.min(kk) )
+                {
+                    closest_point(kk) = B.min(kk);
+                }
+                else if ( B.max(kk) < center(kk) )
+                {
+                    closest_point(kk) = B.max(kk);
+                }
+                else
+                {
+                    closest_point(kk) = center(kk);
+                }
+            }
+
+            double distance_to_box_squared = (closest_point - center).matrix().squaredNorm();
+            bool ball_intersects_box = (distance_to_box_squared <= radius);
+
+            if ( ball_intersects_box )
+            {
+                if ( B.index >= 0 ) // if current box is leaf
+                {
+                    all_intersections.push_back( B.index );
+                }
+                else // current box is internal node
+                {
+                    nodes_under_consideration[ii+1] = current_node.right;
+                    nodes_under_consideration[ii+2] = current_node.left;
+                    ii = ii + 2;
+                }
+            }
+        }
+        return all_intersections;
     }
 
 };

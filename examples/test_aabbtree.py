@@ -120,3 +120,8 @@ print('dt_first_point_intersection_vectorized=', dt_first_point_intersection_vec
 # num_boxes= 100000 , num_pts= 10000000
 # dt_build= 0.11991548538208008
 # dt_first_point_intersection_vectorized= 5.488429069519043
+
+# Iterative:
+# num_boxes= 100000 , num_pts= 10000000
+# dt_build= 0.13932013511657715
+# dt_first_point_intersection_vectorized= 5.261875629425049
