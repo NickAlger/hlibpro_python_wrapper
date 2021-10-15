@@ -301,7 +301,7 @@ public:
             }
 
             double distance_to_box_squared = (closest_point - center).matrix().squaredNorm();
-            bool ball_intersects_box = (distance_to_box_squared <= radius);
+            bool ball_intersects_box = (distance_to_box_squared <= radius*radius);
 
             if ( ball_intersects_box )
             {

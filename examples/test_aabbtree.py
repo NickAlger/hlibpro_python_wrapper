@@ -1,7 +1,10 @@
 import numpy as np
 import hlibpro_python_wrapper as hpro
 from time import time
+import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
+
+from nalger_helper_functions import plot_ellipse, plot_rectangle
 
 hcpp = hpro.hpro_cpp
 
@@ -125,3 +128,39 @@ print('dt_first_point_intersection_vectorized=', dt_first_point_intersection_vec
 # num_boxes= 100000 , num_pts= 10000000
 # dt_build= 0.13932013511657715
 # dt_first_point_intersection_vectorized= 5.261875629425049
+
+
+# Ball query
+
+num_boxes = 351
+
+box_area = 2. / num_boxes
+box_h = np.power(box_area, 1./K)
+
+box_centers = np.random.randn(num_boxes, K)
+box_widths = box_h * np.abs(np.random.randn(num_boxes, K))
+b_mins = box_centers - box_widths
+b_maxes = box_centers + box_widths
+
+AABB = hcpp.AABBTree2D(b_mins, b_maxes)
+
+c = np.random.randn(K)
+r = 8.0 * box_h * np.random.randn()
+
+intersections = AABB.all_ball_intersections(c, r)
+
+plt.figure()
+for k in range(num_boxes):
+    plot_rectangle(b_mins[k,:], b_maxes[k,:], facecolor='b')
+
+for jj in intersections:
+    plot_rectangle(b_mins[jj, :], b_maxes[jj, :], facecolor='r')
+
+circle1 = plt.Circle(c, r, edgecolor='k', fill=False)
+plt.gca().add_patch(circle1)
+
+big_box_min = np.min(b_mins, axis=0)
+big_box_max = np.max(b_maxes, axis=0)
+plt.xlim(big_box_min[0], big_box_max[0])
+plt.ylim(big_box_min[1], big_box_max[1])
+plt.show()
