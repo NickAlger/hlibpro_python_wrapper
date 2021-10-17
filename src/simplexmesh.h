@@ -11,7 +11,7 @@ using namespace Eigen;
 using namespace std;
 
 template <int K>
-class SimplexTree
+class SimplexTrees
 {
 private:
     typedef Array<double, K, 1> KDVector;
@@ -25,7 +25,7 @@ private:
 
 public:
     SimplexTree( Array<double, dynamic, K> & input_vertices,
-                 Array<double, dynamic, K> & input_cells )
+                 Array<double, dynamic, K+1> & input_cells )
     {
         // Copy input vertices into local array
         int num_vertices = input_vertices.rows();
@@ -44,18 +44,44 @@ public:
         }
 
         // Compute box min and max points for each cell
-        for ( int ii=0; ii<num_cells; ++ii)
+        for ( int cc=0; cc<num_cells; ++cc)
         {
             for ( int kk=0; kk<K; ++kk )
             {
-                box_mins(ii, kk) = vertices.row(cells(ii,0));
+                double min_k = vertices(cells(cc,0), kk);
+                double max_k = vertices(cells(cc,0), kk);
+                for ( int vv=1; vv<K+1; ++vv)
+                {
+                    double candidate_min_k = vertices(cells(cc,vv), kk);
+                    double candidate_max_k = vertices(cells(cc,vv), kk);
+                    if (candidate_min_k < min_k)
+                    {
+                        min_k = candidate_min_k;
+                    }
+                    if (candidate_max_k > max_k)
+                    {
+                        max_k = candidate_max_k;
+                    }
+                }
+                box_mins(cc, kk) = min_k;
+                box_maxes(cc, kk) = max_k;
             }
         }
 
-
         kdtree = KDTree( vertices );
-
-
         aabbtree = AABBTree( box_mins, box_maxes );
     }
+
+    void project_point_onto_simplex( KDVector & point, KDVector & projected_point, int cell_id )
+    {
+        Matrix<double, K, K> V;
+        KDVector v0 = vertices.row(cells(cell_id, 0));
+        for (int vv=1; vv<K+1; ++vv)
+        {
+            V.row(vv-1) = vertices.row(cells(cell_id, vv)) - v0;
+        }
+
+        KDVector q = point - v0;
+    }
 }
+
