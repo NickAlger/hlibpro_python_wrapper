@@ -20,6 +20,7 @@
 #include "rbf_interpolation.h"
 #include "kdtree.h"
 #include "aabbtree.h"
+#include "simplexmesh.h"
 
 using namespace Eigen;
 
@@ -757,6 +758,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("first_point_intersection", &AABBTree<2>::first_point_intersection)
         .def("first_point_intersection_vectorized", &AABBTree<2>::first_point_intersection_vectorized)
         .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections);
+
+    m.def("projected_affine_coordinates_wrap_d2n3", &projected_affine_coordinates_wrap<2,3>);
 }
 
 

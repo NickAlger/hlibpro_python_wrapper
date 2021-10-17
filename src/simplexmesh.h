@@ -4,28 +4,28 @@
 #include <math.h>
 #include <Eigen/Dense>
 
-#include "kdtree.h"
-#include "aabbtree.h"
+//#include "kdtree.h"
+//#include "aabbtree.h"
 
 using namespace Eigen;
 using namespace std;
 
 template <int K>
-class SimplexTrees
+class SimplexMesh
 {
 private:
     typedef Array<double, K, 1> KDVector;
 
-    Array<double, dynamic, K, RowMajor> vertices;
-    Array<int, dynamic, K+1, RowMajor> cells;
-    Array<double, dynamic, K, RowMajor> box_mins;
-    Array<double, dynamic, K, RowMajor> box_maxes;
+    Array<double, Dynamic, K, RowMajor> vertices;
+    Array<int, Dynamic, K+1, RowMajor> cells;
+    Array<double, Dynamic, K, RowMajor> box_mins;
+    Array<double, Dynamic, K, RowMajor> box_maxes;
     KDTree<K> kdtree;
     AABBTree<K> aabbtree;
 
 public:
-    SimplexTree( Array<double, dynamic, K> & input_vertices,
-                 Array<double, dynamic, K+1> & input_cells )
+    SimplexMesh( Array<double, Dynamic, K> & input_vertices,
+                 Array<double, Dynamic, K+1> & input_cells )
     {
         // Copy input vertices into local array
         int num_vertices = input_vertices.rows();
@@ -68,20 +68,53 @@ public:
             }
         }
 
-        kdtree = KDTree( vertices );
-        aabbtree = AABBTree( box_mins, box_maxes );
+        kdtree = KDTree<K>( vertices );
+        aabbtree = AABBTree<K>( box_mins, box_maxes );
     }
 
-    void project_point_onto_simplex( KDVector & point, KDVector & projected_point, int cell_id )
+};
+
+template <int dim, int npts>
+void projected_affine_coordinates( const Matrix<double, dim, 1>    & query,
+                                   const Matrix<double, dim, npts> & points,
+                                   Matrix<double, npts, 1>         & coords)
+{
+    if (dim == 1)
     {
-        Matrix<double, K, K> V;
-        KDVector v0 = vertices.row(cells(cell_id, 0));
-        for (int vv=1; vv<K+1; ++vv)
+        coords(0) = 1.0;
+    }
+    else
+    {
+        Matrix<double, dim, npts-1> X;
+        for (int ii=0; ii<npts-1; ++ii)
         {
-            V.row(vv-1) = vertices.row(cells(cell_id, vv)) - v0;
+            X.col(ii) = points.col(ii+1) - points.col(0);
         }
 
-        KDVector q = point - v0;
+        Matrix<double, dim, 1> b = query - points.col(0); // implicit transpose
+
+        Matrix<double, npts, 1> coords;
+        if (npts-1 == dim)
+        {
+            cout << "asdf" << endl;
+            coords.tail(npts-1) = X.lu().solve(b);
+        }
+        else
+        {
+            Matrix<double, npts-1, dim> Xt = X.transpose();
+            coords.tail(npts-1) = (Xt * X).lu().solve(Xt * b);
+        }
+        coords(0) = 1.0 - coords.tail(npts-1).sum();
+        cout << "coords=" << coords << endl;
     }
+}
+
+template <int dim, int npts>
+Matrix<double, npts, 1> projected_affine_coordinates_wrap( const Matrix<double, dim, 1>    & query,
+                                                           const Matrix<double, dim, npts> & points)
+{
+    Matrix<double, npts, 1> coords;
+    projected_affine_coordinates<dim, npts>(query, points, coords);
+    return coords;
 }
 
