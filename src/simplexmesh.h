@@ -135,23 +135,44 @@ inline void closest_point_in_simplex( const VectorXd & query,            // shap
     {
         closest_point = simplex_vertices.col(0);
     }
-    else if ( npts == 2 )
+    else
     {
-        int num_facets = power_of_two(dim) - 1;
-
-        VectorXi facet01_inds(1);    facet01_inds << 0;
-        VectorXi facet10_inds(1);    facet10_inds << 1;
-        VectorXi facet11_inds(2);    facet11_inds << 0, 1;
-
+        int num_facets = power_of_two(npts) - 1;
         vector<VectorXi> all_facet_inds;
         all_facet_inds.reserve(num_facets);
 
-        all_facet_inds.push_back(facet01_inds);
-        all_facet_inds.push_back(facet10_inds);
-        all_facet_inds.push_back(facet11_inds);
+        if ( npts == 2 )
+        {
+            VectorXi facet01_inds(1);    facet01_inds << 0;
+            VectorXi facet10_inds(1);    facet10_inds << 1;
+            VectorXi facet11_inds(2);    facet11_inds << 0, 1;
 
-        vector<VectorXd> candidate_points;
-        for ( int ii=0; ii<num_facets; ++ii )
+            all_facet_inds.push_back(facet01_inds);
+            all_facet_inds.push_back(facet10_inds);
+            all_facet_inds.push_back(facet11_inds);
+        }
+        else if ( npts == 3 )
+        {
+            VectorXi facet001_inds(1);    facet001_inds << 0;
+            VectorXi facet010_inds(1);    facet010_inds << 1;
+            VectorXi facet011_inds(2);    facet011_inds << 0, 1;
+            VectorXi facet100_inds(1);    facet100_inds << 2;
+            VectorXi facet101_inds(2);    facet101_inds << 0, 2;
+            VectorXi facet110_inds(2);    facet110_inds << 1, 2;
+            VectorXi facet111_inds(3);    facet111_inds << 0, 1, 2;
+
+            all_facet_inds.push_back(facet001_inds);
+            all_facet_inds.push_back(facet010_inds);
+            all_facet_inds.push_back(facet011_inds);
+            all_facet_inds.push_back(facet100_inds);
+            all_facet_inds.push_back(facet101_inds);
+            all_facet_inds.push_back(facet110_inds);
+            all_facet_inds.push_back(facet111_inds);
+        }
+
+        closest_point = simplex_vertices.col(0);
+        double dsq_best = (closest_point - query).squaredNorm();
+        for ( int ii=0; ii<num_facets; ++ii ) // for each facet
         {
             MatrixXd facet_vertices = select_columns( simplex_vertices, all_facet_inds[ii] );
             VectorXd facet_coords( facet_vertices.cols() );
@@ -159,27 +180,29 @@ inline void closest_point_in_simplex( const VectorXd & query,            // shap
             bool projection_is_in_facet = (facet_coords.array() >= 0.0).all();
             if ( projection_is_in_facet )
             {
-                candidate_points.push_back(facet_vertices * facet_coords);
+                VectorXd candidate_point = facet_vertices * facet_coords;
+                double dsq_candidate = (candidate_point - query).squaredNorm();
+                if ( dsq_candidate < dsq_best )
+                {
+                    closest_point = candidate_point;
+                    dsq_best = dsq_candidate;
+                }
             }
         }
-
-        closest_point = simplex_vertices.col(0);
-        double dsq_best = (closest_point - query).squaredNorm();
-        for ( int ii=0; ii<candidate_points.size(); ++ii )
-        {
-            double dsq_candidate = (candidate_points[ii] - query).squaredNorm();
-            if ( dsq_candidate < dsq_best )
-            {
-                closest_point = candidate_points[ii];
-                dsq_best = dsq_candidate;
-            }
-        }
-
+//
+//        closest_point = simplex_vertices.col(0);
+//        double dsq_best = (closest_point - query).squaredNorm();
+//        for ( int ii=0; ii<candidate_points.size(); ++ii )
+//        {
+//            double dsq_candidate = (candidate_points[ii] - query).squaredNorm();
+//            if ( dsq_candidate < dsq_best )
+//            {
+//                closest_point = candidate_points[ii];
+//                dsq_best = dsq_candidate;
+//            }
+//        }
     }
-    else if ( npts == 3 )
-    {
-        cout << "npts=3 not implemented" << endl;
-    }
+
 }
 
 

@@ -24,23 +24,47 @@ err_affine_constraint = np.abs(1. - np.sum(coords))
 print('err_affine_constraint=', err_affine_constraint)
 
 
-# CLOSEST POINT
+# CLOSEST POINT TO LINE SEGMENT
 
 npts = 2
 dim = 2
 
 segment_vertices = np.random.randn(dim, npts)
 
+
 plt.figure()
 plt.plot(segment_vertices[0,:], segment_vertices[1,:])
 
-for k in range(20):
+for k in range(30):
     query = np.random.randn(dim)
     closest_point = np.zeros(dim)
     hcpp.closest_point_in_simplex(query, segment_vertices, closest_point)
 
-
-    plt.plot([query[0], closest_point[0]], [query[1], closest_point[1]], 'k')
+    plt.plot([query[0], closest_point[0]], [query[1], closest_point[1]], 'gray')
     plt.plot(query[0], query[1], '*r')
-    plt.plot(closest_point[0], closest_point[1], '.r')
-    plt.gca().set_aspect('equal')
+    plt.plot(closest_point[0], closest_point[1], '.k')
+
+plt.gca().set_aspect('equal')
+
+
+# CLOSEST POINT TO TRIANGLE
+
+npts = 3
+dim = 2
+
+triangle_vertices = np.random.randn(dim, npts)
+
+plt.figure()
+plt.plot([triangle_vertices[0,0], triangle_vertices[0,1], triangle_vertices[0,2], triangle_vertices[0,0]],
+         [triangle_vertices[1,0], triangle_vertices[1,1], triangle_vertices[1,2], triangle_vertices[1,0]])
+
+for k in range(100):
+    query = np.random.randn(dim)
+    closest_point = np.zeros(dim)
+    hcpp.closest_point_in_simplex(query, triangle_vertices, closest_point)
+
+    plt.plot([query[0], closest_point[0]], [query[1], closest_point[1]], 'gray')
+    plt.plot(query[0], query[1], '*r')
+    plt.plot(closest_point[0], closest_point[1], '.k')
+
+plt.gca().set_aspect('equal')
