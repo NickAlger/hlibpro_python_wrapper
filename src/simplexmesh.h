@@ -74,47 +74,114 @@ public:
 
 };
 
-template <int dim, int npts>
-void projected_affine_coordinates( const Matrix<double, dim, 1>    & query,
-                                   const Matrix<double, dim, npts> & points,
-                                   Matrix<double, npts, 1>         & coords)
+
+inline void projected_affine_coordinates( const VectorXd & query,  // shape=(dim, 1)
+                                          const MatrixXd & points, // shape=(dim, npts)
+                                          Ref<VectorXd>    coords) // shape=(npts, 1)
 {
-    if (dim == 1)
+    int npts = points.cols();
+
+    if ( npts == 1 )
     {
         coords(0) = 1.0;
     }
+    else if ( npts == 2 )
+    {
+        const VectorXd dv = points.col(1) - points.col(0);
+        coords(1) = dv.dot(query - points.col(0)) / dv.squaredNorm();
+        coords(0) = 1.0 - coords(1);
+    }
     else
     {
-        Matrix<double, dim, npts-1> X;
-        for (int ii=0; ii<npts-1; ++ii)
-        {
-            X.col(ii) = points.col(ii+1) - points.col(0);
-        }
-
-        Matrix<double, dim, 1> b = query - points.col(0); // implicit transpose
-
-        Matrix<double, npts, 1> coords;
-        if (npts-1 == dim)
-        {
-            cout << "asdf" << endl;
-            coords.tail(npts-1) = X.lu().solve(b);
-        }
-        else
-        {
-            Matrix<double, npts-1, dim> Xt = X.transpose();
-            coords.tail(npts-1) = (Xt * X).lu().solve(Xt * b);
-        }
+        const MatrixXd dV = points.rightCols(npts-1).colwise() - points.col(0);
+        coords.tail(npts-1) = dV.colPivHouseholderQr().solve(query - points.col(0)); // min_c ||dV*c - b||^2
         coords(0) = 1.0 - coords.tail(npts-1).sum();
-        cout << "coords=" << coords << endl;
     }
 }
 
-template <int dim, int npts>
-Matrix<double, npts, 1> projected_affine_coordinates_wrap( const Matrix<double, dim, 1>    & query,
-                                                           const Matrix<double, dim, npts> & points)
+
+int power_of_two( int k ) // x=2^k, with 2^0 = 1. Why does c++ not have this!?
 {
-    Matrix<double, npts, 1> coords;
-    projected_affine_coordinates<dim, npts>(query, points, coords);
-    return coords;
+    int x = 1;
+    for ( int ii=1; ii<=k; ++ii )
+    {
+        x = 2*x;
+    }
+    return x;
 }
+
+inline MatrixXd select_columns( const MatrixXd & A,    // shape=(N,M)
+                                const VectorXi & inds) // shape=(k,1)
+{
+    int N = A.rows();
+    int k = inds.size();
+    MatrixXd A_selected;
+    A_selected.resize(N, k);
+    for ( int ii=0; ii<k; ++ii)
+    {
+        A_selected.col(ii) = A.col(inds(ii));
+    }
+    return A_selected;
+}
+
+inline void closest_point_in_simplex( const VectorXd & query,            // shape=(dim, 1)
+                                      const MatrixXd & simplex_vertices, // shape=(dim, npts)
+                                      Ref<MatrixXd>  & closest_point )   // shape=(dim, 1)
+{
+    int dim = simplex_vertices.rows();
+    int npts = simplex_vertices.cols();
+
+    if ( npts == 1 )
+    {
+        closest_point = simplex_vertices.col(0);
+    }
+    else if ( npts == 2 )
+    {
+        int num_facets = power_of_two(dim) - 1;
+
+        VectorXi facet01_inds(1);    facet01_inds << 0;
+        VectorXi facet10_inds(1);    facet10_inds << 1;
+        VectorXi facet11_inds(2);    facet11_inds << 0, 1;
+
+        vector<VectorXi> all_facet_inds;
+        all_facet_inds.reserve(num_facets);
+
+        all_facet_inds.push_back(facet01_inds);
+        all_facet_inds.push_back(facet10_inds);
+        all_facet_inds.push_back(facet11_inds);
+
+        vector<VectorXd> candidate_points;
+        for ( int ii=0; ii<num_facets; ++ii )
+        {
+            MatrixXd facet_vertices = select_columns( simplex_vertices, all_facet_inds[ii] );
+            VectorXd facet_coords( facet_vertices.cols() );
+            projected_affine_coordinates( query, facet_vertices, facet_coords );
+            bool projection_is_in_facet = (facet_coords.array() >= 0.0).all();
+            if ( projection_is_in_facet )
+            {
+                candidate_points.push_back(facet_vertices * facet_coords);
+            }
+        }
+
+        closest_point = simplex_vertices.col(0);
+        double dsq_best = (closest_point - query).squaredNorm();
+        for ( int ii=0; ii<candidate_points.size(); ++ii )
+        {
+            double dsq_candidate = (candidate_points[ii] - query).squaredNorm();
+            if ( dsq_candidate < dsq_best )
+            {
+                closest_point = candidate_points[ii];
+                dsq_best = dsq_candidate;
+            }
+        }
+
+    }
+    else if ( npts == 3 )
+    {
+        cout << "npts=3 not implemented" << endl;
+    }
+}
+
+
+
 
