@@ -354,16 +354,29 @@ public:
             }
         }
         return ind;
-//        if ( ind >= 0 )
-//        {
-//            VectorXd affine_coords = affine_coordinates_of_point_in_simplex( ind, query );
-//            bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-//            if ( !point_is_in_simplex )
-//            {
-//                ind = -1;
-//            }
-//        }
-//        return ind;
+    }
+
+    inline double evaluate_function_at_point( const VectorXd & function_values_at_vertices,
+                                              const KDVector & point )
+    {
+        vector<int> candidate_inds =  aabbtree.all_point_intersections( point );
+        double function_at_point = 0.0;
+        int num_candidates = candidate_inds.size();
+        for ( int ii=0; ii<num_candidates; ++ii )
+        {
+            int ind = candidate_inds[ii];
+            VectorXd affine_coords = affine_coordinates_of_point_in_simplex( ind, point );
+            bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
+            if ( point_is_in_simplex )
+            {
+                for ( int vv=0; vv<K+1; ++vv)
+                {
+                    function_at_point += affine_coords(vv) * function_values_at_vertices(cells(ind, vv));
+                }
+                break;
+            }
+        }
+        return function_at_point;
     }
 };
 

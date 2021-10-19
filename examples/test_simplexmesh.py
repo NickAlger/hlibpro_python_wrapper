@@ -164,3 +164,59 @@ print('nquery=', nquery, ', dt_query_SM=', dt_query_SM)
 # fraction_outside_mesh= 0.35976
 # num_cells= 39478 , dt_build_SM= 3.170967102050781e-05
 # nquery= 100000 , dt_query_SM= 0.9992811679840088
+
+
+# EVALUATE FUNCTION AT POINT
+
+mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 0.25)
+V = dl.FunctionSpace(mesh, 'CG', 1)
+mesh_coords = mesh.coordinates()
+dof_coords = V.tabulate_dof_coordinates()
+dof2vertex = dl.dof_to_vertex_map(V)
+vertex2dof = dl.vertex_to_dof_map(V)
+
+u = dl.Function(V)
+u.vector()[:] = dof_coords[:,0]**2 + 2*dof_coords[:,1]**2
+u.set_allow_extrapolation(True)
+
+uu = u.vector()[vertex2dof]
+# uu = u.vector()[dof2vertex]
+
+uu_true = np.zeros(V.dim())
+for ii in range(V.dim()):
+    uu_true[ii] = u(mesh_coords[ii,:])
+
+err_uu = np.linalg.norm(uu - uu_true)
+print('err_uu=', err_uu)
+
+p = np.random.randn(2)
+p = p / 4.;
+u_of_p_true = u(p)
+
+SM = hcpp.SimplexMesh2D(mesh.coordinates(), mesh.cells())
+u_of_p = SM.evaluate_function_at_point(uu, p)
+print('p=', p, ', u_of_p=', u_of_p, ', u_of_p_true=', u_of_p_true)
+
+#
+
+nquery = 1000
+pp = np.random.rand(nquery, 2)
+
+upp = np.zeros(nquery)
+upp_true = np.zeros(nquery)
+for ii in range(nquery):
+    p = pp[ii,:]
+    upp[ii] = SM.evaluate_function_at_point(uu, p)
+    if mesh.bounding_box_tree().compute_first_entity_collision(dl.Point(p)) < mesh.cells().shape[0]:
+        upp_true[ii] = u(p)
+
+err_eval_function = np.linalg.norm(upp - upp_true)
+print('err_eval_function=', err_eval_function)
+
+# plt.figure()
+# plt.scatter(pp[:,0], pp[:,1], c=upp)
+# plt.title('upp')
+#
+# plt.figure()
+# plt.scatter(pp[:,0], pp[:,1], c=upp_true)
+# plt.title('upp_true')
