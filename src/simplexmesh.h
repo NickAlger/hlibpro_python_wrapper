@@ -146,7 +146,7 @@ inline MatrixXd select_columns( const MatrixXd &                 A,           //
 
 inline void closest_point_in_simplex( const VectorXd & query,            // shape=(dim, 1)
                                       const MatrixXd & simplex_vertices, // shape=(dim, npts)
-                                      Ref<VectorXd>        closest_point )   // shape=(dim, 1)
+                                      VectorXd       & closest_point )   // shape=(dim, 1)
 {
     int dim = simplex_vertices.rows();
     int npts = simplex_vertices.cols();

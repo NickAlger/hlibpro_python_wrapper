@@ -760,7 +760,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections);
 
     m.def("projected_affine_coordinates", &projected_affine_coordinates);
-    m.def("closest_point_in_simplex", &closest_point_in_simplex);
+//    m.def("closest_point_in_simplex", &closest_point_in_simplex);
     m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);
 }
 

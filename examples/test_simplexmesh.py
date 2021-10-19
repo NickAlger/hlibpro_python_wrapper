@@ -28,18 +28,20 @@ print('err_affine_constraint=', err_affine_constraint)
 
 npts = 2
 dim = 2
+nquery = 100
 
 segment_vertices = np.random.randn(dim, npts)
-
 
 plt.figure()
 plt.plot(segment_vertices[0,:], segment_vertices[1,:])
 
-for k in range(30):
-    query = np.random.randn(dim)
-    closest_point = np.zeros(dim)
-    hcpp.closest_point_in_simplex(query, segment_vertices, closest_point)
+qq = np.random.randn(dim, nquery)
+SS = segment_vertices.T.reshape((-1,1)) * np.ones(nquery)
+pp = hcpp.closest_point_in_simplex_vectorized(qq, SS)
 
+for k in range(30):
+    query = qq[:,k]
+    closest_point = pp[:,k]
     plt.plot([query[0], closest_point[0]], [query[1], closest_point[1]], 'gray')
     plt.plot(query[0], query[1], '*r')
     plt.plot(closest_point[0], closest_point[1], '.k')
@@ -71,3 +73,18 @@ for k in range(nquery):
     plt.plot(closest_point[0], closest_point[1], '.k')
 
 plt.gca().set_aspect('equal')
+
+
+# TIMING
+
+npts = 3
+dim = 2
+nquery = int(1e6)
+
+qq = np.random.randn(dim, nquery)
+SS = np.random.randn(dim*npts, nquery)
+
+t = time()
+pp = hcpp.closest_point_in_simplex_vectorized(qq, SS)
+dt_closest_point = time() - t
+print('nquery=', nquery, ', dt_closest_point=', dt_closest_point)
