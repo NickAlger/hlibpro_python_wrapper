@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <list>
 
@@ -93,7 +95,9 @@ private:
         return SubtreeResult { best_index, best_distance_squared }; }
 
 public:
-    KDTree( Array<double, Dynamic, K> & points_array ) {
+    KDTree( ) {}
+
+    KDTree( const Ref<const Array<double, Dynamic, K>> points_array ) {
         int num_pts = points_array.rows();
 
         // Copy eigen matrix input into std::vector of tuples which will be re-ordered

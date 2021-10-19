@@ -3,6 +3,9 @@ import hlibpro_python_wrapper as hpro
 from time import time
 import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
+import dolfin as dl
+
+from nalger_helper_functions import circle_mesh
 
 hcpp = hpro.hpro_cpp
 
@@ -11,9 +14,8 @@ dim = 2
 
 points = np.random.randn(dim,npts)
 query = np.random.randn(dim)
-coords = np.zeros(npts)
 
-hcpp.projected_affine_coordinates(query, points, coords)
+coords = hcpp.projected_affine_coordinates(query, points)
 
 print('coords=', coords)
 
@@ -88,3 +90,23 @@ t = time()
 pp = hcpp.closest_point_in_simplex_vectorized(qq, SS)
 dt_closest_point = time() - t
 print('nquery=', nquery, ', dt_closest_point=', dt_closest_point)
+
+
+# CLOSEST POINT TO MESH
+
+nquery = 100
+
+mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 0.25)
+SM = hcpp.SimplexMesh2D(mesh.coordinates(), mesh.cells())
+
+plt.figure()
+dl.plot(mesh)
+
+for k in range(nquery):
+    query = np.random.randn(2)
+    closest_point = SM.closest_point(query)
+    plt.plot([query[0], closest_point[0]], [query[1], closest_point[1]], 'gray')
+    plt.plot(query[0], query[1], '*r')
+    plt.plot(closest_point[0], closest_point[1], '.k')
+
+plt.gca().set_aspect('equal')

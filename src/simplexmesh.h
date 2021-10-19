@@ -1,85 +1,23 @@
+#pragma once
+
 #include <iostream>
 #include <list>
 
 #include <math.h>
 #include <Eigen/Dense>
 
-//#include "kdtree.h"
-//#include "aabbtree.h"
+#include "kdtree.h"
+#include "aabbtree.h"
 
 using namespace Eigen;
 using namespace std;
 
-template <int K>
-class SimplexMesh
-{
-private:
-    typedef Array<double, K, 1> KDVector;
 
-    Array<double, Dynamic, K, RowMajor> vertices;
-    Array<int, Dynamic, K+1, RowMajor> cells;
-    Array<double, Dynamic, K, RowMajor> box_mins;
-    Array<double, Dynamic, K, RowMajor> box_maxes;
-    KDTree<K> kdtree;
-    AABBTree<K> aabbtree;
-
-public:
-    SimplexMesh( Array<double, Dynamic, K> & input_vertices,
-                 Array<double, Dynamic, K+1> & input_cells )
-    {
-        // Copy input vertices into local array
-        int num_vertices = input_vertices.rows();
-        vertices.resize(num_vertices, K);
-        for ( int ii=0; ii<num_vertices; ++ii )
-        {
-            vertices.row(ii) = input_vertices.row(ii);
-        }
-
-        // Copy input cells into local array
-        int num_cells = input_cells.rows();
-        cells.resize(num_cells, K);
-        for ( int ii=0; ii<num_cells; ++ii)
-        {
-            cells.row(ii) = input_cells.row(ii);
-        }
-
-        // Compute box min and max points for each cell
-        for ( int cc=0; cc<num_cells; ++cc)
-        {
-            for ( int kk=0; kk<K; ++kk )
-            {
-                double min_k = vertices(cells(cc,0), kk);
-                double max_k = vertices(cells(cc,0), kk);
-                for ( int vv=1; vv<K+1; ++vv)
-                {
-                    double candidate_min_k = vertices(cells(cc,vv), kk);
-                    double candidate_max_k = vertices(cells(cc,vv), kk);
-                    if (candidate_min_k < min_k)
-                    {
-                        min_k = candidate_min_k;
-                    }
-                    if (candidate_max_k > max_k)
-                    {
-                        max_k = candidate_max_k;
-                    }
-                }
-                box_mins(cc, kk) = min_k;
-                box_maxes(cc, kk) = max_k;
-            }
-        }
-
-        kdtree = KDTree<K>( vertices );
-        aabbtree = AABBTree<K>( box_mins, box_maxes );
-    }
-
-};
-
-
-inline void projected_affine_coordinates( const VectorXd & query,  // shape=(dim, 1)
-                                          const MatrixXd & points, // shape=(dim, npts)
-                                          Ref<VectorXd>    coords) // shape=(npts, 1)
+inline VectorXd projected_affine_coordinates( const VectorXd & query,  // shape=(dim, 1)
+                                              const MatrixXd & points ) // shape=(dim, npts)
 {
     int npts = points.cols();
+    VectorXd coords(npts);
 
     if ( npts == 1 )
     {
@@ -95,8 +33,10 @@ inline void projected_affine_coordinates( const VectorXd & query,  // shape=(dim
     {
         const MatrixXd dV = points.rightCols(npts-1).colwise() - points.col(0);
         coords.tail(npts-1) = dV.colPivHouseholderQr().solve(query - points.col(0)); // min_c ||dV*c - b||^2
+//        coords.tail(npts-1) = dV.householderQr().solve(query - points.col(0)); // min_c ||dV*c - b||^2
         coords(0) = 1.0 - coords.tail(npts-1).sum();
     }
+    return coords;
 }
 
 
@@ -144,12 +84,12 @@ inline MatrixXd select_columns( const MatrixXd &                 A,           //
     return A_selected;
 }
 
-inline void closest_point_in_simplex( const VectorXd & query,            // shape=(dim, 1)
-                                      const MatrixXd & simplex_vertices, // shape=(dim, npts)
-                                      VectorXd       & closest_point )   // shape=(dim, 1)
+inline VectorXd closest_point_in_simplex( const VectorXd & query,             // shape=(dim, 1)
+                                          const MatrixXd & simplex_vertices ) // shape=(dim, npts)
 {
     int dim = simplex_vertices.rows();
     int npts = simplex_vertices.cols();
+    VectorXd closest_point(dim);
 
     if ( npts == 1 )
     {
@@ -208,7 +148,7 @@ inline void closest_point_in_simplex( const VectorXd & query,            // shap
             Matrix<bool, Dynamic, 1> facet_inds = all_facet_inds.row(ii);
             MatrixXd facet_vertices = select_columns( simplex_vertices, facet_inds );
             VectorXd facet_coords( facet_vertices.cols() );
-            projected_affine_coordinates( query, facet_vertices, facet_coords );
+            facet_coords = projected_affine_coordinates( query, facet_vertices );
             bool projection_is_in_facet = (facet_coords.array() >= 0.0).all();
             if ( projection_is_in_facet )
             {
@@ -222,6 +162,7 @@ inline void closest_point_in_simplex( const VectorXd & query,            // shap
             }
         }
     }
+    return closest_point;
 }
 
 MatrixXd closest_point_in_simplex_vectorized( const MatrixXd & query,            // shape=(dim, nquery)
@@ -230,12 +171,12 @@ MatrixXd closest_point_in_simplex_vectorized( const MatrixXd & query,           
     int dim = query.rows();
     int nquery = query.cols();
     int npts = simplex_vertices.rows() / dim;
+
     MatrixXd closest_point;
     closest_point.resize(query.rows(), query.cols());
 
     for ( int ii=0; ii<nquery; ++ii )
     {
-        VectorXd q = query.col(ii);
         MatrixXd S;
         S.resize(dim, npts);
         for ( int jj=0; jj<dim; ++jj )
@@ -245,17 +186,104 @@ MatrixXd closest_point_in_simplex_vectorized( const MatrixXd & query,           
                 S(jj,kk) = simplex_vertices(kk*dim + jj, ii);
             }
         }
-
-        VectorXd p;
-        p.resize(dim);
-
-        closest_point_in_simplex( q, S, p );
-
-        closest_point.col(ii) = p;
+        closest_point.col(ii) = closest_point_in_simplex( query.col(ii), S );
     }
     return closest_point;
 }
 
+template <int K>
+class SimplexMesh
+{
+private:
+    typedef Array<double, K, 1> KDVector;
 
+    Array<double, Dynamic, K, RowMajor> vertices;
+    Array<int, Dynamic, K+1, RowMajor> cells;
+    Array<double, Dynamic, K, RowMajor> box_mins;
+    Array<double, Dynamic, K, RowMajor> box_maxes;
+    KDTree<K> kdtree;
+    AABBTree<K> aabbtree;
+
+public:
+    SimplexMesh( const Ref<const Array<double, Dynamic, K>> input_vertices,
+                 const Ref<const Array<int, Dynamic, K+1>>  input_cells )
+    {
+        // Copy input vertices into local array
+        int num_vertices = input_vertices.rows();
+        vertices.resize(num_vertices, K);
+        for ( int ii=0; ii<num_vertices; ++ii )
+        {
+            vertices.row(ii) = input_vertices.row(ii);
+        }
+
+        // Copy input cells into local array
+        int num_cells = input_cells.rows();
+        cells.resize(num_cells, K+1);
+        for ( int ii=0; ii<num_cells; ++ii)
+        {
+            cells.row(ii) = input_cells.row(ii);
+        }
+
+        // Compute box min and max points for each cell
+        box_mins.resize(num_cells, K);
+        box_maxes.resize(num_cells, K);
+        for ( int cc=0; cc<num_cells; ++cc)
+        {
+            for ( int kk=0; kk<K; ++kk )
+            {
+                double min_k = vertices(cells(cc,0), kk);
+                double max_k = vertices(cells(cc,0), kk);
+                for ( int vv=1; vv<K+1; ++vv)
+                {
+                    double candidate_min_k = vertices(cells(cc,vv), kk);
+                    double candidate_max_k = vertices(cells(cc,vv), kk);
+                    if (candidate_min_k < min_k)
+                    {
+                        min_k = candidate_min_k;
+                    }
+                    if (candidate_max_k > max_k)
+                    {
+                        max_k = candidate_max_k;
+                    }
+                }
+                box_mins(cc, kk) = min_k;
+                box_maxes(cc, kk) = max_k;
+            }
+        }
+
+        kdtree = KDTree<K>( vertices );
+        aabbtree = AABBTree<K>( box_mins, box_maxes );
+    }
+
+    KDVector closest_point( KDVector query )
+    {
+        pair<KDVector, double> kd_result = kdtree.nearest_neighbor( query );
+        double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
+        vector<int> candidate_inds = aabbtree.all_ball_intersections( query, dist_estimate );
+        int num_candidates = candidate_inds.size();
+
+        KDVector closest_point = vertices.row(0);
+        double dsq_best = (closest_point - query).matrix().squaredNorm();
+        for ( int ii=0; ii<num_candidates; ++ii )
+        {
+            int ind = candidate_inds[ii];
+            Matrix<double, K, K+1> simplex_vertices;
+            for ( int jj=0; jj<K+1; ++jj )
+            {
+                simplex_vertices.col(jj) = vertices.row(cells(ind,jj));
+            }
+
+            KDVector candidate = closest_point_in_simplex( query, simplex_vertices );
+            double dsq_candidate = (candidate - query).matrix().squaredNorm();
+            if ( dsq_candidate < dsq_best )
+            {
+                closest_point = candidate;
+                dsq_best = dsq_candidate;
+            }
+        }
+
+        return closest_point;
+    }
+};
 
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <list>
 
@@ -231,8 +233,10 @@ private:
     }
 
 public:
-    AABBTree( Array<double, Dynamic, K> & box_mins,
-              Array<double, Dynamic, K> & box_maxes )
+    AABBTree( ) {}
+
+    AABBTree( const Ref<const Array<double, Dynamic, K>> box_mins,
+              const Ref<const Array<double, Dynamic, K>> box_maxes )
     {
         int num_leaf_boxes = box_mins.rows();
 

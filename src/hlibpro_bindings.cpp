@@ -729,35 +729,40 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("eval_thin_plate_splines_at_points", &eval_thin_plate_splines_at_points);
 
     py::class_<ThinPlateSplineWeightingFunctions>(m, "ThinPlateSplineWeightingFunctions")
-        .def(py::init< const Array<double, Dynamic, 2> >())
+        .def(py::init< Array<double, Dynamic, 2> >())
         .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
 
-    py::class_<KDTree<1>>(m, "KDTree1D")
-        .def(py::init< Array<double, Dynamic, 1> & >())
-        .def("nearest_neighbor", &KDTree<1>::nearest_neighbor)
-        .def("nearest_neighbor_vectorized", &KDTree<1>::nearest_neighbor_vectorized);
+//    py::class_<KDTree<1>>(m, "KDTree1D")
+//        .def(py::init< Array<double, Dynamic, 1> & >())
+//        .def("nearest_neighbor", &KDTree<1>::nearest_neighbor)
+//        .def("nearest_neighbor_vectorized", &KDTree<1>::nearest_neighbor_vectorized);
 
     py::class_<KDTree<2>>(m, "KDTree2D")
-        .def(py::init< Array<double, Dynamic, 2> & >())
+        .def(py::init< const Ref<const Array<double, Dynamic, 2>> >())
         .def("nearest_neighbor", &KDTree<2>::nearest_neighbor)
         .def("nearest_neighbor_vectorized", &KDTree<2>::nearest_neighbor_vectorized);
 
-    py::class_<KDTree<3>>(m, "KDTree3D")
-        .def(py::init< Array<double, Dynamic, 3> & >())
-        .def("nearest_neighbor", &KDTree<3>::nearest_neighbor)
-        .def("nearest_neighbor_vectorized", &KDTree<3>::nearest_neighbor_vectorized);
-
-    py::class_<KDTree<4>>(m, "KDTree4D")
-        .def(py::init< Array<double, Dynamic, 4> & >())
-        .def("nearest_neighbor", &KDTree<4>::nearest_neighbor)
-        .def("nearest_neighbor_vectorized", &KDTree<4>::nearest_neighbor_vectorized);
+//    py::class_<KDTree<3>>(m, "KDTree3D")
+//        .def(py::init< Array<double, Dynamic, 3> & >())
+//        .def("nearest_neighbor", &KDTree<3>::nearest_neighbor)
+//        .def("nearest_neighbor_vectorized", &KDTree<3>::nearest_neighbor_vectorized);
+//
+//    py::class_<KDTree<4>>(m, "KDTree4D")
+//        .def(py::init< Array<double, Dynamic, 4> & >())
+//        .def("nearest_neighbor", &KDTree<4>::nearest_neighbor)
+//        .def("nearest_neighbor_vectorized", &KDTree<4>::nearest_neighbor_vectorized);
 
     py::class_<AABBTree<2>>(m, "AABBTree2D")
-        .def(py::init< Array<double, Dynamic, 2> &,
-                       Array<double, Dynamic, 2> & >())
+        .def(py::init< const Ref<const Array<double, Dynamic, 2>>,
+                       const Ref<const Array<double, Dynamic, 2>> >())
         .def("first_point_intersection", &AABBTree<2>::first_point_intersection)
         .def("first_point_intersection_vectorized", &AABBTree<2>::first_point_intersection_vectorized)
         .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections);
+
+    py::class_<SimplexMesh<2>>(m, "SimplexMesh2D")
+        .def(py::init< const Ref<const Array<double, Dynamic, 2>>,
+                       const Ref<const Array<int, Dynamic, 3>> >())
+        .def("closest_point", &SimplexMesh<2>::closest_point);
 
     m.def("projected_affine_coordinates", &projected_affine_coordinates);
 //    m.def("closest_point_in_simplex", &closest_point_in_simplex);
