@@ -762,7 +762,11 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     py::class_<SimplexMesh<2>>(m, "SimplexMesh2D")
         .def(py::init< const Ref<const Array<double, Dynamic, 2>>,
                        const Ref<const Array<int, Dynamic, 3>> >())
-        .def("closest_point", &SimplexMesh<2>::closest_point);
+        .def("closest_point", &SimplexMesh<2>::closest_point)
+        .def("closest_point_vectorized", &SimplexMesh<2>::closest_point_vectorized)
+        .def("point_is_in_mesh", &SimplexMesh<2>::point_is_in_mesh)
+        .def("point_is_in_mesh_vectorized", &SimplexMesh<2>::point_is_in_mesh_vectorized)
+        .def("index_of_first_simplex_containing_point", &SimplexMesh<2>::index_of_first_simplex_containing_point);
 
     m.def("projected_affine_coordinates", &projected_affine_coordinates);
 //    m.def("closest_point_in_simplex", &closest_point_in_simplex);

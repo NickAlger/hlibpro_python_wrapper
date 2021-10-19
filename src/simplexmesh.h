@@ -255,34 +255,115 @@ public:
         aabbtree = AABBTree<K>( box_mins, box_maxes );
     }
 
+    inline bool point_is_in_mesh( KDVector query )
+    {
+        return (index_of_first_simplex_containing_point( query ) >= 0);
+    }
+
+    Array<bool, Dynamic, 1> point_is_in_mesh_vectorized( Array<double, Dynamic, K> query_points )
+    {
+        int nquery = query_points.rows();
+        Array<bool, Dynamic, 1> in_mesh;
+        in_mesh.resize(nquery, 1);
+        for ( int ii=0; ii<nquery; ++ii )
+        {
+            in_mesh(ii) = point_is_in_mesh( query_points.row(ii) );
+        }
+        return in_mesh;
+    }
+
     KDVector closest_point( KDVector query )
     {
-        pair<KDVector, double> kd_result = kdtree.nearest_neighbor( query );
-        double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
-        vector<int> candidate_inds = aabbtree.all_ball_intersections( query, dist_estimate );
-        int num_candidates = candidate_inds.size();
-
         KDVector closest_point = vertices.row(0);
-        double dsq_best = (closest_point - query).matrix().squaredNorm();
-        for ( int ii=0; ii<num_candidates; ++ii )
+        if ( point_is_in_mesh( query ) )
         {
-            int ind = candidate_inds[ii];
-            Matrix<double, K, K+1> simplex_vertices;
-            for ( int jj=0; jj<K+1; ++jj )
-            {
-                simplex_vertices.col(jj) = vertices.row(cells(ind,jj));
-            }
+            closest_point = query;
+        }
+        else
+        {
+            pair<KDVector, double> kd_result = kdtree.nearest_neighbor( query );
+            double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
+            vector<int> candidate_inds = aabbtree.all_ball_intersections( query, dist_estimate );
+            int num_candidates = candidate_inds.size();
 
-            KDVector candidate = closest_point_in_simplex( query, simplex_vertices );
-            double dsq_candidate = (candidate - query).matrix().squaredNorm();
-            if ( dsq_candidate < dsq_best )
+    //        cout << "num_candidates=" << num_candidates << endl;
+
+            double dsq_best = (closest_point - query).matrix().squaredNorm();
+            for ( int ii=0; ii<num_candidates; ++ii )
             {
-                closest_point = candidate;
-                dsq_best = dsq_candidate;
+                int ind = candidate_inds[ii];
+                Matrix<double, K, K+1> simplex_vertices;
+                for ( int jj=0; jj<K+1; ++jj )
+                {
+                    simplex_vertices.col(jj) = vertices.row(cells(ind,jj));
+                }
+
+                KDVector candidate = closest_point_in_simplex( query, simplex_vertices );
+                double dsq_candidate = (candidate - query).matrix().squaredNorm();
+                if ( dsq_candidate < dsq_best )
+                {
+                    closest_point = candidate;
+                    dsq_best = dsq_candidate;
+                }
             }
         }
-
         return closest_point;
+    }
+
+    Array<double, Dynamic, K> closest_point_vectorized( Array<double, Dynamic, K> query_points )
+    {
+        int num_queries = query_points.rows();
+        Array<double, Dynamic, K> closest_points;
+        closest_points.resize(num_queries, K);
+        for ( int ii=0; ii<num_queries; ++ii )
+        {
+            closest_points.row(ii) = closest_point( query_points.row(ii) );
+        }
+        return closest_points;
+    }
+
+    inline VectorXd affine_coordinates_of_point_in_simplex( int simplex_ind, KDVector query )
+    {
+        Matrix<double, K, K+1> S;
+        for ( int jj=0; jj<K+1; ++jj )
+        {
+//            cout << "cells.rows()=" << cells.rows() << endl;
+//            cout << "simplex_ind=" << simplex_ind << endl;
+            S.col(jj) = vertices.row(cells(simplex_ind, jj));
+//            S.col(jj) = vertices.row(cells(0, jj));
+        }
+
+        VectorXd affine_coords = projected_affine_coordinates( query, S );
+        return affine_coords;
+    }
+
+    inline int index_of_first_simplex_containing_point( KDVector query )
+    {
+        vector<int> candidate_inds =  aabbtree.all_point_intersections( query );
+        int num_candidates = candidate_inds.size();
+        int ind = -1;
+        for ( int ii=0; ii<num_candidates; ++ii )
+        {
+            int candidate_ind = candidate_inds[ii];
+            VectorXd affine_coords = affine_coordinates_of_point_in_simplex( candidate_ind, query );
+            bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
+            if ( point_is_in_simplex )
+            {
+                ind = candidate_ind;
+                break;
+            }
+        }
+        return ind;
+//        if ( ind >= 0 )
+//        {
+//            VectorXd affine_coords = affine_coordinates_of_point_in_simplex( ind, query );
+//            bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
+//            if ( !point_is_in_simplex )
+//            {
+//                ind = -1;
+//            }
+//        }
+//        return ind;
     }
 };
 

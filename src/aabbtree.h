@@ -254,9 +254,10 @@ public:
         int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
     }
 
-    int first_point_intersection( KDVector query )
+    inline int first_point_intersection( KDVector query )
     {
-        return first_point_intersection_subtree( query, 0 );
+        return first_point_intersection_iterative( query );
+//        return first_point_intersection_subtree( query, 0 );
     }
 
     VectorXi first_point_intersection_vectorized( Array<double, Dynamic, K> & query_array )
@@ -270,6 +271,48 @@ public:
             first_intersection_inds(ii) = first_point_intersection_iterative( query );
         }
         return first_intersection_inds;
+    }
+
+    vector<int> all_point_intersections( const KDVector & query )
+    {
+        vector<int> all_intersections;
+
+        int ii = 0; // <-- This is the "pointer" to the front of the list
+        nodes_under_consideration[ii] = 0; // <-- This is the "list" of ints.
+        while ( ii >= 0 )
+        {
+            int current_node_ind =  nodes_under_consideration[ii];
+            ii = ii - 1;
+
+            Node & current_node = nodes[current_node_ind];
+            Box & B = current_node.box;
+
+            // Determine if query point is in current box
+            bool query_is_in_box = true;
+            for ( int kk=0; kk<K; ++kk)
+            {
+                if ( (query(kk) < B.min(kk)) || (B.max(kk) < query(kk)) )
+                {
+                    query_is_in_box = false;
+                    break;
+                }
+            }
+
+            if ( query_is_in_box )
+            {
+                if ( B.index >= 0 ) // if current box is leaf
+                {
+                    all_intersections.push_back( B.index );
+                }
+                else // current box is internal node
+                {
+                    nodes_under_consideration[ii+1] = current_node.right;
+                    nodes_under_consideration[ii+2] = current_node.left;
+                    ii = ii + 2;
+                }
+            }
+        }
+        return all_intersections;
     }
 
     vector<int> all_ball_intersections( const KDVector & center, double radius )
