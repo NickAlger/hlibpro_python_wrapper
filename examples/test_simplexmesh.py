@@ -51,6 +51,7 @@ plt.gca().set_aspect('equal')
 
 npts = 3
 dim = 2
+nquery = 100
 
 triangle_vertices = np.random.randn(dim, npts)
 
@@ -58,11 +59,13 @@ plt.figure()
 plt.plot([triangle_vertices[0,0], triangle_vertices[0,1], triangle_vertices[0,2], triangle_vertices[0,0]],
          [triangle_vertices[1,0], triangle_vertices[1,1], triangle_vertices[1,2], triangle_vertices[1,0]])
 
-for k in range(100):
-    query = np.random.randn(dim)
-    closest_point = np.zeros(dim)
-    hcpp.closest_point_in_simplex(query, triangle_vertices, closest_point)
+qq = np.random.randn(dim, nquery)
+SS = triangle_vertices.T.reshape((-1,1)) * np.ones(nquery)
+pp = hcpp.closest_point_in_simplex_vectorized(qq, SS)
 
+for k in range(nquery):
+    query = qq[:,k]
+    closest_point = pp[:,k]
     plt.plot([query[0], closest_point[0]], [query[1], closest_point[1]], 'gray')
     plt.plot(query[0], query[1], '*r')
     plt.plot(closest_point[0], closest_point[1], '.k')

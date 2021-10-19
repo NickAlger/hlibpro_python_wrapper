@@ -146,7 +146,7 @@ inline MatrixXd select_columns( const MatrixXd &                 A,           //
 
 inline void closest_point_in_simplex( const VectorXd & query,            // shape=(dim, 1)
                                       const MatrixXd & simplex_vertices, // shape=(dim, npts)
-                                      Ref<MatrixXd>  & closest_point )   // shape=(dim, 1)
+                                      Ref<VectorXd>        closest_point )   // shape=(dim, 1)
 {
     int dim = simplex_vertices.rows();
     int npts = simplex_vertices.cols();
@@ -158,7 +158,6 @@ inline void closest_point_in_simplex( const VectorXd & query,            // shap
     else
     {
         int num_facets = power_of_two(npts) - 1;
-//        vector<VectorXi> all_facet_inds;
         Matrix<bool, Dynamic, Dynamic, RowMajor> all_facet_inds;
         all_facet_inds.resize(num_facets, npts);
 
@@ -167,14 +166,6 @@ inline void closest_point_in_simplex( const VectorXd & query,            // shap
             all_facet_inds << false, true,
                               true,  false,
                               true,  true;
-
-//            VectorXi facet01_inds(1);    facet01_inds << 0;
-//            VectorXi facet10_inds(1);    facet10_inds << 1;
-//            VectorXi facet11_inds(2);    facet11_inds << 0, 1;
-
-//            all_facet_inds.push_back(facet01_inds);
-//            all_facet_inds.push_back(facet10_inds);
-//            all_facet_inds.push_back(facet11_inds);
         }
         else if ( npts == 3 )
         {
@@ -185,30 +176,29 @@ inline void closest_point_in_simplex( const VectorXd & query,            // shap
                               true,  false, true,
                               true,  true,  false,
                               true,  true,  true;
-
-//            Matrix<bool, Dynamic, 1> facet001_inds(npts); facet001_inds << false, false, true;
-//            Matrix<bool, Dynamic, 1> facet010_inds(npts); facet010_inds << false,  true, false;
-//            Matrix<bool, Dynamic, 1> facet011_inds(npts); facet011_inds << false,  true, true;
-//            Matrix<bool, Dynamic, 1> facet100_inds(npts); facet100_inds << true,  false, false;
-//            Matrix<bool, Dynamic, 1> facet101_inds(npts); facet101_inds << true, false, true;
-//            Matrix<bool, Dynamic, 1> facet110_inds(npts); facet110_inds << true, true, false;
-//            Matrix<bool, Dynamic, 1> facet111_inds(npts); facet111_inds << true, true, true;
-
-//            VectorXi facet001_inds(1);    facet001_inds << 0;
-//            VectorXi facet010_inds(1);    facet010_inds << 1;
-//            VectorXi facet011_inds(2);    facet011_inds << 0, 1;
-//            VectorXi facet100_inds(1);    facet100_inds << 2;
-//            VectorXi facet101_inds(2);    facet101_inds << 0, 2;
-//            VectorXi facet110_inds(2);    facet110_inds << 1, 2;
-//            VectorXi facet111_inds(3);    facet111_inds << 0, 1, 2;
-
-//            all_facet_inds.push_back(facet001_inds);
-//            all_facet_inds.push_back(facet010_inds);
-//            all_facet_inds.push_back(facet011_inds);
-//            all_facet_inds.push_back(facet100_inds);
-//            all_facet_inds.push_back(facet101_inds);
-//            all_facet_inds.push_back(facet110_inds);
-//            all_facet_inds.push_back(facet111_inds);
+        }
+        else if ( npts == 4 )
+        {
+            all_facet_inds << false, false, false, true,
+                              false, false, true,  false,
+                              false, false, true,  true,
+                              false, true,  false, false,
+                              false, true,  false, true,
+                              false, true,  true,  false,
+                              false, true,  true,  true,
+                              true,  false, false, false,
+                              true,  false, false, true,
+                              true,  false, true,  false,
+                              true,  false, true,  true,
+                              true,  true,  false, false,
+                              true,  true,  false, true,
+                              true,  true,  true,  false,
+                              true,  true,  true,  true;
+        }
+        else
+        {
+            cout << "not implemented for npts>4."
+                 << "Also, algorithm not recommended for large npts since it scales combinatorially." << endl;
         }
 
         closest_point = simplex_vertices.col(0);
@@ -231,9 +221,39 @@ inline void closest_point_in_simplex( const VectorXd & query,            // shap
                 }
             }
         }
-
     }
+}
 
+MatrixXd closest_point_in_simplex_vectorized( const MatrixXd & query,            // shape=(dim, nquery)
+                                              const MatrixXd & simplex_vertices) // shape=(dim*npts, nquery)
+{
+    int dim = query.rows();
+    int nquery = query.cols();
+    int npts = simplex_vertices.rows() / dim;
+    MatrixXd closest_point;
+    closest_point.resize(query.rows(), query.cols());
+
+    for ( int ii=0; ii<nquery; ++ii )
+    {
+        VectorXd q = query.col(ii);
+        MatrixXd S;
+        S.resize(dim, npts);
+        for ( int jj=0; jj<dim; ++jj )
+        {
+            for ( int kk=0; kk<npts; ++kk )
+            {
+                S(jj,kk) = simplex_vertices(kk*dim + jj, ii);
+            }
+        }
+
+        VectorXd p;
+        p.resize(dim);
+
+        closest_point_in_simplex( q, S, p );
+
+        closest_point.col(ii) = p;
+    }
+    return closest_point;
 }
 
 
