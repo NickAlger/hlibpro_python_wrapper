@@ -168,7 +168,7 @@ print('nquery=', nquery, ', dt_query_SM=', dt_query_SM)
 
 # EVALUATE FUNCTION AT POINT
 
-mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 0.25)
+mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 1e-2)
 V = dl.FunctionSpace(mesh, 'CG', 1)
 mesh_coords = mesh.coordinates()
 dof_coords = V.tabulate_dof_coordinates()
@@ -199,24 +199,22 @@ print('p=', p, ', u_of_p=', u_of_p, ', u_of_p_true=', u_of_p_true)
 
 #
 
-nquery = 1000
+nquery = int(1e5)
 pp = np.random.rand(nquery, 2)
 
-upp = np.zeros(nquery)
+t = time()
+upp = SM.evaluate_function_at_point_vectorized(uu, pp)
+dt_eval = time() - t
+print('V.dim()=', V.dim(), ', nquery=', nquery, ', dt_eval=', dt_eval)
+
+t = time()
 upp_true = np.zeros(nquery)
 for ii in range(nquery):
     p = pp[ii,:]
-    upp[ii] = SM.evaluate_function_at_point(uu, p)
     if mesh.bounding_box_tree().compute_first_entity_collision(dl.Point(p)) < mesh.cells().shape[0]:
         upp_true[ii] = u(p)
+dt_eval_fenics = time() - t
+print('V.dim()=', V.dim(), ', nquery=', nquery, ', dt_eval=', dt_eval, 'dt_eval_fenics=', dt_eval_fenics)
 
 err_eval_function = np.linalg.norm(upp - upp_true)
 print('err_eval_function=', err_eval_function)
-
-# plt.figure()
-# plt.scatter(pp[:,0], pp[:,1], c=upp)
-# plt.title('upp')
-#
-# plt.figure()
-# plt.scatter(pp[:,0], pp[:,1], c=upp_true)
-# plt.title('upp_true')

@@ -356,7 +356,7 @@ public:
         return ind;
     }
 
-    inline double evaluate_function_at_point( const VectorXd & function_values_at_vertices,
+    inline double evaluate_function_at_point( const VectorXd & function_at_vertices,
                                               const KDVector & point )
     {
         vector<int> candidate_inds =  aabbtree.all_point_intersections( point );
@@ -371,12 +371,24 @@ public:
             {
                 for ( int vv=0; vv<K+1; ++vv)
                 {
-                    function_at_point += affine_coords(vv) * function_values_at_vertices(cells(ind, vv));
+                    function_at_point += affine_coords(vv) * function_at_vertices(cells(ind, vv));
                 }
                 break;
             }
         }
         return function_at_point;
+    }
+
+    VectorXd evaluate_function_at_point_vectorized( const VectorXd &          function_at_vertices,
+                                                    const Ref<const MatrixXd> points )
+    {
+        int npts = points.rows();
+        VectorXd function_at_points(npts);
+        for ( int ii=0; ii<npts; ++ii )
+        {
+            function_at_points(ii) = evaluate_function_at_point( function_at_vertices, points.row(ii) );
+        }
+        return function_at_points;
     }
 };
 
