@@ -205,7 +205,7 @@ pp = np.random.rand(nquery, 2)
 t = time()
 upp = SM.evaluate_function_at_point_vectorized(uu, pp)
 dt_eval = time() - t
-print('V.dim()=', V.dim(), ', nquery=', nquery, ', dt_eval=', dt_eval)
+# print('V.dim()=', V.dim(), ', nquery=', nquery, ', dt_eval=', dt_eval)
 
 t = time()
 upp_true = np.zeros(nquery)
