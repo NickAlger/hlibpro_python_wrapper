@@ -196,50 +196,43 @@ template <int K>
 class SimplexMesh
 {
 private:
-    typedef Array<double, K, 1> KDVector;
+    typedef Matrix<double, K, 1> KDVector;
 
-    Array<double, Dynamic, K, RowMajor> vertices;
-    Array<int, Dynamic, K+1, RowMajor> cells;
-    Array<double, Dynamic, K, RowMajor> box_mins;
-    Array<double, Dynamic, K, RowMajor> box_maxes;
+    Matrix<double, K,   Dynamic> vertices;
+    Matrix<int,    K+1, Dynamic> cells;
+    Matrix<double, K,   Dynamic> box_mins;
+    Matrix<double, K,   Dynamic> box_maxes;
     KDTree<K> kdtree;
     AABBTree<K> aabbtree;
     vector< Matrix<double, K+1, K> > simplex_transform_matrices;
     vector< Matrix<double, K+1, 1> > simplex_transform_vectors;
 
-public:
-    SimplexMesh( const Ref<const Array<double, Dynamic, K>> input_vertices,
-                 const Ref<const Array<int, Dynamic, K+1>>  input_cells )
-    {
-        // Copy input vertices into local array
-        int num_vertices = input_vertices.rows();
-        vertices.resize(num_vertices, K);
-        for ( int ii=0; ii<num_vertices; ++ii )
-        {
-            vertices.row(ii) = input_vertices.row(ii);
-        }
+    int num_vertices;
+    int num_cells;
 
-        // Copy input cells into local array
-        int num_cells = input_cells.rows();
-        cells.resize(num_cells, K+1);
-        for ( int ii=0; ii<num_cells; ++ii)
-        {
-            cells.row(ii) = input_cells.row(ii);
-        }
+public:
+    SimplexMesh( const Ref<const Matrix<double, K,   Dynamic>> input_vertices,
+                 const Ref<const Matrix<int   , K+1, Dynamic>> input_cells )
+    {
+        vertices = input_vertices; // copy
+        cells = input_cells; // copy
+
+        num_vertices = input_vertices.cols();
+        num_cells = input_cells.cols();
 
         // Compute box min and max points for each cell
-        box_mins.resize(num_cells, K);
-        box_maxes.resize(num_cells, K);
+        box_mins.resize(K, num_cells);
+        box_maxes.resize(K, num_cells);
         for ( int cc=0; cc<num_cells; ++cc)
         {
             for ( int kk=0; kk<K; ++kk )
             {
-                double min_k = vertices(cells(cc,0), kk);
-                double max_k = vertices(cells(cc,0), kk);
+                double min_k = vertices(kk, cells(0, cc));
+                double max_k = vertices(kk, cells(0, cc));
                 for ( int vv=1; vv<K+1; ++vv)
                 {
-                    double candidate_min_k = vertices(cells(cc,vv), kk);
-                    double candidate_max_k = vertices(cells(cc,vv), kk);
+                    double candidate_min_k = vertices(kk, cells(vv, cc));
+                    double candidate_max_k = vertices(kk, cells(vv, cc));
                     if (candidate_min_k < min_k)
                     {
                         min_k = candidate_min_k;
@@ -249,26 +242,24 @@ public:
                         max_k = candidate_max_k;
                     }
                 }
-                box_mins(cc, kk) = min_k;
-                box_maxes(cc, kk) = max_k;
+                box_mins(kk, cc) = min_k;
+                box_maxes(kk, cc) = max_k;
             }
         }
 
-        kdtree = KDTree<K>( vertices );
-        aabbtree = AABBTree<K>( box_mins, box_maxes );
+        kdtree = KDTree<K>( vertices.transpose() );
+        aabbtree = AABBTree<K>( box_mins.transpose(), box_maxes.transpose() );
 
-//        simplex_QR_factorizations.resize(num_cells);
         simplex_transform_matrices.resize(num_cells);
         simplex_transform_vectors.resize(num_cells);
         for ( int ii=0; ii<num_cells; ++ii )
         {
+            Matrix<double, K, 1> v0 = vertices.col(cells(0, ii));
             Matrix<double, K, K> dV;
             for ( int jj=0; jj<K; ++jj )
             {
-                dV.col(jj) = vertices.row(cells(ii, jj+1)) - vertices.row(cells(ii, 0));
+                dV.col(jj) = vertices.col(cells(jj+1, ii)) - v0;
             }
-//            simplex_QR_factorizations[ii] = dV.colPivHouseholderQr();
-//            simplex_QR_factorizations[ii] = dV.householderQr();
             Matrix<double, K+1, K> S;
             Matrix<double, K, K> S0 = dV.colPivHouseholderQr().solve(MatrixXd::Identity(K,K));
             Matrix<double, 1, K> ones_rowvec;
@@ -277,7 +268,7 @@ public:
             S.row(0) = - ones_rowvec * S0;
             simplex_transform_matrices[ii] = S;
 
-            Matrix<double, K, 1> v0 = vertices.row(cells(ii, 0)).transpose();
+
             Matrix<double, K+1, 1> e0;
             e0.setZero();
             e0(0) = 1.0;
@@ -291,21 +282,21 @@ public:
         return (index_of_first_simplex_containing_point( query ) >= 0);
     }
 
-    Array<bool, Dynamic, 1> point_is_in_mesh_vectorized( Array<double, Dynamic, K> query_points )
+    Matrix<bool, Dynamic, 1> point_is_in_mesh_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_points )
     {
-        int nquery = query_points.rows();
-        Array<bool, Dynamic, 1> in_mesh;
+        int nquery = query_points.cols();
+        Matrix<bool, Dynamic, 1> in_mesh;
         in_mesh.resize(nquery, 1);
         for ( int ii=0; ii<nquery; ++ii )
         {
-            in_mesh(ii) = point_is_in_mesh( query_points.row(ii) );
+            in_mesh(ii) = point_is_in_mesh( query_points.col(ii) );
         }
         return in_mesh;
     }
 
     KDVector closest_point( KDVector query )
     {
-        KDVector closest_point = vertices.row(0);
+        KDVector closest_point = vertices.col(0);
         if ( point_is_in_mesh( query ) )
         {
             closest_point = query;
@@ -317,20 +308,18 @@ public:
             vector<int> candidate_inds = aabbtree.all_ball_intersections( query, dist_estimate );
             int num_candidates = candidate_inds.size();
 
-    //        cout << "num_candidates=" << num_candidates << endl;
-
-            double dsq_best = (closest_point - query).matrix().squaredNorm();
+            double dsq_best = (closest_point - query).squaredNorm();
             for ( int ii=0; ii<num_candidates; ++ii )
             {
                 int ind = candidate_inds[ii];
                 Matrix<double, K, K+1> simplex_vertices;
                 for ( int jj=0; jj<K+1; ++jj )
                 {
-                    simplex_vertices.col(jj) = vertices.row(cells(ind,jj));
+                    simplex_vertices.col(jj) = vertices.col(cells(jj, ind));
                 }
 
                 KDVector candidate = closest_point_in_simplex( query, simplex_vertices );
-                double dsq_candidate = (candidate - query).matrix().squaredNorm();
+                double dsq_candidate = (candidate - query).squaredNorm();
                 if ( dsq_candidate < dsq_best )
                 {
                     closest_point = candidate;
@@ -341,25 +330,23 @@ public:
         return closest_point;
     }
 
-    Array<double, Dynamic, K> closest_point_vectorized( Array<double, Dynamic, K> query_points )
+    Matrix<double, K, Dynamic> closest_point_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_points )
     {
-        int num_queries = query_points.rows();
-        Array<double, Dynamic, K> closest_points;
-        closest_points.resize(num_queries, K);
+        int num_queries = query_points.cols();
+        Matrix<double, K, Dynamic> closest_points;
+        closest_points.resize(K, num_queries);
         for ( int ii=0; ii<num_queries; ++ii )
         {
-            closest_points.row(ii) = closest_point( query_points.row(ii) );
+            closest_points.col(ii) = closest_point( query_points.col(ii) );
         }
         return closest_points;
     }
 
     inline VectorXd simplex_coordinates( int simplex_ind, const KDVector query )
     {
-        Matrix<double, K, 1> q_colvec = query;
-        return simplex_transform_matrices[simplex_ind] * q_colvec + simplex_transform_vectors[simplex_ind];
+        return simplex_transform_matrices[simplex_ind] * query + simplex_transform_vectors[simplex_ind];
     }
 
-//    inline int index_of_first_simplex_containing_point( KDVector query )
     inline int index_of_first_simplex_containing_point( const KDVector query )
     {
         vector<int> candidate_inds =  aabbtree.all_point_intersections( query );
@@ -405,7 +392,7 @@ public:
                     {
                         for ( int ll=0; ll<num_functions; ++ll ) // for each function
                         {
-                            function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(simplex_ind, kk));
+                            function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
                         }
                     }
                     break;
@@ -415,45 +402,43 @@ public:
         return function_at_points;
     }
 
-//    inline double evaluate_function_at_point( const VectorXd & function_at_vertices,
-//                                              const KDVector & point )
-    inline double evaluate_function_at_point( const Ref<const VectorXd> function_at_vertices,
-                                              const KDVector point )
-    {
-        vector<int> candidate_inds =  aabbtree.all_point_intersections( point );
-        double function_at_point = 0.0;
-        int num_candidates = candidate_inds.size();
-        for ( int ii=0; ii<num_candidates; ++ii )
-        {
-            int ind = candidate_inds[ii];
-            VectorXd affine_coords = simplex_coordinates( ind, point );
-            bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-            if ( point_is_in_simplex )
-            {
-                for ( int vv=0; vv<K+1; ++vv)
-                {
-                    function_at_point += affine_coords(vv) * function_at_vertices(cells(ind, vv));
-                }
-                break;
-            }
-        }
-        return function_at_point;
-    }
-
-//    VectorXd evaluate_function_at_point_vectorized( const VectorXd &          function_at_vertices,
-//                                                    const Ref<const MatrixXd> points )
-    VectorXd evaluate_function_at_point_vectorized( const Ref<const VectorXd>                            function_at_vertices,
-                                                    const Ref<const Array<double, Dynamic, K, RowMajor>> points )
-    {
-        int npts = points.rows();
-        VectorXd function_at_points(npts);
-        for ( int ii=0; ii<npts; ++ii )
-        {
-            KDVector p = points.row(ii);
-            function_at_points(ii) = evaluate_function_at_point( function_at_vertices, p );
-        }
-        return function_at_points;
-    }
+//    inline double evaluate_function_at_point( const Ref<const VectorXd> function_at_vertices,
+//                                              const KDVector point )
+//    {
+//        vector<int> candidate_inds =  aabbtree.all_point_intersections( point );
+//        double function_at_point = 0.0;
+//        int num_candidates = candidate_inds.size();
+//        for ( int ii=0; ii<num_candidates; ++ii )
+//        {
+//            int ind = candidate_inds[ii];
+//            VectorXd affine_coords = simplex_coordinates( ind, point );
+//            bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
+//            if ( point_is_in_simplex )
+//            {
+//                for ( int vv=0; vv<K+1; ++vv)
+//                {
+//                    function_at_point += affine_coords(vv) * function_at_vertices(cells(vv, ind));
+//                }
+//                break;
+//            }
+//        }
+//        return function_at_point;
+//    }
+//
+////    VectorXd evaluate_function_at_point_vectorized( const VectorXd &          function_at_vertices,
+////                                                    const Ref<const MatrixXd> points )
+//    VectorXd evaluate_function_at_point_vectorized( const Ref<const VectorXd>                            function_at_vertices,
+//                                                    const Ref<const Array<double, Dynamic, K, RowMajor>> points )
+//    {
+//        int npts = points.rows();
+//        VectorXd function_at_points(npts);
+//        for ( int ii=0; ii<npts; ++ii )
+//        {
+//            KDVector p = points.row(ii);
+//            function_at_points(ii) = evaluate_function_at_point( function_at_vertices, p );
+//        }
+//        return function_at_points;
+//    }
 };
 
 

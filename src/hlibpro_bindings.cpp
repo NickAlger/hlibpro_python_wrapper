@@ -760,15 +760,15 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections);
 
     py::class_<SimplexMesh<2>>(m, "SimplexMesh2D")
-        .def(py::init< const Ref<const Array<double, Dynamic, 2>>,
-                       const Ref<const Array<int, Dynamic, 3>> >())
+        .def(py::init< const Ref<const Array<double, 2, Dynamic>>,
+                       const Ref<const Array<int, 3, Dynamic>> >())
         .def("closest_point", &SimplexMesh<2>::closest_point)
         .def("closest_point_vectorized", &SimplexMesh<2>::closest_point_vectorized)
         .def("point_is_in_mesh", &SimplexMesh<2>::point_is_in_mesh)
         .def("point_is_in_mesh_vectorized", &SimplexMesh<2>::point_is_in_mesh_vectorized)
         .def("index_of_first_simplex_containing_point", &SimplexMesh<2>::index_of_first_simplex_containing_point)
-        .def("evaluate_function_at_point", &SimplexMesh<2>::evaluate_function_at_point)
-        .def("evaluate_function_at_point_vectorized", &SimplexMesh<2>::evaluate_function_at_point_vectorized)
+//        .def("evaluate_function_at_point", &SimplexMesh<2>::evaluate_function_at_point)
+//        .def("evaluate_function_at_point_vectorized", &SimplexMesh<2>::evaluate_function_at_point_vectorized)
         .def("evaluate_functions_at_points", &SimplexMesh<2>::evaluate_functions_at_points);
 
     m.def("projected_affine_coordinates", &projected_affine_coordinates);
