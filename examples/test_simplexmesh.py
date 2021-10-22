@@ -199,7 +199,7 @@ print('p=', p, ', u_of_p=', u_of_p, ', u_of_p_true=', u_of_p_true)
 
 #
 
-nquery = int(1e6)
+nquery = int(1e5)
 pp = np.random.rand(nquery, 2)
 
 t = time()
@@ -216,7 +216,7 @@ for ii in range(nquery):
 dt_eval_fenics = time() - t
 print('V.dim()=', V.dim(), ', nquery=', nquery, ', dt_eval=', dt_eval, 'dt_eval_fenics=', dt_eval_fenics)
 
-err_eval_function = np.linalg.norm(upp - upp_true)
+err_eval_function = np.linalg.norm(upp - upp_true) / np.linalg.norm(upp_true)
 print('err_eval_function=', err_eval_function)
 
 # Initial:
@@ -263,3 +263,38 @@ print('err_eval_function=', err_eval_function)
 
 # Householder solver without pivoting
 # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.08037400245666504 dt_eval_fenics= 3.344421625137329
+
+# Pre-computed simplex transform matrices and vectors
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.06075167655944824 dt_eval_fenics= 3.7765233516693115
+
+
+##### Vectorized version
+
+nquery = int(1e5)
+num_functions = 20
+pp = np.array(np.random.rand(2,nquery), order='F')
+
+uu = [dl.Function(V) for _ in range(num_functions)]
+for u in uu:
+    u.vector()[:] = dof_coords[:,0]**2 + 2*dof_coords[:,1]**2
+    u.set_allow_extrapolation(True)
+
+UU = np.array([u.vector()[vertex2dof] for u in uu], order='F')
+
+t = time()
+upp = SM.evaluate_functions_at_points(UU, pp)
+dt_eval = time() - t
+# print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval=', dt_eval)
+
+t = time()
+upp_true = np.zeros((num_functions, nquery))
+for ii in range(nquery):
+    p = pp[:,ii]
+    if mesh.bounding_box_tree().compute_first_entity_collision(dl.Point(p)) < mesh.cells().shape[0]:
+        for jj in range(num_functions):
+            upp_true[jj, ii] = uu[jj](p)
+dt_eval_fenics = time() - t
+print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval=', dt_eval, 'dt_eval_fenics=', dt_eval_fenics)
+
+err_eval_function = np.linalg.norm(upp - upp_true) / np.linalg.norm(upp_true)
+print('err_eval_function=', err_eval_function)
