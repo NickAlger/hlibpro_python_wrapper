@@ -205,6 +205,7 @@ private:
     KDTree<K> kdtree;
     AABBTree<K> aabbtree;
     vector< ColPivHouseholderQR<Eigen::Matrix<double,K,K>> > simplex_QR_factorizations; // zeroth simplex vertex is base point
+//    vector< HouseholderQR<Eigen::Matrix<double,K,K>> > simplex_QR_factorizations; // zeroth simplex vertex is base point
 
 public:
     SimplexMesh( const Ref<const Array<double, Dynamic, K>> input_vertices,
@@ -265,6 +266,7 @@ public:
                 dV.col(jj) = vertices.row(cells(ii, jj+1)) - vertices.row(cells(ii, 0));
             }
             simplex_QR_factorizations[ii] = dV.colPivHouseholderQr();
+//            simplex_QR_factorizations[ii] = dV.householderQr();
         }
     }
 
@@ -335,32 +337,13 @@ public:
         return closest_points;
     }
 
-//    inline VectorXd affine_coordinates_of_point_in_simplex( int simplex_ind, KDVector query )
-    inline VectorXd affine_coordinates_of_point_in_simplex( int simplex_ind,
-                                                            const KDVector query )
+    inline VectorXd simplex_coordinates( int simplex_ind, const KDVector query )
     {
         VectorXd coords(K+1);
-//        Matrix<double, K, 1> dq = query - vertices.row(cells(simplex_ind, 0));
-//        KDVector v0 = vertices.row(cells(simplex_ind, 0));
-//        Matrix<double, K, 1> dq = query - v0;
         Matrix<double, K, 1> dq = query - vertices.row(cells(simplex_ind, 0)).transpose();
         coords.tail(K) = simplex_QR_factorizations[simplex_ind].solve(dq); // min_c ||dV*c - b||^2
         coords(0) = 1.0 - coords.tail(K).sum();
         return coords;
-
-
-//        Matrix<double, K, K+1> S;
-//        for ( int jj=0; jj<K+1; ++jj )
-//        {
-////            cout << "cells.rows()=" << cells.rows() << endl;
-////            cout << "simplex_ind=" << simplex_ind << endl;
-//            S.col(jj) = vertices.row(cells(simplex_ind, jj));
-////            S.col(jj) = vertices.row(cells(0, jj));
-//        }
-//
-//        VectorXd affine_coords = projected_affine_coordinates( query, S );
-////        VectorXd affine_coords(K+1);
-//        return affine_coords;
     }
 
 //    inline int index_of_first_simplex_containing_point( KDVector query )
@@ -372,7 +355,7 @@ public:
         for ( int ii=0; ii<num_candidates; ++ii )
         {
             int candidate_ind = candidate_inds[ii];
-            VectorXd affine_coords = affine_coordinates_of_point_in_simplex( candidate_ind, query );
+            VectorXd affine_coords = simplex_coordinates( candidate_ind, query );
             bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
             if ( point_is_in_simplex )
             {
@@ -394,7 +377,7 @@ public:
         for ( int ii=0; ii<num_candidates; ++ii )
         {
             int ind = candidate_inds[ii];
-            VectorXd affine_coords = affine_coordinates_of_point_in_simplex( ind, point );
+            VectorXd affine_coords = simplex_coordinates( ind, point );
             bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
             if ( point_is_in_simplex )
             {

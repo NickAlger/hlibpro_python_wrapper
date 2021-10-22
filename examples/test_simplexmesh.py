@@ -257,3 +257,9 @@ print('err_eval_function=', err_eval_function)
 
 # Precompute Householder
 # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.07903695106506348 dt_eval_fenics= 3.277336359024048
+
+# Commented out Householder QR solve
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.050486087799072266 dt_eval_fenics= 3.5028326511383057
+
+# Householder solver without pivoting
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.08037400245666504 dt_eval_fenics= 3.344421625137329
