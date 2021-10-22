@@ -199,7 +199,7 @@ print('p=', p, ', u_of_p=', u_of_p, ', u_of_p_true=', u_of_p_true)
 
 #
 
-nquery = int(1e5)
+nquery = int(1e6)
 pp = np.random.rand(nquery, 2)
 
 t = time()
