@@ -32,6 +32,7 @@ inline VectorXd projected_affine_coordinates( const VectorXd & query,  // shape=
     else
     {
         const MatrixXd dV = points.rightCols(npts-1).colwise() - points.col(0);
+//        double x = dV.colPivHouseholderQr();
         coords.tail(npts-1) = dV.colPivHouseholderQr().solve(query - points.col(0)); // min_c ||dV*c - b||^2
 //        coords.tail(npts-1) = dV.householderQr().solve(query - points.col(0)); // min_c ||dV*c - b||^2
         coords(0) = 1.0 - coords.tail(npts-1).sum();
@@ -203,6 +204,7 @@ private:
     Array<double, Dynamic, K, RowMajor> box_maxes;
     KDTree<K> kdtree;
     AABBTree<K> aabbtree;
+    vector< ColPivHouseholderQR<Eigen::Matrix<double,K,K>> > simplex_QR_factorizations; // zeroth simplex vertex is base point
 
 public:
     SimplexMesh( const Ref<const Array<double, Dynamic, K>> input_vertices,
@@ -253,6 +255,17 @@ public:
 
         kdtree = KDTree<K>( vertices );
         aabbtree = AABBTree<K>( box_mins, box_maxes );
+
+        simplex_QR_factorizations.resize(num_cells);
+        for ( int ii=0; ii<num_cells; ++ii )
+        {
+            Matrix<double, K, K> dV;
+            for ( int jj=0; jj<K; ++jj )
+            {
+                dV.col(jj) = vertices.row(cells(ii, jj+1)) - vertices.row(cells(ii, 0));
+            }
+            simplex_QR_factorizations[ii] = dV.colPivHouseholderQr();
+        }
     }
 
     inline bool point_is_in_mesh( KDVector query )
@@ -322,22 +335,36 @@ public:
         return closest_points;
     }
 
-    inline VectorXd affine_coordinates_of_point_in_simplex( int simplex_ind, KDVector query )
+//    inline VectorXd affine_coordinates_of_point_in_simplex( int simplex_ind, KDVector query )
+    inline VectorXd affine_coordinates_of_point_in_simplex( int simplex_ind,
+                                                            const KDVector query )
     {
-        Matrix<double, K, K+1> S;
-        for ( int jj=0; jj<K+1; ++jj )
-        {
-//            cout << "cells.rows()=" << cells.rows() << endl;
-//            cout << "simplex_ind=" << simplex_ind << endl;
-            S.col(jj) = vertices.row(cells(simplex_ind, jj));
-//            S.col(jj) = vertices.row(cells(0, jj));
-        }
+        VectorXd coords(K+1);
+//        Matrix<double, K, 1> dq = query - vertices.row(cells(simplex_ind, 0));
+//        KDVector v0 = vertices.row(cells(simplex_ind, 0));
+//        Matrix<double, K, 1> dq = query - v0;
+        Matrix<double, K, 1> dq = query - vertices.row(cells(simplex_ind, 0)).transpose();
+        coords.tail(K) = simplex_QR_factorizations[simplex_ind].solve(dq); // min_c ||dV*c - b||^2
+        coords(0) = 1.0 - coords.tail(K).sum();
+        return coords;
 
-        VectorXd affine_coords = projected_affine_coordinates( query, S );
-        return affine_coords;
+
+//        Matrix<double, K, K+1> S;
+//        for ( int jj=0; jj<K+1; ++jj )
+//        {
+////            cout << "cells.rows()=" << cells.rows() << endl;
+////            cout << "simplex_ind=" << simplex_ind << endl;
+//            S.col(jj) = vertices.row(cells(simplex_ind, jj));
+////            S.col(jj) = vertices.row(cells(0, jj));
+//        }
+//
+//        VectorXd affine_coords = projected_affine_coordinates( query, S );
+////        VectorXd affine_coords(K+1);
+//        return affine_coords;
     }
 
-    inline int index_of_first_simplex_containing_point( KDVector query )
+//    inline int index_of_first_simplex_containing_point( KDVector query )
+    inline int index_of_first_simplex_containing_point( const KDVector query )
     {
         vector<int> candidate_inds =  aabbtree.all_point_intersections( query );
         int num_candidates = candidate_inds.size();
@@ -356,8 +383,10 @@ public:
         return ind;
     }
 
-    inline double evaluate_function_at_point( const VectorXd & function_at_vertices,
-                                              const KDVector & point )
+//    inline double evaluate_function_at_point( const VectorXd & function_at_vertices,
+//                                              const KDVector & point )
+    inline double evaluate_function_at_point( const Ref<const VectorXd> function_at_vertices,
+                                              const KDVector point )
     {
         vector<int> candidate_inds =  aabbtree.all_point_intersections( point );
         double function_at_point = 0.0;
@@ -379,14 +408,17 @@ public:
         return function_at_point;
     }
 
-    VectorXd evaluate_function_at_point_vectorized( const VectorXd &          function_at_vertices,
-                                                    const Ref<const MatrixXd> points )
+//    VectorXd evaluate_function_at_point_vectorized( const VectorXd &          function_at_vertices,
+//                                                    const Ref<const MatrixXd> points )
+    VectorXd evaluate_function_at_point_vectorized( const Ref<const VectorXd>                            function_at_vertices,
+                                                    const Ref<const Array<double, Dynamic, K, RowMajor>> points )
     {
         int npts = points.rows();
         VectorXd function_at_points(npts);
         for ( int ii=0; ii<npts; ++ii )
         {
-            function_at_points(ii) = evaluate_function_at_point( function_at_vertices, points.row(ii) );
+            KDVector p = points.row(ii);
+            function_at_points(ii) = evaluate_function_at_point( function_at_vertices, p );
         }
         return function_at_points;
     }

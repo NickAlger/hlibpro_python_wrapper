@@ -273,7 +273,8 @@ public:
         return first_intersection_inds;
     }
 
-    vector<int> all_point_intersections( const KDVector & query )
+//    vector<int> all_point_intersections( const KDVector & query )
+    vector<int> all_point_intersections( const KDVector query )
     {
         vector<int> all_intersections;
 

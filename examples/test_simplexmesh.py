@@ -218,3 +218,42 @@ print('V.dim()=', V.dim(), ', nquery=', nquery, ', dt_eval=', dt_eval, 'dt_eval_
 
 err_eval_function = np.linalg.norm(upp - upp_true)
 print('err_eval_function=', err_eval_function)
+
+# Initial:
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.1494903564453125 dt_eval_fenics= 3.5622153282165527
+
+# RowMajor array passing
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.1570887565612793 dt_eval_fenics= 3.6073670387268066
+
+# Pass Ref<VectorXd> function_at_vertices (way slow!?)
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.6223673820495605 dt_eval_fenics= 3.57259202003479
+
+# Pass Ref<VectorXd> function_at_vertices into eval at single point also
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.15480661392211914 dt_eval_fenics= 3.3865790367126465
+
+# Pass const Ref<const Array<double, 1, Dynamic>> point
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.16225528717041016 dt_eval_fenics= 3.3151297569274902
+
+# Pass KDVector without reference
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.1498880386352539 dt_eval_fenics= 3.507368326187134
+
+# Comment out Affine coordinates of point in simplex
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.03772330284118652 dt_eval_fenics= 3.3172123432159424
+
+# Comment out VectorXd affine_coords = projected_affine_coordinates( query, S );
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.04477119445800781 dt_eval_fenics= 3.6361594200134277
+
+# Comment out simplex Householder QR factorization
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.06865429878234863 dt_eval_fenics= 3.2681002616882324
+
+# Comment out basically everything in d=3 projected_affine_coordinates
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.05244636535644531 dt_eval_fenics= 3.1996936798095703
+
+# Points only inside mesh (all else the same)
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.18492674827575684 dt_eval_fenics= 4.281755208969116
+
+# Do Householder factorization, but not solve
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.123321533203125 dt_eval_fenics= 3.469805955886841
+
+# Precompute Householder
+# V.dim()= 20054 , nquery= 100000 , dt_eval= 0.07903695106506348 dt_eval_fenics= 3.277336359024048
