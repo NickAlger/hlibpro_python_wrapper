@@ -204,8 +204,6 @@ private:
     Array<double, Dynamic, K, RowMajor> box_maxes;
     KDTree<K> kdtree;
     AABBTree<K> aabbtree;
-//    vector< ColPivHouseholderQR<Eigen::Matrix<double,K,K>> > simplex_QR_factorizations; // zeroth simplex vertex is base point
-//    vector< HouseholderQR<Eigen::Matrix<double,K,K>> > simplex_QR_factorizations; // zeroth simplex vertex is base point
     vector< Matrix<double, K+1, K> > simplex_transform_matrices;
     vector< Matrix<double, K+1, 1> > simplex_transform_vectors;
 
@@ -386,9 +384,11 @@ public:
     {
         int num_functions = functions_at_vertices.rows();
         int num_pts = points.cols();
+
         MatrixXd function_at_points;
         function_at_points.resize(num_functions, num_pts);
         function_at_points.setZero();
+
         for ( int ii=0; ii<num_pts; ++ii ) // for each point
         {
             vector<int> candidate_inds =  aabbtree.all_point_intersections( points.col(ii) );
@@ -401,19 +401,13 @@ public:
                 bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
                 if ( point_is_in_simplex )
                 {
-                    for ( int kk=0; kk<K+1; ++kk ) // for each coordinate
+                    for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
                     {
                         for ( int ll=0; ll<num_functions; ++ll ) // for each function
                         {
                             function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(simplex_ind, kk));
                         }
                     }
-//                    Matrix<double, K+1, 1> function_at_simplex_vertices;
-//                    for ( int kk=0; kk<K+1; ++kk)
-//                    {
-//                        function_at_simplex_vertices(kk) = function_at_vertices(cells(simplex_ind, kk));
-//                    }
-//                    function_at_points(ii) = affine_coords.dot(function_at_simplex_vertices);
                     break;
                 }
             }
