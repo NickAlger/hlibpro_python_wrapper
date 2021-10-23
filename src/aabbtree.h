@@ -160,7 +160,29 @@ private:
         return (B.index >= 0);
     }
 
-    int first_point_intersection_iterative( const KDVector & query )
+public:
+    AABBTree( ) {}
+
+    AABBTree( const Ref<const Array<double, K, Dynamic>> box_mins,
+              const Ref<const Array<double, K, Dynamic>> box_maxes )
+    {
+        int num_leaf_boxes = box_mins.cols();
+
+        // Copy eigen matrix input into std::vector of Boxes which will be re-ordered
+        vector< Box > leaf_boxes(num_leaf_boxes);
+        for ( int ii=0; ii<num_leaf_boxes; ++ii)
+        {
+            leaf_boxes[ii] = Box { box_mins.col(ii), box_maxes.col(ii), ii };
+        }
+
+        int num_boxes = 2*num_leaf_boxes - 1; // full binary tree with n leafs has 2n-1 nodes
+        nodes_under_consideration.reserve(num_boxes);
+        nodes.reserve(num_boxes);
+        int counter = 0;
+        int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
+    }
+
+    int first_point_intersection( const KDVector & query )
     {
         int first_intersection = -1;
 
@@ -206,74 +228,17 @@ private:
         return first_intersection;
     }
 
-    // finds nearest neighbor of query in subtree
-    int first_point_intersection_subtree( const KDVector & query,
-                                          int              current )
+    VectorXi first_point_intersection_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_array )
     {
-        Node current_node = nodes[current];
-        Box B = current_node.box;
-
-        int first_intersection = -1;
-        if ( point_is_in_box( query, B) )
-        {
-            if ( box_is_leaf( B ) )
-            {
-                first_intersection = B.index;
-            } else { // current box is internal node
-                first_intersection = first_point_intersection_subtree( query, current_node.left );
-                bool no_intersection_in_left_subtree = (first_intersection < 0);
-                if ( no_intersection_in_left_subtree )
-                {
-                    first_intersection = first_point_intersection_subtree( query, current_node.right );
-                }
-            }
-        }
-
-        return first_intersection;
-    }
-
-public:
-    AABBTree( ) {}
-
-    AABBTree( const Ref<const Array<double, Dynamic, K>> box_mins,
-              const Ref<const Array<double, Dynamic, K>> box_maxes )
-    {
-        int num_leaf_boxes = box_mins.rows();
-
-        // Copy eigen matrix input into std::vector of Boxes which will be re-ordered
-        vector< Box > leaf_boxes(num_leaf_boxes);
-        for ( int ii=0; ii<num_leaf_boxes; ++ii)
-        {
-            leaf_boxes[ii] = Box { box_mins.row(ii), box_maxes.row(ii), ii };
-        }
-
-        int num_boxes = 2*num_leaf_boxes - 1; // full binary tree with n leafs has 2n-1 nodes
-        nodes_under_consideration.reserve(num_boxes);
-        nodes.reserve(num_boxes);
-        int counter = 0;
-        int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
-    }
-
-    inline int first_point_intersection( const KDVector & query )
-    {
-        return first_point_intersection_iterative( query );
-//        return first_point_intersection_subtree( query, 0 );
-    }
-
-    VectorXi first_point_intersection_vectorized( const Ref<const Matrix<double, Dynamic, K>> query_array )
-    {
-        int num_querys = query_array.rows();
+        int num_querys = query_array.cols();
         VectorXi first_intersection_inds(num_querys);
         for (int ii=0; ii<num_querys; ++ii)
         {
-            KDVector query = query_array.row(ii);
-//            first_intersection_inds(ii) = first_point_intersection_subtree( query, 0 );
-            first_intersection_inds(ii) = first_point_intersection_iterative( query );
+            first_intersection_inds(ii) = first_point_intersection( query_array.col(ii) );
         }
         return first_intersection_inds;
     }
 
-//    vector<int> all_point_intersections( const KDVector & query )
     vector<int> all_point_intersections( const KDVector & query )
     {
         vector<int> all_intersections;

@@ -753,8 +753,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 //        .def("nearest_neighbor_vectorized", &KDTree<4>::nearest_neighbor_vectorized);
 
     py::class_<AABBTree<2>>(m, "AABBTree2D")
-        .def(py::init< const Ref<const Array<double, Dynamic, 2>>,
-                       const Ref<const Array<double, Dynamic, 2>> >())
+        .def(py::init< const Ref<const Array<double, 2, Dynamic>>,
+                       const Ref<const Array<double, 2, Dynamic>> >())
         .def("first_point_intersection", &AABBTree<2>::first_point_intersection)
         .def("first_point_intersection_vectorized", &AABBTree<2>::first_point_intersection_vectorized)
         .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections);

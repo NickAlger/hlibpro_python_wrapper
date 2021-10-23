@@ -13,15 +13,15 @@ num_boxes = 10000
 num_pts = 4987
 
 # Random boxes might be inside out. Doing this to check code can handle this without segfaulting
-b_mins0 = np.random.randn(num_boxes, K)
-b_maxes0 = np.random.randn(num_boxes, K)
+b_mins0 = np.array(np.random.randn(K, num_boxes), order='F')
+b_maxes0 = np.array(np.random.randn(K, num_boxes), order='F')
 
 AABB = hcpp.AABBTree2D(b_mins0, b_maxes0)
 
 q = np.random.randn(K)
 ind = AABB.first_point_intersection(q)
 
-qq = np.random.randn(num_boxes, K)
+qq = np.array(np.random.randn(K, num_boxes), order='F')
 inds = AABB.first_point_intersection_vectorized(qq)
 
 # Real boxes
@@ -29,27 +29,27 @@ inds = AABB.first_point_intersection_vectorized(qq)
 num_boxes = 191
 num_pts = 549
 
-bb0 = np.random.randn(num_boxes, K, 2)
-b_mins = np.min(bb0, axis=2).copy()
-b_maxes = np.max(bb0, axis=2).copy()
+bb0 = np.array(np.random.randn(K, num_boxes, 2), order='F')
+b_mins = np.array(np.min(bb0, axis=2), order='F')
+b_maxes = np.array(np.max(bb0, axis=2), order='F')
 
 AABB = hcpp.AABBTree2D(b_mins, b_maxes)
-qq = 2.5 * np.random.randn(num_pts, K)
+qq = 2.5 * np.array(np.random.randn(K, num_pts), order='F')
 box_inds = AABB.first_point_intersection_vectorized(qq)
 
 good_points = (box_inds >= 0)
 bad_points = np.logical_not(good_points)
 
-good_qq = qq[good_points,:]
-S1 = b_mins[box_inds[good_points], :] <= good_qq
-S2 = good_qq <= b_maxes[box_inds[good_points], :]
+good_qq = qq[:, good_points]
+S1 = b_mins[:, box_inds[good_points]] <= good_qq
+S2 = good_qq <= b_maxes[:, box_inds[good_points]]
 good_points_that_are_in_their_box = np.logical_and(S1, S2)
 all_good_points_are_in_their_boxes = np.all(good_points_that_are_in_their_box)
 print('all_good_points_are_in_their_boxes=', all_good_points_are_in_their_boxes)
 
 
-points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[None, :, :] <= qq[:, None, :],
-                                                                   qq[:, None, :] <= b_maxes[None, :, :]), axis=2), axis=1)
+points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[:, None, :] <= qq[:, :, None],
+                                                                   qq[:, :, None] <= b_maxes[:, None, :]), axis=0), axis=1)
 
 points_that_are_not_in_any_box = np.logical_not(points_that_are_in_at_least_one_box)
 bad_points_are_the_points_outside_all_boxes = np.all(points_that_are_not_in_any_box == bad_points)
@@ -63,12 +63,12 @@ num_pts = int(1e4)
 box_area = 1. / num_boxes
 box_h = np.power(box_area, 1./K)
 
-box_centers = np.random.randn(num_boxes, K)
-box_widths = box_h * np.abs(np.random.randn(num_boxes, K))
-b_mins = box_centers - box_widths
-b_maxes = box_centers + box_widths
+box_centers = np.random.randn(K, num_boxes)
+box_widths = box_h * np.abs(np.random.randn(K, num_boxes))
+b_mins = np.array(box_centers - box_widths, order='F')
+b_maxes = np.array(box_centers + box_widths, order='F')
 
-qq = np.random.randn(num_pts, K)
+qq = np.array(np.random.randn(K, num_pts), order='F')
 
 AABB = hcpp.AABBTree2D(b_mins, b_maxes)
 
@@ -77,16 +77,16 @@ box_inds = AABB.first_point_intersection_vectorized(qq)
 good_points = (box_inds >= 0)
 bad_points = np.logical_not(good_points)
 
-good_qq = qq[good_points,:]
-S1 = b_mins[box_inds[good_points], :] <= good_qq
-S2 = good_qq <= b_maxes[box_inds[good_points], :]
+good_qq = qq[:, good_points]
+S1 = b_mins[:, box_inds[good_points]] <= good_qq
+S2 = good_qq <= b_maxes[:, box_inds[good_points]]
 good_points_that_are_in_their_box = np.logical_and(S1, S2)
 all_good_points_are_in_their_boxes = np.all(good_points_that_are_in_their_box)
 print('all_good_points_are_in_their_boxes=', all_good_points_are_in_their_boxes)
 
 
-points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[None, :, :] <= qq[:, None, :],
-                                                                   qq[:, None, :] <= b_maxes[None, :, :]), axis=2), axis=1)
+points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[:, None, :] <= qq[:, :, None],
+                                                                   qq[:, :, None] <= b_maxes[:, None, :]), axis=0), axis=1)
 
 points_that_are_not_in_any_box = np.logical_not(points_that_are_in_at_least_one_box)
 bad_points_are_the_points_outside_all_boxes = np.all(points_that_are_not_in_any_box == bad_points)
@@ -102,12 +102,12 @@ print('num_boxes=', num_boxes, ', num_pts=', num_pts)
 box_area = 1. / num_boxes
 box_h = np.power(box_area, 1./K)
 
-box_centers = np.random.randn(num_boxes, K)
-box_widths = box_h * np.abs(np.random.randn(num_boxes, K))
-b_mins = box_centers - box_widths
-b_maxes = box_centers + box_widths
+box_centers = np.random.randn(K, num_boxes)
+box_widths = box_h * np.abs(np.random.randn(K, num_boxes))
+b_mins = np.array(box_centers - box_widths, order='F')
+b_maxes = np.array(box_centers + box_widths, order='F')
 
-qq = np.random.randn(num_pts, K)
+qq = np.array(np.random.randn(K, num_pts), order='F')
 
 t = time()
 AABB = hcpp.AABBTree2D(b_mins, b_maxes)
@@ -137,10 +137,10 @@ num_boxes = 351
 box_area = 2. / num_boxes
 box_h = np.power(box_area, 1./K)
 
-box_centers = np.random.randn(num_boxes, K)
-box_widths = box_h * np.abs(np.random.randn(num_boxes, K))
-b_mins = box_centers - box_widths
-b_maxes = box_centers + box_widths
+box_centers = np.random.randn(K, num_boxes)
+box_widths = box_h * np.abs(np.random.randn(K, num_boxes))
+b_mins = np.array(box_centers - box_widths, order='F')
+b_maxes = np.array(box_centers + box_widths, order='F')
 
 AABB = hcpp.AABBTree2D(b_mins, b_maxes)
 
@@ -151,16 +151,16 @@ intersections = AABB.all_ball_intersections(c, r)
 
 plt.figure()
 for k in range(num_boxes):
-    plot_rectangle(b_mins[k,:], b_maxes[k,:], facecolor='b')
+    plot_rectangle(b_mins[:, k], b_maxes[:, k], facecolor='b')
 
 for jj in intersections:
-    plot_rectangle(b_mins[jj, :], b_maxes[jj, :], facecolor='r')
+    plot_rectangle(b_mins[:, jj], b_maxes[:, jj], facecolor='r')
 
 circle1 = plt.Circle(c, r, edgecolor='k', fill=False)
 plt.gca().add_patch(circle1)
 
-big_box_min = np.min(b_mins, axis=0)
-big_box_max = np.max(b_maxes, axis=0)
+big_box_min = np.min(b_mins, axis=1)
+big_box_max = np.max(b_maxes, axis=1)
 plt.xlim(big_box_min[0], big_box_max[0])
 plt.ylim(big_box_min[1], big_box_max[1])
 plt.show()

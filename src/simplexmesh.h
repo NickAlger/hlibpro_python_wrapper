@@ -248,7 +248,7 @@ public:
         }
 
         kdtree = KDTree<K>( vertices.transpose() );
-        aabbtree = AABBTree<K>( box_mins.transpose(), box_maxes.transpose() );
+        aabbtree = AABBTree<K>( box_mins, box_maxes );
 
         simplex_transform_matrices.resize(num_cells);
         simplex_transform_vectors.resize(num_cells);
