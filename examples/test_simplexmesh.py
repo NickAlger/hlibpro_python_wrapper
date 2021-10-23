@@ -176,6 +176,9 @@ print('nquery=', nquery, ', dt_query_SM=', dt_query_SM)
 
 mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 1e-2)
 V = dl.FunctionSpace(mesh, 'CG', 1)
+
+# check that I'm using the dof to vertex mapping right
+
 mesh_coords = mesh.coordinates()
 dof_coords = V.tabulate_dof_coordinates()
 dof2vertex = dl.dof_to_vertex_map(V)
@@ -195,86 +198,7 @@ for ii in range(V.dim()):
 err_uu = np.linalg.norm(uu - uu_true)
 print('err_uu=', err_uu)
 
-# p = np.random.randn(2)
-# p = p / 4.;
-# u_of_p_true = u(p)
 #
-# SM = hcpp.SimplexMesh2D(mesh.coordinates(), mesh.cells())
-# u_of_p = SM.evaluate_function_at_point(uu, p)
-# print('p=', p, ', u_of_p=', u_of_p, ', u_of_p_true=', u_of_p_true)
-#
-# #
-#
-# nquery = int(1e5)
-# pp = np.random.rand(nquery, 2)
-#
-# t = time()
-# upp = SM.evaluate_function_at_point_vectorized(uu, pp)
-# dt_eval = time() - t
-# # print('V.dim()=', V.dim(), ', nquery=', nquery, ', dt_eval=', dt_eval)
-#
-# t = time()
-# upp_true = np.zeros(nquery)
-# for ii in range(nquery):
-#     p = pp[ii,:]
-#     if mesh.bounding_box_tree().compute_first_entity_collision(dl.Point(p)) < mesh.cells().shape[0]:
-#         upp_true[ii] = u(p)
-# dt_eval_fenics = time() - t
-# print('V.dim()=', V.dim(), ', nquery=', nquery, ', dt_eval=', dt_eval, 'dt_eval_fenics=', dt_eval_fenics)
-#
-# err_eval_function = np.linalg.norm(upp - upp_true) / np.linalg.norm(upp_true)
-# print('err_eval_function=', err_eval_function)
-#
-# # Initial:
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.1494903564453125 dt_eval_fenics= 3.5622153282165527
-#
-# # RowMajor array passing
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.1570887565612793 dt_eval_fenics= 3.6073670387268066
-#
-# # Pass Ref<VectorXd> function_at_vertices (way slow!?)
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.6223673820495605 dt_eval_fenics= 3.57259202003479
-#
-# # Pass Ref<VectorXd> function_at_vertices into eval at single point also
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.15480661392211914 dt_eval_fenics= 3.3865790367126465
-#
-# # Pass const Ref<const Array<double, 1, Dynamic>> point
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.16225528717041016 dt_eval_fenics= 3.3151297569274902
-#
-# # Pass KDVector without reference
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.1498880386352539 dt_eval_fenics= 3.507368326187134
-#
-# # Comment out Affine coordinates of point in simplex
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.03772330284118652 dt_eval_fenics= 3.3172123432159424
-#
-# # Comment out VectorXd affine_coords = projected_affine_coordinates( query, S );
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.04477119445800781 dt_eval_fenics= 3.6361594200134277
-#
-# # Comment out simplex Householder QR factorization
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.06865429878234863 dt_eval_fenics= 3.2681002616882324
-#
-# # Comment out basically everything in d=3 projected_affine_coordinates
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.05244636535644531 dt_eval_fenics= 3.1996936798095703
-#
-# # Points only inside mesh (all else the same)
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.18492674827575684 dt_eval_fenics= 4.281755208969116
-#
-# # Do Householder factorization, but not solve
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.123321533203125 dt_eval_fenics= 3.469805955886841
-#
-# # Precompute Householder
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.07903695106506348 dt_eval_fenics= 3.277336359024048
-#
-# # Commented out Householder QR solve
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.050486087799072266 dt_eval_fenics= 3.5028326511383057
-#
-# # Householder solver without pivoting
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.08037400245666504 dt_eval_fenics= 3.344421625137329
-#
-# # Pre-computed simplex transform matrices and vectors
-# # V.dim()= 20054 , nquery= 100000 , dt_eval= 0.06075167655944824 dt_eval_fenics= 3.7765233516693115
-
-
-##### Vectorized version
 
 vertices = np.array(mesh.coordinates().T, order='F')
 cells = np.array(mesh.cells().T, order='F')

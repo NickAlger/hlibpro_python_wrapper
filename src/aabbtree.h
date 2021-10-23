@@ -13,7 +13,7 @@ using namespace std;
 template <int K>
 class AABBTree {
 private:
-    typedef Array<double, K, 1> KDVector;
+    typedef Matrix<double, K, 1> KDVector;
 
     struct Box { KDVector min;
                  KDVector max;
@@ -141,7 +141,7 @@ private:
         return current_node_ind;
         }
 
-    bool point_is_in_box( const KDVector & p, const Box & B )
+    inline bool point_is_in_box( const KDVector & p, const Box & B )
     {
         bool p_is_in_box = true;
         for ( int kk=0; kk<K; ++kk)
@@ -155,7 +155,7 @@ private:
         return p_is_in_box;
     }
 
-    bool box_is_leaf( const Box & B )
+    inline bool box_is_leaf( const Box & B )
     {
         return (B.index >= 0);
     }
@@ -254,13 +254,13 @@ public:
         int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
     }
 
-    inline int first_point_intersection( KDVector query )
+    inline int first_point_intersection( const KDVector & query )
     {
         return first_point_intersection_iterative( query );
 //        return first_point_intersection_subtree( query, 0 );
     }
 
-    VectorXi first_point_intersection_vectorized( Array<double, Dynamic, K> & query_array )
+    VectorXi first_point_intersection_vectorized( const Ref<const Matrix<double, Dynamic, K>> query_array )
     {
         int num_querys = query_array.rows();
         VectorXi first_intersection_inds(num_querys);
@@ -274,7 +274,7 @@ public:
     }
 
 //    vector<int> all_point_intersections( const KDVector & query )
-    vector<int> all_point_intersections( const KDVector query )
+    vector<int> all_point_intersections( const KDVector & query )
     {
         vector<int> all_intersections;
 
@@ -348,7 +348,7 @@ public:
                 }
             }
 
-            double distance_to_box_squared = (closest_point - center).matrix().squaredNorm();
+            double distance_to_box_squared = (closest_point - center).squaredNorm();
             bool ball_intersects_box = (distance_to_box_squared <= radius*radius);
 
             if ( ball_intersects_box )

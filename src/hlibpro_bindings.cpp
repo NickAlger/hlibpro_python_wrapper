@@ -767,8 +767,6 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("point_is_in_mesh", &SimplexMesh<2>::point_is_in_mesh)
         .def("point_is_in_mesh_vectorized", &SimplexMesh<2>::point_is_in_mesh_vectorized)
         .def("index_of_first_simplex_containing_point", &SimplexMesh<2>::index_of_first_simplex_containing_point)
-//        .def("evaluate_function_at_point", &SimplexMesh<2>::evaluate_function_at_point)
-//        .def("evaluate_function_at_point_vectorized", &SimplexMesh<2>::evaluate_function_at_point_vectorized)
         .def("evaluate_functions_at_points", &SimplexMesh<2>::evaluate_functions_at_points);
 
     m.def("projected_affine_coordinates", &projected_affine_coordinates);
