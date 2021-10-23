@@ -171,6 +171,8 @@ print('nquery=', nquery, ', dt_query_SM=', dt_query_SM)
 # num_cells= 39478 , dt_build_SM= 3.170967102050781e-05
 # nquery= 100000 , dt_query_SM= 0.9992811679840088
 
+# With precomputed facet stuff
+# nquery= 100000 , dt_query_SM= 0.6365664005279541
 
 # EVALUATE FUNCTION AT POINT
 

@@ -85,86 +85,221 @@ inline MatrixXd select_columns( const MatrixXd &                 A,           //
     return A_selected;
 }
 
-inline VectorXd closest_point_in_simplex( const VectorXd & query,             // shape=(dim, 1)
-                                          const MatrixXd & simplex_vertices ) // shape=(dim, npts)
-{
-    int dim = simplex_vertices.rows();
-    int npts = simplex_vertices.cols();
-    VectorXd closest_point(dim);
 
-    if ( npts == 1 )
+vector<vector<int>> powerset(int N)
+{
+    vector<vector<int>> pset;
+    if (N < 1)
     {
-        closest_point = simplex_vertices.col(0);
+        vector<int> empty_set;
+        pset.push_back( empty_set );
     }
     else
     {
-        int num_facets = power_of_two(npts) - 1;
-        Matrix<bool, Dynamic, Dynamic, RowMajor> all_facet_inds;
-        all_facet_inds.resize(num_facets, npts);
+        pset = powerset(N-1);
+        int sz0 = pset.size();
+        for ( int ii=0; ii<sz0; ++ii )
+        {
+            vector<int> x = pset[ii];
+            x.push_back(N-1);
+            pset.push_back(x);
+        }
+    }
+    return pset;
+}
 
-        if ( npts == 2 )
-        {
-            all_facet_inds << false, true,
-                              true,  false,
-                              true,  true;
-        }
-        else if ( npts == 3 )
-        {
-            all_facet_inds << false, false, true,
-                              false, true,  false,
-                              false, true,  true,
-                              true,  false, false,
-                              true,  false, true,
-                              true,  true,  false,
-                              true,  true,  true;
-        }
-        else if ( npts == 4 )
-        {
-            all_facet_inds << false, false, false, true,
-                              false, false, true,  false,
-                              false, false, true,  true,
-                              false, true,  false, false,
-                              false, true,  false, true,
-                              false, true,  true,  false,
-                              false, true,  true,  true,
-                              true,  false, false, false,
-                              true,  false, false, true,
-                              true,  false, true,  false,
-                              true,  false, true,  true,
-                              true,  true,  false, false,
-                              true,  true,  false, true,
-                              true,  true,  true,  false,
-                              true,  true,  true,  true;
-        }
-        else
-        {
-            cout << "not implemented for npts>4."
-                 << "Also, algorithm not recommended for large npts since it scales combinatorially." << endl;
-        }
+std::pair<MatrixXd, VectorXd> make_simplex_transform_stuff( const MatrixXd & simplex_vertices )
+{
+    int K = simplex_vertices.rows();
+    int M = simplex_vertices.cols();
 
-        closest_point = simplex_vertices.col(0);
-        double dsq_best = (closest_point - query).squaredNorm();
-        for ( int ii=0; ii<num_facets; ++ii ) // for each facet
+    MatrixXd S(M, K); // first return
+    VectorXd b(M);    // second return
+
+    if ( M == 1 )
+    {
+        S.setZero();
+        b.setOnes();
+    }
+    else
+    {
+        VectorXd v0(K);
+        v0 = simplex_vertices.col(0);
+        MatrixXd dV(K,M-1);
+        for ( int jj=1; jj<M; ++jj )
         {
-            Matrix<bool, Dynamic, 1> facet_inds = all_facet_inds.row(ii);
-            MatrixXd facet_vertices = select_columns( simplex_vertices, facet_inds );
-            VectorXd facet_coords( facet_vertices.cols() );
-            facet_coords = projected_affine_coordinates( query, facet_vertices );
-            bool projection_is_in_facet = (facet_coords.array() >= 0.0).all();
-            if ( projection_is_in_facet )
+            dV.col(jj-1) = simplex_vertices.col(jj) - v0;
+        }
+        MatrixXd S0(M-1, K);
+        S0 = dV.colPivHouseholderQr().solve(MatrixXd::Identity(K,K));
+        Matrix<double, 1, Dynamic> ones_rowvec(M-1);
+        ones_rowvec.setOnes();
+        S.bottomRightCorner(M-1, K) = S0;
+        S.row(0) = -ones_rowvec * S0;
+
+        VectorXd e0(M);
+        e0.setZero();
+        e0(0) = 1.0;
+        b = e0 - S * v0;
+    }
+    return std::make_pair(S, b);
+}
+
+struct FacetStuff { vector<MatrixXd> VV;   // Facet vertices
+                    vector<MatrixXd> SS;   // Facet simplex coordinate matrices
+                    vector<VectorXd> bb;}; // Facet simplex coordinate vectors
+
+FacetStuff make_facet_stuff( const MatrixXd & simplex_vertices )
+{
+    // q = query point
+    // pi = projection of q onto ith facet
+    // ci = affine coordinates of pi with respect to vertices of ith facet
+    // ci = Si * q + bi
+    // pi = Vi * ci
+    int K = simplex_vertices.rows();
+    int num_vertices = simplex_vertices.cols();
+
+    vector<VectorXd> all_vertices(num_vertices);
+    for ( int ii=0; ii<num_vertices; ++ii)
+    {
+        all_vertices[ii] = simplex_vertices.col(ii);
+    }
+
+    vector<vector<int>> pset = powerset(num_vertices);
+
+    vector<MatrixXd> VV; // [V1, V2, ...]
+    vector<MatrixXd> SS; // [S1, S2, ...]
+    vector<VectorXd> bb; // [b1, b2, ...]
+    for ( int ii=0; ii<pset.size(); ++ii )
+    {
+        vector<int> facet_inds = pset[ii];
+        if ( !facet_inds.empty() )
+        {
+            int num_facet_vertices = facet_inds.size();
+            MatrixXd Vi(K, num_facet_vertices);
+            for ( int jj=0; jj<num_facet_vertices; ++jj )
             {
-                VectorXd candidate_point = facet_vertices * facet_coords;
-                double dsq_candidate = (candidate_point - query).squaredNorm();
-                if ( dsq_candidate < dsq_best )
-                {
-                    closest_point = candidate_point;
-                    dsq_best = dsq_candidate;
-                }
+                Vi.col(jj) = simplex_vertices.col(facet_inds[jj]);
+            }
+
+            std::pair<MatrixXd, VectorXd> res = make_simplex_transform_stuff( Vi );
+
+            VV.push_back(Vi);
+            SS.push_back(res.first);
+            bb.push_back(res.second);
+        }
+    }
+    return FacetStuff { VV, SS, bb };
+}
+
+VectorXd closest_point_in_simplex_using_precomputed_facet_stuff( const VectorXd & query,            // shape=(dim, 1)
+                                                                 const FacetStuff & FS)
+{
+    int dim = query.size();
+    VectorXd closest_point(dim);
+
+    int num_facets = FS.VV.size();
+
+    double dsq_best = std::numeric_limits<double>::infinity();
+    for ( int ii=0; ii<num_facets; ++ii )
+    {
+        VectorXd facet_coords = FS.SS[ii] * query + FS.bb[ii];
+        bool projection_is_in_facet = (facet_coords.array() >= 0.0).all();
+        if ( projection_is_in_facet )
+        {
+            VectorXd candidate_point = FS.VV[ii] * facet_coords;
+            double dsq_candidate = (candidate_point - query).squaredNorm();
+            if ( dsq_candidate < dsq_best )
+            {
+                closest_point = candidate_point;
+                dsq_best = dsq_candidate;
             }
         }
     }
+
+
+//
+//    if ( npts == 1 )
+//    {
+//        closest_point = simplex_vertices.col(0);
+//    }
+//    else
+//    {
+//        int num_facets = power_of_two(npts) - 1;
+//        Matrix<bool, Dynamic, Dynamic, RowMajor> all_facet_inds;
+//        all_facet_inds.resize(num_facets, npts);
+//
+//        if ( npts == 2 )
+//        {
+//            all_facet_inds << false, true,
+//                              true,  false,
+//                              true,  true;
+//        }
+//        else if ( npts == 3 )
+//        {
+//            all_facet_inds << false, false, true,
+//                              false, true,  false,
+//                              false, true,  true,
+//                              true,  false, false,
+//                              true,  false, true,
+//                              true,  true,  false,
+//                              true,  true,  true;
+//        }
+//        else if ( npts == 4 )
+//        {
+//            all_facet_inds << false, false, false, true,
+//                              false, false, true,  false,
+//                              false, false, true,  true,
+//                              false, true,  false, false,
+//                              false, true,  false, true,
+//                              false, true,  true,  false,
+//                              false, true,  true,  true,
+//                              true,  false, false, false,
+//                              true,  false, false, true,
+//                              true,  false, true,  false,
+//                              true,  false, true,  true,
+//                              true,  true,  false, false,
+//                              true,  true,  false, true,
+//                              true,  true,  true,  false,
+//                              true,  true,  true,  true;
+//        }
+//        else
+//        {
+//            cout << "not implemented for npts>4."
+//                 << "Also, algorithm not recommended for large npts since it scales combinatorially." << endl;
+//        }
+//
+//        closest_point = simplex_vertices.col(0);
+//        double dsq_best = (closest_point - query).squaredNorm();
+//        for ( int ii=0; ii<num_facets; ++ii ) // for each facet
+//        {
+//            Matrix<bool, Dynamic, 1> facet_inds = all_facet_inds.row(ii);
+//            MatrixXd facet_vertices = select_columns( simplex_vertices, facet_inds );
+//            VectorXd facet_coords( facet_vertices.cols() );
+//            facet_coords = projected_affine_coordinates( query, facet_vertices );
+//            bool projection_is_in_facet = (facet_coords.array() >= 0.0).all();
+//            if ( projection_is_in_facet )
+//            {
+//                VectorXd candidate_point = facet_vertices * facet_coords;
+//                double dsq_candidate = (candidate_point - query).squaredNorm();
+//                if ( dsq_candidate < dsq_best )
+//                {
+//                    closest_point = candidate_point;
+//                    dsq_best = dsq_candidate;
+//                }
+//            }
+//        }
+//    }
     return closest_point;
 }
+
+VectorXd closest_point_in_simplex( const VectorXd & query,            // shape=(dim, 1)
+                                   const MatrixXd & simplex_vertices) // shape=(dim, npts)
+{
+    FacetStuff FS = make_facet_stuff( simplex_vertices );
+    return closest_point_in_simplex_using_precomputed_facet_stuff(query, FS);
+}
+
 
 MatrixXd closest_point_in_simplex_vectorized( const MatrixXd & query,            // shape=(dim, nquery)
                                               const MatrixXd & simplex_vertices) // shape=(dim*npts, nquery)
@@ -206,6 +341,7 @@ private:
     AABBTree<K> aabbtree;
     vector< Matrix<double, K+1, K> > simplex_transform_matrices;
     vector< Matrix<double, K+1, 1> > simplex_transform_vectors;
+    vector< FacetStuff > all_facet_stuff;
 
     int num_vertices;
     int num_cells;
@@ -252,29 +388,20 @@ public:
 
         simplex_transform_matrices.resize(num_cells);
         simplex_transform_vectors.resize(num_cells);
+        all_facet_stuff.resize(num_cells);
         for ( int ii=0; ii<num_cells; ++ii )
         {
-            Matrix<double, K, 1> v0 = vertices.col(cells(0, ii));
-            Matrix<double, K, K> dV;
-            for ( int jj=0; jj<K; ++jj )
+            Matrix<double, K, K+1> simplex_vertices;
+            for (int jj=0; jj<K+1; ++jj )
             {
-                dV.col(jj) = vertices.col(cells(jj+1, ii)) - v0;
+                simplex_vertices.col(jj) = vertices.col(cells(jj, ii));
             }
-            Matrix<double, K+1, K> S;
-            Matrix<double, K, K> S0 = dV.colPivHouseholderQr().solve(MatrixXd::Identity(K,K));
-            Matrix<double, 1, K> ones_rowvec;
-            ones_rowvec.setOnes();
-            S.bottomRightCorner(K, K) = S0;
-            S.row(0) = - ones_rowvec * S0;
-            simplex_transform_matrices[ii] = S;
+            std::pair<MatrixXd, VectorXd> res = make_simplex_transform_stuff( simplex_vertices );
+            simplex_transform_matrices[ii] = res.first;
+            simplex_transform_vectors[ii] = res.second;
 
-
-            Matrix<double, K+1, 1> e0;
-            e0.setZero();
-            e0(0) = 1.0;
-            simplex_transform_vectors[ii] = e0 - S * v0;
+            all_facet_stuff[ii] = make_facet_stuff( simplex_vertices );
         }
-
     }
 
     inline bool point_is_in_mesh( KDVector query )
@@ -294,7 +421,7 @@ public:
         return in_mesh;
     }
 
-    KDVector closest_point( KDVector query )
+    KDVector closest_point( const KDVector & query )
     {
         KDVector closest_point = vertices.col(0);
         if ( point_is_in_mesh( query ) )
@@ -312,13 +439,8 @@ public:
             for ( int ii=0; ii<num_candidates; ++ii )
             {
                 int ind = candidate_inds[ii];
-                Matrix<double, K, K+1> simplex_vertices;
-                for ( int jj=0; jj<K+1; ++jj )
-                {
-                    simplex_vertices.col(jj) = vertices.col(cells(jj, ind));
-                }
 
-                KDVector candidate = closest_point_in_simplex( query, simplex_vertices );
+                KDVector candidate = closest_point_in_simplex_using_precomputed_facet_stuff( query, all_facet_stuff[ind] );
                 double dsq_candidate = (candidate - query).squaredNorm();
                 if ( dsq_candidate < dsq_best )
                 {

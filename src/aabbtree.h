@@ -19,13 +19,13 @@ private:
                  KDVector max;
                  int      index;}; // 0,...,N for leaf nodes, and -1 for internal node
 
-    // Node in KD tree
+    // Node in AABB tree
     struct Node { Box box;
                   int left;       // index of left child
                   int right; };   // index of right child
 
     vector< Node > nodes; // All nodes in the tree
-    vector< int > nodes_under_consideration;
+    Matrix<int, Dynamic, 1> nodes_under_consideration;
 
     double box_center( const Box & B, int axis )
     {
@@ -176,7 +176,7 @@ public:
         }
 
         int num_boxes = 2*num_leaf_boxes - 1; // full binary tree with n leafs has 2n-1 nodes
-        nodes_under_consideration.reserve(num_boxes);
+        nodes_under_consideration.resize(num_boxes, 1);
         nodes.reserve(num_boxes);
         int counter = 0;
         int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
@@ -190,10 +190,10 @@ public:
         // However, I found that std::list is crazy slow.
         // Here I use a pre-allocated vector<int> to simulate a list. It is 2-3x faster.
         int ii = 0; // <-- This is the "pointer" to the front of the list
-        nodes_under_consideration[ii] = 0; // <-- This is the "list" of ints.
+        nodes_under_consideration(ii) = 0; // <-- This is the "list" of ints.
         while ( ii >= 0 )
         {
-            int current_node_ind =  nodes_under_consideration[ii];
+            int current_node_ind =  nodes_under_consideration(ii);
             ii = ii - 1;
 
             Node & current_node = nodes[current_node_ind];
@@ -219,8 +219,8 @@ public:
                 }
                 else // current box is internal node
                 {
-                    nodes_under_consideration[ii+1] = current_node.right;
-                    nodes_under_consideration[ii+2] = current_node.left;
+                    nodes_under_consideration(ii+1) = current_node.right;
+                    nodes_under_consideration(ii+2) = current_node.left;
                     ii = ii + 2;
                 }
             }
@@ -244,10 +244,10 @@ public:
         vector<int> all_intersections;
 
         int ii = 0; // <-- This is the "pointer" to the front of the list
-        nodes_under_consideration[ii] = 0; // <-- This is the "list" of ints.
+        nodes_under_consideration(ii) = 0; // <-- This is the "list" of ints.
         while ( ii >= 0 )
         {
-            int current_node_ind =  nodes_under_consideration[ii];
+            int current_node_ind =  nodes_under_consideration(ii);
             ii = ii - 1;
 
             Node & current_node = nodes[current_node_ind];
@@ -272,8 +272,8 @@ public:
                 }
                 else // current box is internal node
                 {
-                    nodes_under_consideration[ii+1] = current_node.right;
-                    nodes_under_consideration[ii+2] = current_node.left;
+                    nodes_under_consideration(ii+1) = current_node.right;
+                    nodes_under_consideration(ii+2) = current_node.left;
                     ii = ii + 2;
                 }
             }
@@ -286,10 +286,10 @@ public:
         vector<int> all_intersections;
 
         int ii = 0; // <-- This is the "pointer" to the front of the list
-        nodes_under_consideration[ii] = 0; // <-- This is the "list" of ints.
+        nodes_under_consideration(ii) = 0; // <-- This is the "list" of ints.
         while ( ii >= 0 )
         {
-            int current_node_ind =  nodes_under_consideration[ii];
+            int current_node_ind =  nodes_under_consideration(ii);
             ii = ii - 1;
 
             Node & current_node = nodes[current_node_ind];
@@ -324,8 +324,8 @@ public:
                 }
                 else // current box is internal node
                 {
-                    nodes_under_consideration[ii+1] = current_node.right;
-                    nodes_under_consideration[ii+2] = current_node.left;
+                    nodes_under_consideration(ii+1) = current_node.right;
+                    nodes_under_consideration(ii+2) = current_node.left;
                     ii = ii + 2;
                 }
             }
