@@ -473,8 +473,33 @@ public:
         }
 
         cout << "num_boundary_cells=" << num_boundary_cells << endl;
-
-
+//
+//        // Construct all boundary entities (faces-of-faces, etc)
+//        map<vector<int>, int> face_counts; // key are vertex inds for a boundary entity. value is how many times the entity occurs (can occur twice if shared)
+//        for ( int cc=0; cc<num_interior_cells; ++cc )
+//        {
+//            for ( int opposite_vertex_ind=0; opposite_vertex_ind<K+1; ++opposite_vertex_ind )
+//            {
+//                vector<int> face(K);
+//                for ( int kk=0; kk<K+1; ++kk )
+//                {
+//                    if ( kk != opposite_vertex_ind )
+//                    {
+//                        face.push_back(interior_cells(kk, cc));
+//                    }
+//                }
+//                sort( face.begin(), face.end() ); // sort for comparison purposes
+//
+//                if ( face_counts.find(face) == face_counts.end() ) // if this face isnt in the map yet
+//                {
+//                    face_counts[face] = 1;
+//                }
+//                else
+//                {
+//                    face_counts[face] += 1;
+//                }
+//            }
+//        }
 
 
 
