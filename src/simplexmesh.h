@@ -472,6 +472,8 @@ public:
             boundary_cells.col(ii) = boundary_cells_vector[ii];
         }
 
+        cout << "num_boundary_cells=" << num_boundary_cells << endl;
+
 
 
 
