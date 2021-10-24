@@ -757,7 +757,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        const Ref<const Array<double, 2, Dynamic>> >())
         .def("first_point_intersection", &AABBTree<2>::first_point_intersection)
         .def("first_point_intersection_vectorized", &AABBTree<2>::first_point_intersection_vectorized)
-        .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections);
+        .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections)
+        .def("all_ball_intersections_vectorized", &AABBTree<2>::all_ball_intersections_vectorized);
 
     py::class_<SimplexMesh<2>>(m, "SimplexMesh2D")
         .def(py::init< const Ref<const Array<double, 2, Dynamic>>,

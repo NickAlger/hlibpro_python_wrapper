@@ -95,7 +95,7 @@ print('bad_points_are_the_points_outside_all_boxes=', bad_points_are_the_points_
 # More realistic setting, timing
 
 num_boxes = int(1e5)
-num_pts = int(1e7)
+num_pts = int(1e6)
 
 print('num_boxes=', num_boxes, ', num_pts=', num_pts)
 
@@ -164,3 +164,37 @@ big_box_max = np.max(b_maxes, axis=1)
 plt.xlim(big_box_min[0], big_box_max[0])
 plt.ylim(big_box_min[1], big_box_max[1])
 plt.show()
+
+
+# Ball query timing
+
+num_boxes = int(1e5)
+num_balls = int(1e6)
+
+box_area = 2. / num_boxes
+box_h = np.power(box_area, 1./K)
+
+box_centers = np.random.randn(K, num_boxes)
+box_widths = box_h * np.abs(np.random.randn(K, num_boxes))
+b_mins = np.array(box_centers - box_widths, order='F')
+b_maxes = np.array(box_centers + box_widths, order='F')
+
+AABB = hcpp.AABBTree2D(b_mins, b_maxes)
+
+ball_centers = np.array(np.random.randn(K, num_balls), order='F')
+ball_radii = np.array(8.0 * box_h * np.random.randn(num_balls), order='F')
+
+t = time()
+all_intersections = AABB.all_ball_intersections_vectorized(ball_centers, ball_radii)
+dt_ball = time() - t
+print('num_boxes=', num_boxes, ', num_balls=', num_balls, ', dt_ball=', dt_ball)
+
+# std::vector<int> for intersections, radius
+# num_boxes= 1000000 , num_balls= 100000 , dt_ball= 0.7881059646606445
+
+# std::vector<int> for intersections, radius squared
+# num_boxes= 1000000 , num_balls= 100000 , dt_ball= 0.7624087333679199
+
+# VectorXi for intersections, radius squared
+# num_boxes= 1000000 , num_balls= 100000 , dt_ball= 0.4457828998565674
+

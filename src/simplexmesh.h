@@ -145,6 +145,11 @@ std::pair<MatrixXd, VectorXd> make_simplex_transform_stuff( const MatrixXd & sim
     return std::make_pair(S, b);
 }
 
+struct Simplex { MatrixXd V; // simplex vertices
+                 MatrixXd A; // coordinate transform matrix
+                 VectorXd b; // coordinate transform vector
+                 bool has_been_used;}; // Free bool to use (e.g., if this simplex is part of the boundary of multiple other simplices)
+
 struct FacetStuff { vector<MatrixXd> VV;   // Facet vertices
                     vector<MatrixXd> SS;   // Facet simplex coordinate matrices
                     vector<VectorXd> bb;}; // Facet simplex coordinate vectors
@@ -327,6 +332,36 @@ MatrixXd closest_point_in_simplex_vectorized( const MatrixXd & query,           
     return closest_point;
 }
 
+pair<VectorXd, VectorXd> compute_pointcloud_bounding_box( const MatrixXd & points )
+{
+    int dim = points.rows();
+    int num_points = points.cols();
+
+    VectorXd box_min(dim);
+    VectorXd box_max(dim);
+
+    for ( int kk=0; kk<dim; ++kk )
+    {
+        double min_k = points(kk, 0);
+        double max_k = points(kk, 0);
+        for ( int vv=1; vv<num_points; ++vv)
+        {
+            double candidate_k = points(kk, vv);
+            if (candidate_k < min_k)
+            {
+                min_k = candidate_k;
+            }
+            if (candidate_k > max_k)
+            {
+                max_k = candidate_k;
+            }
+        }
+        box_min(kk) = min_k;
+        box_max(kk) = max_k;
+    }
+    return std::make_pair(box_min, box_max);
+}
+
 template <int K>
 class SimplexMesh
 {
@@ -334,74 +369,118 @@ private:
     typedef Matrix<double, K, 1> KDVector;
 
     Matrix<double, K,   Dynamic> vertices;
-    Matrix<int,    K+1, Dynamic> cells;
-    Matrix<double, K,   Dynamic> box_mins;
-    Matrix<double, K,   Dynamic> box_maxes;
-    KDTree<K> kdtree;
-    AABBTree<K> aabbtree;
-    vector< Matrix<double, K+1, K> > simplex_transform_matrices;
-    vector< Matrix<double, K+1, 1> > simplex_transform_vectors;
+    Matrix<int,    K+1, Dynamic> interior_cells;
+    Matrix<int,    K,   Dynamic> boundary_cells;
+
+    AABBTree<K> interior_aabbtree;
+    AABBTree<K> boundary_aabbtree;
+    KDTree<K> boundary_kdtree;
+
+    vector< Simplex > interior_simplex_transform_stuff;
+    vector< Simplex > boundary_facet_simplex_transform_stuff;
+
+
     vector< FacetStuff > all_facet_stuff;
 
     int num_vertices;
-    int num_cells;
+    int num_interior_cells;
+    int num_boundary_cells;
 
 public:
     SimplexMesh( const Ref<const Matrix<double, K,   Dynamic>> input_vertices,
                  const Ref<const Matrix<int   , K+1, Dynamic>> input_cells )
     {
         vertices = input_vertices; // copy
-        cells = input_cells; // copy
+        interior_cells = input_cells; // copy
 
         num_vertices = input_vertices.cols();
-        num_cells = input_cells.cols();
+        num_interior_cells = input_cells.cols();
 
-        // Compute box min and max points for each cell
-        box_mins.resize(K, num_cells);
-        box_maxes.resize(K, num_cells);
-        for ( int cc=0; cc<num_cells; ++cc)
-        {
-            for ( int kk=0; kk<K; ++kk )
-            {
-                double min_k = vertices(kk, cells(0, cc));
-                double max_k = vertices(kk, cells(0, cc));
-                for ( int vv=1; vv<K+1; ++vv)
-                {
-                    double candidate_min_k = vertices(kk, cells(vv, cc));
-                    double candidate_max_k = vertices(kk, cells(vv, cc));
-                    if (candidate_min_k < min_k)
-                    {
-                        min_k = candidate_min_k;
-                    }
-                    if (candidate_max_k > max_k)
-                    {
-                        max_k = candidate_max_k;
-                    }
-                }
-                box_mins(kk, cc) = min_k;
-                box_maxes(kk, cc) = max_k;
-            }
-        }
+        interior_simplex_transform_stuff.resize(num_interior_cells);
+        Matrix<double, K,   Dynamic> interior_box_mins(K, num_interior_cells);
+        Matrix<double, K,   Dynamic> interior_box_maxes(K, num_interior_cells);
+        all_facet_stuff.resize(num_interior_cells);
 
-        kdtree = KDTree<K>( vertices.transpose() );
-        aabbtree = AABBTree<K>( box_mins, box_maxes );
-
-        simplex_transform_matrices.resize(num_cells);
-        simplex_transform_vectors.resize(num_cells);
-        all_facet_stuff.resize(num_cells);
-        for ( int ii=0; ii<num_cells; ++ii )
+        for ( int ii=0; ii<num_interior_cells; ++ii )
         {
             Matrix<double, K, K+1> simplex_vertices;
             for (int jj=0; jj<K+1; ++jj )
             {
-                simplex_vertices.col(jj) = vertices.col(cells(jj, ii));
+                simplex_vertices.col(jj) = vertices.col(interior_cells(jj, ii));
             }
-            std::pair<MatrixXd, VectorXd> res = make_simplex_transform_stuff( simplex_vertices );
-            simplex_transform_matrices[ii] = res.first;
-            simplex_transform_vectors[ii] = res.second;
+            std::pair<MatrixXd, VectorXd> STS = make_simplex_transform_stuff( simplex_vertices );
+            interior_simplex_transform_stuff[ii] = Simplex { simplex_vertices, // V
+                                                             STS.first,        // A
+                                                             STS.second,       // b
+                                                             false};
+
+            pair<VectorXd, VectorXd> BB = compute_pointcloud_bounding_box( simplex_vertices );
+            interior_box_mins.col(ii) = BB.first;
+            interior_box_maxes.col(ii) = BB.second;
 
             all_facet_stuff[ii] = make_facet_stuff( simplex_vertices );
         }
+
+        interior_aabbtree = AABBTree<K>( interior_box_mins, interior_box_maxes );
+
+        map<vector<int>, int> face_counts; // key are vertex inds for a face. value is how many times the face occurs (can occur twice if shared)
+        for ( int cc=0; cc<num_interior_cells; ++cc )
+        {
+            for ( int opposite_vertex_ind=0; opposite_vertex_ind<K+1; ++opposite_vertex_ind )
+            {
+                vector<int> face(K);
+                for ( int kk=0; kk<K+1; ++kk )
+                {
+                    if ( kk != opposite_vertex_ind )
+                    {
+                        face.push_back(interior_cells(kk, cc));
+                    }
+                }
+                sort( face.begin(), face.end() ); // sort for comparison purposes
+
+                if ( face_counts.find(face) == face_counts.end() ) // if this face isnt in the map yet
+                {
+                    face_counts[face] = 1;
+                }
+                else
+                {
+                    face_counts[face] += 1;
+                }
+            }
+        }
+
+        vector<Matrix<int, K, 1>> boundary_cells_vector;
+        for ( auto it = face_counts.begin(); it != face_counts.end(); ++it )
+        {
+            vector<int> face = it->first;
+            Matrix<int, K, 1> F;
+            for ( int kk=0; kk<K; ++kk)
+            {
+                F(kk) = face[kk];
+            }
+            int count = it->second;
+            if ( count == 1 )
+            {
+                boundary_cells_vector.push_back(F);
+            }
+        }
+
+        num_boundary_cells = boundary_cells_vector.size();
+        boundary_cells.resize(K, num_boundary_cells);
+        for ( int ii=0; ii<num_boundary_cells; ++ii )
+        {
+            boundary_cells.col(ii) = boundary_cells_vector[ii];
+        }
+
+
+
+
+
+
+//        boundary_aabbtree = AABBTree<K>( boundary_box_mins, boundary_box_maxes );
+        boundary_aabbtree = AABBTree<K>( interior_box_mins, interior_box_maxes );
+        boundary_kdtree = KDTree<K>( vertices.transpose() );
+
     }
 
     inline bool point_is_in_mesh( KDVector query )
@@ -430,15 +509,16 @@ public:
         }
         else
         {
-            pair<KDVector, double> kd_result = kdtree.nearest_neighbor( query );
+            pair<KDVector, double> kd_result = boundary_kdtree.nearest_neighbor( query );
             double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
-            vector<int> candidate_inds = aabbtree.all_ball_intersections( query, dist_estimate );
+            VectorXi candidate_inds = boundary_aabbtree.all_ball_intersections( query, dist_estimate );
             int num_candidates = candidate_inds.size();
 
             double dsq_best = (closest_point - query).squaredNorm();
             for ( int ii=0; ii<num_candidates; ++ii )
             {
-                int ind = candidate_inds[ii];
+//                int ind = candidate_inds[ii];
+                int ind = candidate_inds(ii);
 
                 KDVector candidate = closest_point_in_simplex_using_precomputed_facet_stuff( query, all_facet_stuff[ind] );
                 double dsq_candidate = (candidate - query).squaredNorm();
@@ -466,17 +546,19 @@ public:
 
     inline VectorXd simplex_coordinates( int simplex_ind, const KDVector query )
     {
-        return simplex_transform_matrices[simplex_ind] * query + simplex_transform_vectors[simplex_ind];
+//        return simplex_transform_matrices[simplex_ind] * query + simplex_transform_vectors[simplex_ind];
+          Simplex & S = interior_simplex_transform_stuff[simplex_ind];
+          return S.A * query + S.b;
     }
 
     inline int index_of_first_simplex_containing_point( const KDVector query )
     {
-        vector<int> candidate_inds =  aabbtree.all_point_intersections( query );
+        VectorXi candidate_inds =  interior_aabbtree.all_point_intersections( query );
         int num_candidates = candidate_inds.size();
         int ind = -1;
         for ( int ii=0; ii<num_candidates; ++ii )
         {
-            int candidate_ind = candidate_inds[ii];
+            int candidate_ind = candidate_inds(ii);
             VectorXd affine_coords = simplex_coordinates( candidate_ind, query );
             bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
             if ( point_is_in_simplex )
@@ -500,13 +582,15 @@ public:
 
         for ( int ii=0; ii<num_pts; ++ii ) // for each point
         {
-            vector<int> candidate_inds =  aabbtree.all_point_intersections( points.col(ii) );
+            VectorXi candidate_inds =  interior_aabbtree.all_point_intersections( points.col(ii) );
             int num_candidates = candidate_inds.size();
             for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
             {
-                int simplex_ind = candidate_inds[jj];
-                Matrix<double, K+1, 1> affine_coords = simplex_transform_matrices[simplex_ind] * points.col(ii)
-                                                       + simplex_transform_vectors[simplex_ind];
+                int simplex_ind = candidate_inds(jj);
+                Simplex & S = interior_simplex_transform_stuff[simplex_ind];
+                Matrix<double, K+1, 1> affine_coords = S.A * points.col(ii) + S.b;
+//                Matrix<double, K+1, 1> affine_coords = simplex_transform_matrices[simplex_ind] * points.col(ii)
+//                                                       + simplex_transform_vectors[simplex_ind];
                 bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
                 if ( point_is_in_simplex )
                 {
@@ -514,7 +598,7 @@ public:
                     {
                         for ( int ll=0; ll<num_functions; ++ll ) // for each function
                         {
-                            function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
+                            function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, interior_cells(kk, simplex_ind));
                         }
                     }
                     break;
@@ -524,43 +608,6 @@ public:
         return function_at_points;
     }
 
-//    inline double evaluate_function_at_point( const Ref<const VectorXd> function_at_vertices,
-//                                              const KDVector point )
-//    {
-//        vector<int> candidate_inds =  aabbtree.all_point_intersections( point );
-//        double function_at_point = 0.0;
-//        int num_candidates = candidate_inds.size();
-//        for ( int ii=0; ii<num_candidates; ++ii )
-//        {
-//            int ind = candidate_inds[ii];
-//            VectorXd affine_coords = simplex_coordinates( ind, point );
-//            bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-//            if ( point_is_in_simplex )
-//            {
-//                for ( int vv=0; vv<K+1; ++vv)
-//                {
-//                    function_at_point += affine_coords(vv) * function_at_vertices(cells(vv, ind));
-//                }
-//                break;
-//            }
-//        }
-//        return function_at_point;
-//    }
-//
-////    VectorXd evaluate_function_at_point_vectorized( const VectorXd &          function_at_vertices,
-////                                                    const Ref<const MatrixXd> points )
-//    VectorXd evaluate_function_at_point_vectorized( const Ref<const VectorXd>                            function_at_vertices,
-//                                                    const Ref<const Array<double, Dynamic, K, RowMajor>> points )
-//    {
-//        int npts = points.rows();
-//        VectorXd function_at_points(npts);
-//        for ( int ii=0; ii<npts; ++ii )
-//        {
-//            KDVector p = points.row(ii);
-//            function_at_points(ii) = evaluate_function_at_point( function_at_vertices, p );
-//        }
-//        return function_at_points;
-//    }
 };
 
 
