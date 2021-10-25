@@ -108,7 +108,7 @@ vector<vector<int>> powerset(int N)
     return pset;
 }
 
-std::pair<MatrixXd, VectorXd> make_simplex_transform_stuff( const MatrixXd & simplex_vertices )
+std::pair<MatrixXd, VectorXd> make_simplex_transform_operator( const MatrixXd & simplex_vertices )
 {
     int K = simplex_vertices.rows();
     int M = simplex_vertices.cols();
@@ -186,7 +186,7 @@ FacetStuff make_facet_stuff( const MatrixXd & simplex_vertices )
                 Vi.col(jj) = simplex_vertices.col(facet_inds[jj]);
             }
 
-            std::pair<MatrixXd, VectorXd> res = make_simplex_transform_stuff( Vi );
+            std::pair<MatrixXd, VectorXd> res = make_simplex_transform_operator( Vi );
 
             VV.push_back(Vi);
             SS.push_back(res.first);
@@ -220,80 +220,6 @@ VectorXd closest_point_in_simplex_using_precomputed_facet_stuff( const VectorXd 
             }
         }
     }
-
-
-//
-//    if ( npts == 1 )
-//    {
-//        closest_point = simplex_vertices.col(0);
-//    }
-//    else
-//    {
-//        int num_facets = power_of_two(npts) - 1;
-//        Matrix<bool, Dynamic, Dynamic, RowMajor> all_facet_inds;
-//        all_facet_inds.resize(num_facets, npts);
-//
-//        if ( npts == 2 )
-//        {
-//            all_facet_inds << false, true,
-//                              true,  false,
-//                              true,  true;
-//        }
-//        else if ( npts == 3 )
-//        {
-//            all_facet_inds << false, false, true,
-//                              false, true,  false,
-//                              false, true,  true,
-//                              true,  false, false,
-//                              true,  false, true,
-//                              true,  true,  false,
-//                              true,  true,  true;
-//        }
-//        else if ( npts == 4 )
-//        {
-//            all_facet_inds << false, false, false, true,
-//                              false, false, true,  false,
-//                              false, false, true,  true,
-//                              false, true,  false, false,
-//                              false, true,  false, true,
-//                              false, true,  true,  false,
-//                              false, true,  true,  true,
-//                              true,  false, false, false,
-//                              true,  false, false, true,
-//                              true,  false, true,  false,
-//                              true,  false, true,  true,
-//                              true,  true,  false, false,
-//                              true,  true,  false, true,
-//                              true,  true,  true,  false,
-//                              true,  true,  true,  true;
-//        }
-//        else
-//        {
-//            cout << "not implemented for npts>4."
-//                 << "Also, algorithm not recommended for large npts since it scales combinatorially." << endl;
-//        }
-//
-//        closest_point = simplex_vertices.col(0);
-//        double dsq_best = (closest_point - query).squaredNorm();
-//        for ( int ii=0; ii<num_facets; ++ii ) // for each facet
-//        {
-//            Matrix<bool, Dynamic, 1> facet_inds = all_facet_inds.row(ii);
-//            MatrixXd facet_vertices = select_columns( simplex_vertices, facet_inds );
-//            VectorXd facet_coords( facet_vertices.cols() );
-//            facet_coords = projected_affine_coordinates( query, facet_vertices );
-//            bool projection_is_in_facet = (facet_coords.array() >= 0.0).all();
-//            if ( projection_is_in_facet )
-//            {
-//                VectorXd candidate_point = facet_vertices * facet_coords;
-//                double dsq_candidate = (candidate_point - query).squaredNorm();
-//                if ( dsq_candidate < dsq_best )
-//                {
-//                    closest_point = candidate_point;
-//                    dsq_best = dsq_candidate;
-//                }
-//            }
-//        }
-//    }
     return closest_point;
 }
 
@@ -368,63 +294,66 @@ private:
     typedef Matrix<double, K, 1> KDVector;
 
     Matrix<double, K,   Dynamic> vertices;
-    Matrix<int,    K+1, Dynamic> interior_cells;
-    Matrix<int,    K,   Dynamic> boundary_cells;
-    vector<VectorXi>             boundary_entity_cells;
+    Matrix<int,    K+1, Dynamic> cells;    // interior simplices of dim K
+    Matrix<int,    K,   Dynamic> faces;    // boundary face simplices of dim K-1
+    vector<VectorXi>             subfaces; // sub-simplices of boundary faces of dim 0 through K-1 (includes boundary faces)
 
-    vector<VectorXi> boundary_face_to_boundary_entities;
+    vector<VectorXi> face2subface;
 
-    AABBTree<K> interior_aabbtree;
-    AABBTree<K> boundary_aabbtree;
-    KDTree<K> boundary_kdtree;
+    AABBTree<K> cell_aabbtree;
+    AABBTree<K> face_aabbtree;
+    KDTree<K>   face_kdtree;
 
-    vector< Simplex > interior_simplices;
-    vector< Simplex > boundary_entity_simplices;
-
-    Matrix<bool, Dynamic, 1> boundary_entities_bool;
-    Matrix<int, Dynamic, 1>  boundary_entities_int;
+    vector< Simplex > cell_simplices;
+    vector< Simplex > subface_simplices;
 
     int num_vertices;
-    int num_interior_cells;
-    int num_boundary_cells;
-    int num_boundary_entities;
+    int num_cells;
+    int num_faces;
+    int num_subfaces;
 
 public:
     SimplexMesh( const Ref<const Matrix<double, K,   Dynamic>> input_vertices,
                  const Ref<const Matrix<int   , K+1, Dynamic>> input_cells )
     {
         vertices = input_vertices; // copy
-        interior_cells = input_cells; // copy
+        cells    = input_cells;    // copy
 
         num_vertices = input_vertices.cols();
-        num_interior_cells = input_cells.cols();
+        num_cells = input_cells.cols();
 
-        interior_simplices.resize(num_interior_cells);
-        Matrix<double, K,   Dynamic> interior_box_mins(K, num_interior_cells);
-        Matrix<double, K,   Dynamic> interior_box_maxes(K, num_interior_cells);
-
-        for ( int ii=0; ii<num_interior_cells; ++ii )
+        // ------------------------    CELLS    ------------------------
+        // Generate cell simplices and transform operators
+        cell_simplices.resize(num_cells);
+        for ( int ii=0; ii<num_cells; ++ii )
         {
             Matrix<double, K, K+1> simplex_vertices;
             for (int jj=0; jj<K+1; ++jj )
             {
-                simplex_vertices.col(jj) = vertices.col(interior_cells(jj, ii));
+                simplex_vertices.col(jj) = vertices.col(cells(jj, ii));
             }
-            std::pair<MatrixXd, VectorXd> STS = make_simplex_transform_stuff( simplex_vertices );
-            interior_simplices[ii] = Simplex { simplex_vertices, // V
-                                               STS.first,        // A
-                                               STS.second };     // b
-
-            pair<VectorXd, VectorXd> BB = compute_pointcloud_bounding_box( simplex_vertices );
-            interior_box_mins.col(ii) = BB.first;
-            interior_box_maxes.col(ii) = BB.second;
+            std::pair<MatrixXd, VectorXd> STS = make_simplex_transform_operator( simplex_vertices );
+            cell_simplices[ii] = Simplex { simplex_vertices, // V
+                                           STS.first,        // A
+                                           STS.second };     // b
         }
 
-        interior_aabbtree = AABBTree<K>( interior_box_mins, interior_box_maxes );
+        // Generate cell AABB tree
+        Matrix<double, K,   Dynamic> cell_box_mins(K, num_cells);
+        Matrix<double, K,   Dynamic> cell_box_maxes(K, num_cells);
+        for ( int ii=0; ii<num_cells; ++ii )
+        {
+            pair<VectorXd, VectorXd> BB = compute_pointcloud_bounding_box( cell_simplices[ii].V );
+            cell_box_mins.col(ii) = BB.first;
+            cell_box_maxes.col(ii) = BB.second;
+        }
+        cell_aabbtree = AABBTree<K>( cell_box_mins, cell_box_maxes );
 
 
-        map<vector<int>, int> face_counts; // key are vertex inds for a face. value is how many times the face occurs (can occur twice if shared)
-        for ( int cc=0; cc<num_interior_cells; ++cc )
+        // ------------------------    FACES    ------------------------
+        // For all K-facets (K-1 dim simplex which has K vertices), compute how many cells they are part of.
+        map<vector<int>, int> Kfacet_counts; // Kfacet -> cell count
+        for ( int cc=0; cc<num_cells; ++cc )
         {
             for ( int opposite_vertex_ind=0; opposite_vertex_ind<K+1; ++opposite_vertex_ind )
             {
@@ -433,25 +362,25 @@ public:
                 {
                     if ( kk != opposite_vertex_ind )
                     {
-                        face.push_back(interior_cells(kk, cc));
+                        face.push_back(cells(kk, cc));
                     }
                 }
                 sort( face.begin(), face.end() ); // sort for comparison purposes
 
-                if ( face_counts.find(face) == face_counts.end() ) // if this face isnt in the map yet
+                if ( Kfacet_counts.find(face) == Kfacet_counts.end() ) // if this face isnt in the map yet
                 {
-                    face_counts[face] = 1;
+                    Kfacet_counts[face] = 1;
                 }
                 else
                 {
-                    face_counts[face] += 1;
+                    Kfacet_counts[face] += 1;
                 }
             }
         }
 
-
-        vector<Matrix<int, K, 1>> boundary_cells_vector;
-        for ( auto it = face_counts.begin(); it != face_counts.end(); ++it )
+        // Faces (K-facets on the boundary) are the K-facets that are part of only one K+1 dim cell
+        vector<Matrix<int, K, 1>> faces_vector;
+        for ( auto it = Kfacet_counts.begin(); it != Kfacet_counts.end(); ++it )
         {
             vector<int> face = it->first;
             Matrix<int, K, 1> F;
@@ -462,24 +391,63 @@ public:
             int count = it->second;
             if ( count == 1 )
             {
-                boundary_cells_vector.push_back(F);
+                faces_vector.push_back(F);
             }
         }
 
-        num_boundary_cells = boundary_cells_vector.size();
-        boundary_cells.resize(K, num_boundary_cells);
-        for ( int ii=0; ii<num_boundary_cells; ++ii )
+        num_faces = faces_vector.size();
+        faces.resize(K, num_faces);
+        for ( int ii=0; ii<num_faces; ++ii )
         {
-            boundary_cells.col(ii) = boundary_cells_vector[ii];
+            faces.col(ii) = faces_vector[ii];
         }
 
-//        cout << "num_boundary_cells=" << num_boundary_cells << endl;
+
+        // Create kdtree of vertices that are on faces (i.e., on the boundary)
+        set<int> face_vertex_inds;
+        for ( int bb=0; bb<num_faces; ++bb )
+        {
+            for ( int kk=0; kk<K; ++kk )
+            {
+                face_vertex_inds.insert(faces(kk, bb));
+            }
+        }
+
+        int num_face_vertices = face_vertex_inds.size();
+        MatrixXd face_vertices(K, num_face_vertices);
+        int vv=0;
+        for ( auto it  = face_vertex_inds.begin();
+                   it != face_vertex_inds.end();
+                 ++it )
+        {
+            face_vertices.col(vv) = vertices.col( *it );
+            vv += 1;
+        }
+        face_kdtree = KDTree<K>( face_vertices.transpose() );
 
 
+        // Create face AABB tree
+        Matrix<double, K,   Dynamic> face_box_mins(K, num_faces);
+        Matrix<double, K,   Dynamic> face_box_maxes(K, num_faces);
+        for ( int bb=0; bb<num_faces; ++bb )
+        {
+            Matrix<double, K, K> face_vertices;
+            for (int jj=0; jj<K; ++jj )
+            {
+                face_vertices.col(jj) = vertices.col(faces(jj, bb));
+            }
+            pair<VectorXd, VectorXd> BB = compute_pointcloud_bounding_box( face_vertices );
+            face_box_mins.col(bb) = BB.first;
+            face_box_maxes.col(bb) = BB.second;
+        }
+        face_aabbtree = AABBTree<K>( face_box_mins, face_box_maxes );
+
+
+        // ------------------------    SUBFACES    ------------------------
         // Construct all boundary entities (faces-of-faces, etc)
-        vector<vector<int>> pset = powerset(K);
-        map<vector<int>, vector<int>> boundary_entity_to_boundary_faces_map;
-        for ( int bb=0; bb<num_boundary_cells; ++bb )
+        vector<vector<int>> pset = powerset(K); // powerset(3) = [[], [0], [1], [0, 1], [2], [0, 2], [1, 2], [0, 1, 2]]
+        map<vector<int>, vector<int>> subface2face_map;
+        for ( int bb=0; bb<num_faces; ++bb )
         {
             for ( int ii=0; ii<pset.size(); ++ii )
             {
@@ -490,30 +458,29 @@ public:
                     vector<int> entity_vertex_inds;
                     for ( int jj=0; jj<num_entity_vertices; ++jj )
                     {
-                        entity_vertex_inds.push_back(boundary_cells(vertex_subset[jj], bb));
+                        entity_vertex_inds.push_back(faces(vertex_subset[jj], bb));
                     }
                     sort( entity_vertex_inds.begin(), entity_vertex_inds.end() );
 
 
-                    if ( boundary_entity_to_boundary_faces_map.find(entity_vertex_inds)
-                         == boundary_entity_to_boundary_faces_map.end() ) // if this boundary entity isnt in the map yet
+                    if ( subface2face_map.find(entity_vertex_inds) == subface2face_map.end() ) // if this boundary entity isnt in the map yet
                     {
-                        vector<int> boundary_faces_containing_this_entity;
-                        boundary_faces_containing_this_entity.push_back(bb);
-                        boundary_entity_to_boundary_faces_map[entity_vertex_inds] = boundary_faces_containing_this_entity;
+                        vector<int> faces_containing_this_entity;
+                        faces_containing_this_entity.push_back(bb);
+                        subface2face_map[entity_vertex_inds] = faces_containing_this_entity;
                     }
                     else
                     {
-                        boundary_entity_to_boundary_faces_map[entity_vertex_inds].push_back(bb);
+                        subface2face_map[entity_vertex_inds].push_back(bb);
                     }
                 }
             }
         }
 
-        vector<vector<int>> boundary_face_to_boundary_entities_vector( num_boundary_cells );
+        vector<vector<int>> face2subface_vector( num_faces );
         int entity_number = 0;
-        for ( auto it  = boundary_entity_to_boundary_faces_map.begin();
-                   it != boundary_entity_to_boundary_faces_map.end();
+        for ( auto it  = subface2face_map.begin();
+                   it != subface2face_map.end();
                  ++it )
         {
             vector<int> entity = it->first;
@@ -523,92 +490,45 @@ public:
             {
                 E(kk) = entity[kk];
             }
-            boundary_entity_cells.push_back(E);
+            subfaces.push_back(E);
 
-            vector<int> boundary_faces_containing_this_entity = it->second;
-            for ( int bb=0; bb<boundary_faces_containing_this_entity.size(); ++bb )
+            vector<int> faces_containing_this_entity = it->second;
+            for ( int bb=0; bb<faces_containing_this_entity.size(); ++bb )
             {
-                int face_ind = boundary_faces_containing_this_entity[bb];
-                boundary_face_to_boundary_entities_vector[face_ind].push_back(entity_number);
+                int face_ind = faces_containing_this_entity[bb];
+                face2subface_vector[face_ind].push_back(entity_number);
             }
             entity_number += 1;
         }
 
-        boundary_face_to_boundary_entities.resize(num_boundary_cells);
-        for ( int bb=0; bb<num_boundary_cells; ++bb )
+        face2subface.resize(num_faces);
+        for ( int bb=0; bb<num_faces; ++bb )
         {
-            vector<int> entities_for_this_face_vector = boundary_face_to_boundary_entities_vector[bb];
+            vector<int> entities_for_this_face_vector = face2subface_vector[bb];
             VectorXi entities_for_this_face(entities_for_this_face_vector.size());
             for ( int jj=0; jj<entities_for_this_face_vector.size(); ++jj )
             {
                 entities_for_this_face(jj) = entities_for_this_face_vector[jj];
             }
-            boundary_face_to_boundary_entities[bb] = entities_for_this_face;
+            face2subface[bb] = entities_for_this_face;
         }
 
-        num_boundary_entities = boundary_entity_cells.size();
+        num_subfaces = subfaces.size();
 
-        boundary_entities_bool.resize(num_boundary_entities);
-        boundary_entities_int.resize(num_boundary_entities);
-        boundary_entities_bool.setConstant(false);
-
-//        cout << "num_boundary_entities=" << num_boundary_entities << endl;
-
-
-        Matrix<double, K,   Dynamic> boundary_box_mins(K, num_boundary_cells);
-        Matrix<double, K,   Dynamic> boundary_box_maxes(K, num_boundary_cells);
-        for ( int bb=0; bb<num_boundary_cells; ++bb )
+        subface_simplices.resize(num_subfaces);
+        for ( int ee=0; ee<num_subfaces; ++ee )
         {
-            Matrix<double, K, K> boundary_face_vertices;
-            for (int jj=0; jj<K; ++jj )
-            {
-                boundary_face_vertices.col(jj) = vertices.col(boundary_cells(jj, bb));
-            }
-            pair<VectorXd, VectorXd> BB = compute_pointcloud_bounding_box( boundary_face_vertices );
-            boundary_box_mins.col(bb) = BB.first;
-            boundary_box_maxes.col(bb) = BB.second;
-        }
-
-
-        boundary_entity_simplices.resize(num_boundary_entities);
-        for ( int ee=0; ee<num_boundary_entities; ++ee )
-        {
-            int num_vertices_in_entity = boundary_entity_cells[ee].size();
+            int num_vertices_in_entity = subfaces[ee].size();
             MatrixXd entity_vertices(K, num_vertices_in_entity);
             for (int vv=0; vv<num_vertices_in_entity; ++vv )
             {
-                entity_vertices.col(vv) = vertices.col(boundary_entity_cells[ee](vv));
+                entity_vertices.col(vv) = vertices.col(subfaces[ee](vv));
             }
-            std::pair<MatrixXd, VectorXd> STS = make_simplex_transform_stuff( entity_vertices );
-            boundary_entity_simplices[ee] = Simplex { entity_vertices, // V
-                                                      STS.first,       // A
-                                                      STS.second };    // b
+            std::pair<MatrixXd, VectorXd> STS = make_simplex_transform_operator( entity_vertices );
+            subface_simplices[ee] = Simplex { entity_vertices, // V
+                                              STS.first,       // A
+                                              STS.second };    // b
         }
-
-        set<int> boundary_vertex_inds;
-        for ( int bb=0; bb<num_boundary_cells; ++bb )
-        {
-            for ( int kk=0; kk<K; ++kk )
-            {
-                boundary_vertex_inds.insert(boundary_cells(kk, bb));
-            }
-        }
-
-        int num_boundary_vertices = boundary_vertex_inds.size();
-        MatrixXd boundary_vertices(K, num_boundary_vertices);
-        int vv=0;
-        for ( auto it  = boundary_vertex_inds.begin();
-                   it != boundary_vertex_inds.end();
-                 ++it )
-        {
-            boundary_vertices.col(vv) = vertices.col( *it );
-            vv += 1;
-        }
-
-//        cout << "num_boundary_vertices=" << num_boundary_vertices << endl;
-
-        boundary_aabbtree = AABBTree<K>( boundary_box_mins, boundary_box_maxes );
-        boundary_kdtree = KDTree<K>( boundary_vertices.transpose() );
     }
 
     inline bool point_is_in_mesh( KDVector query )
@@ -638,16 +558,16 @@ public:
         else
         {
             // 1. Find a set of candidate boundary faces, one of which contains the closest point
-            pair<KDVector, double> kd_result = boundary_kdtree.nearest_neighbor( query );
+            pair<KDVector, double> kd_result = face_kdtree.nearest_neighbor( query );
             double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
-            VectorXi boundary_face_inds = boundary_aabbtree.all_ball_intersections( query, dist_estimate );
+            VectorXi face_inds = face_aabbtree.all_ball_intersections( query, dist_estimate );
 
             // 2. Determine unique set of boundary entities to visit
             vector<int> entities;
             entities.reserve(power_of_two(K));
-            for ( int ii=0; ii<boundary_face_inds.size(); ++ii )
+            for ( int ii=0; ii<face_inds.size(); ++ii )
             {
-                VectorXi & entity_inds = boundary_face_to_boundary_entities[boundary_face_inds(ii)];
+                VectorXi & entity_inds = face2subface[face_inds(ii)];
                 for ( int jj=0; jj<entity_inds.size(); ++jj )
                 {
                     entities.push_back(entity_inds(jj));
@@ -662,7 +582,7 @@ public:
             double dsq_best = (closest_point - query).squaredNorm();
             for ( int ee=0; ee<entities.size(); ++ee )
             {
-                Simplex & E = boundary_entity_simplices[entities[ee]];
+                Simplex & E = subface_simplices[entities[ee]];
                 VectorXd projected_affine_coords = E.A * query + E.b;
                 if ( (projected_affine_coords.array() >= 0.0).all() ) // projection is in entity
                 {
@@ -693,14 +613,13 @@ public:
 
     inline VectorXd simplex_coordinates( int simplex_ind, const KDVector query )
     {
-//        return simplex_transform_matrices[simplex_ind] * query + simplex_transform_vectors[simplex_ind];
-          Simplex & S = interior_simplices[simplex_ind];
+          Simplex & S = cell_simplices[simplex_ind];
           return S.A * query + S.b;
     }
 
     inline int index_of_first_simplex_containing_point( const KDVector query )
     {
-        VectorXi candidate_inds =  interior_aabbtree.all_point_intersections( query );
+        VectorXi candidate_inds =  cell_aabbtree.all_point_intersections( query );
         int num_candidates = candidate_inds.size();
         int ind = -1;
         for ( int ii=0; ii<num_candidates; ++ii )
@@ -729,23 +648,21 @@ public:
 
         for ( int ii=0; ii<num_pts; ++ii ) // for each point
         {
-            VectorXi candidate_inds =  interior_aabbtree.all_point_intersections( points.col(ii) );
+            VectorXi candidate_inds =  cell_aabbtree.all_point_intersections( points.col(ii) );
             int num_candidates = candidate_inds.size();
             for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
             {
                 int simplex_ind = candidate_inds(jj);
-                Simplex & S = interior_simplices[simplex_ind];
+                Simplex & S = cell_simplices[simplex_ind];
                 Matrix<double, K+1, 1> affine_coords = S.A * points.col(ii) + S.b;
-//                Matrix<double, K+1, 1> affine_coords = simplex_transform_matrices[simplex_ind] * points.col(ii)
-//                                                       + simplex_transform_vectors[simplex_ind];
                 bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-                if ( point_is_in_simplex )
+                if ( point_is_in_simplex ) // point is in simplex
                 {
                     for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
                     {
                         for ( int ll=0; ll<num_functions; ++ll ) // for each function
                         {
-                            function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, interior_cells(kk, simplex_ind));
+                            function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
                         }
                     }
                     break;
