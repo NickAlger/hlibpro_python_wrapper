@@ -381,8 +381,8 @@ private:
     vector< Simplex > interior_simplices;
     vector< Simplex > boundary_entity_simplices;
 
-
-    vector< FacetStuff > all_facet_stuff;
+    Matrix<bool, Dynamic, 1> boundary_entities_bool;
+    Matrix<int, Dynamic, 1>  boundary_entities_int;
 
     int num_vertices;
     int num_interior_cells;
@@ -402,7 +402,6 @@ public:
         interior_simplices.resize(num_interior_cells);
         Matrix<double, K,   Dynamic> interior_box_mins(K, num_interior_cells);
         Matrix<double, K,   Dynamic> interior_box_maxes(K, num_interior_cells);
-        all_facet_stuff.resize(num_interior_cells);
 
         for ( int ii=0; ii<num_interior_cells; ++ii )
         {
@@ -419,8 +418,6 @@ public:
             pair<VectorXd, VectorXd> BB = compute_pointcloud_bounding_box( simplex_vertices );
             interior_box_mins.col(ii) = BB.first;
             interior_box_maxes.col(ii) = BB.second;
-
-            all_facet_stuff[ii] = make_facet_stuff( simplex_vertices );
         }
 
         interior_aabbtree = AABBTree<K>( interior_box_mins, interior_box_maxes );
@@ -551,6 +548,10 @@ public:
 
         num_boundary_entities = boundary_entity_cells.size();
 
+        boundary_entities_bool.resize(num_boundary_entities);
+        boundary_entities_int.resize(num_boundary_entities);
+        boundary_entities_bool.setConstant(false);
+
 //        cout << "num_boundary_entities=" << num_boundary_entities << endl;
 
 
@@ -642,6 +643,7 @@ public:
             int num_boundary_faces = boundary_face_inds.size();
 
             double dsq_best = (closest_point - query).squaredNorm();
+            int num_entities_visited = 0;
             for ( int ii=0; ii<num_boundary_faces; ++ii )
             {
                 int face_ind = boundary_face_inds(ii);
@@ -650,28 +652,34 @@ public:
                 for ( int jj=0; jj<num_boundary_entities; ++jj )
                 {
                     int entity_ind = boundary_entity_inds(jj);
-                    Simplex & E = boundary_entity_simplices[entity_ind];
-                    VectorXd projected_affine_coords = E.A * query + E.b;
-                    bool projection_is_in_entity = (projected_affine_coords.array() >= 0.0).all();
-                    if ( projection_is_in_entity )
+                    if ( !boundary_entities_bool(entity_ind) ) // false -> entity not visited yet
                     {
-                        KDVector projected_query = E.V * projected_affine_coords;
-                        double dsq = (projected_query - query).squaredNorm();
-                        if ( dsq < dsq_best )
+                        boundary_entities_bool(entity_ind) = true; // indicate that we have now visited this entity
+                        boundary_entities_int[num_entities_visited] = entity_ind; // record this entity index so we can reset it later
+                        num_entities_visited += 1;
+
+                        Simplex & E = boundary_entity_simplices[entity_ind];
+                        VectorXd projected_affine_coords = E.A * query + E.b;
+                        bool projection_is_in_entity = (projected_affine_coords.array() >= 0.0).all();
+                        if ( projection_is_in_entity )
                         {
-                            closest_point = projected_query;
-                            dsq_best = dsq;
+                            KDVector projected_query = E.V * projected_affine_coords;
+                            double dsq = (projected_query - query).squaredNorm();
+                            if ( dsq < dsq_best )
+                            {
+                                closest_point = projected_query;
+                                dsq_best = dsq;
+                            }
                         }
                     }
-                }
 
-//                KDVector candidate = closest_point_in_simplex_using_precomputed_facet_stuff( query, all_facet_stuff[ind] );
-//                double dsq_candidate = (candidate - query).squaredNorm();
-//                if ( dsq_candidate < dsq_best )
-//                {
-//                    closest_point = candidate;
-//                    dsq_best = dsq_candidate;
-//                }
+                }
+            }
+
+            for ( int aa=0; aa<num_entities_visited; ++aa )
+            {
+                int entity_that_we_visited = boundary_entities_int[aa];
+                boundary_entities_bool[entity_that_we_visited] = false; // reset entity from visited to not visited
             }
         }
         return closest_point;
