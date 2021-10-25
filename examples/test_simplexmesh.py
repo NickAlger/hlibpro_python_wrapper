@@ -174,6 +174,9 @@ print('nquery=', nquery, ', dt_closest_SM=', dt_closest_SM)
 # With precomputed facet stuff
 # nquery= 100000 , dt_query_SM= 0.6365664005279541
 
+# With boundary search
+# nquery= 100000 , dt_closest_SM= 0.1751554012298584
+
 # EVALUATE FUNCTION AT POINT
 
 mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 1e-2)
