@@ -637,49 +637,43 @@ public:
         }
         else
         {
+            // 1. Find a set of candidate boundary faces, one of which contains the closest point
             pair<KDVector, double> kd_result = boundary_kdtree.nearest_neighbor( query );
             double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
             VectorXi boundary_face_inds = boundary_aabbtree.all_ball_intersections( query, dist_estimate );
-            int num_boundary_faces = boundary_face_inds.size();
 
-            double dsq_best = (closest_point - query).squaredNorm();
-            int num_entities_visited = 0;
-            for ( int ii=0; ii<num_boundary_faces; ++ii )
+            // 2. Determine unique set of boundary entities to visit
+            vector<int> entities;
+            entities.reserve(power_of_two(K));
+            for ( int ii=0; ii<boundary_face_inds.size(); ++ii )
             {
-                int face_ind = boundary_face_inds(ii);
-                VectorXi boundary_entity_inds = boundary_face_to_boundary_entities[face_ind];
-                int num_boundary_entities = boundary_entity_inds.size();
-                for ( int jj=0; jj<num_boundary_entities; ++jj )
+                VectorXi & entity_inds = boundary_face_to_boundary_entities[boundary_face_inds(ii)];
+                for ( int jj=0; jj<entity_inds.size(); ++jj )
                 {
-                    int entity_ind = boundary_entity_inds(jj);
-                    if ( !boundary_entities_bool(entity_ind) ) // false -> entity not visited yet
-                    {
-                        boundary_entities_bool(entity_ind) = true; // indicate that we have now visited this entity
-                        boundary_entities_int[num_entities_visited] = entity_ind; // record this entity index so we can reset it later
-                        num_entities_visited += 1;
-
-                        Simplex & E = boundary_entity_simplices[entity_ind];
-                        VectorXd projected_affine_coords = E.A * query + E.b;
-                        bool projection_is_in_entity = (projected_affine_coords.array() >= 0.0).all();
-                        if ( projection_is_in_entity )
-                        {
-                            KDVector projected_query = E.V * projected_affine_coords;
-                            double dsq = (projected_query - query).squaredNorm();
-                            if ( dsq < dsq_best )
-                            {
-                                closest_point = projected_query;
-                                dsq_best = dsq;
-                            }
-                        }
-                    }
-
+                    entities.push_back(entity_inds(jj));
                 }
             }
+            sort( entities.begin(), entities.end() );
+            entities.erase( unique( entities.begin(), entities.end() ), entities.end() );
 
-            for ( int aa=0; aa<num_entities_visited; ++aa )
+            // 3. Project query onto the affine subspaces associated with each entity.
+            // 4. Discard "bad" projections that to not land in their entity.
+            // 5. Return closest "good" projection.
+            double dsq_best = (closest_point - query).squaredNorm();
+            for ( int ee=0; ee<entities.size(); ++ee )
             {
-                int entity_that_we_visited = boundary_entities_int[aa];
-                boundary_entities_bool[entity_that_we_visited] = false; // reset entity from visited to not visited
+                Simplex & E = boundary_entity_simplices[entities[ee]];
+                VectorXd projected_affine_coords = E.A * query + E.b;
+                if ( (projected_affine_coords.array() >= 0.0).all() ) // projection is in entity
+                {
+                    KDVector projected_query = E.V * projected_affine_coords;
+                    double dsq = (projected_query - query).squaredNorm();
+                    if ( dsq < dsq_best )
+                    {
+                        closest_point = projected_query;
+                        dsq_best = dsq;
+                    }
+                }
             }
         }
         return closest_point;
