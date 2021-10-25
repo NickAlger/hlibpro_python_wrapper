@@ -454,51 +454,51 @@ public:
                 vector<int> vertex_subset = pset[ii];
                 if ( !vertex_subset.empty() )
                 {
-                    int num_entity_vertices = vertex_subset.size();
-                    vector<int> entity_vertex_inds;
-                    for ( int jj=0; jj<num_entity_vertices; ++jj )
+                    int num_subface_vertices = vertex_subset.size();
+                    vector<int> subface_vertex_inds;
+                    for ( int jj=0; jj<num_subface_vertices; ++jj )
                     {
-                        entity_vertex_inds.push_back(faces(vertex_subset[jj], bb));
+                        subface_vertex_inds.push_back(faces(vertex_subset[jj], bb));
                     }
-                    sort( entity_vertex_inds.begin(), entity_vertex_inds.end() );
+                    sort( subface_vertex_inds.begin(), subface_vertex_inds.end() );
 
 
-                    if ( subface2face_map.find(entity_vertex_inds) == subface2face_map.end() ) // if this boundary entity isnt in the map yet
+                    if ( subface2face_map.find(subface_vertex_inds) == subface2face_map.end() ) // if this subface isnt in the map yet
                     {
-                        vector<int> faces_containing_this_entity;
-                        faces_containing_this_entity.push_back(bb);
-                        subface2face_map[entity_vertex_inds] = faces_containing_this_entity;
+                        vector<int> faces_containing_this_subface;
+                        faces_containing_this_subface.push_back(bb);
+                        subface2face_map[subface_vertex_inds] = faces_containing_this_subface;
                     }
                     else
                     {
-                        subface2face_map[entity_vertex_inds].push_back(bb);
+                        subface2face_map[subface_vertex_inds].push_back(bb);
                     }
                 }
             }
         }
 
         vector<vector<int>> face2subface_vector( num_faces );
-        int entity_number = 0;
+        int subface_number = 0;
         for ( auto it  = subface2face_map.begin();
                    it != subface2face_map.end();
                  ++it )
         {
-            vector<int> entity = it->first;
-            int num_entity_vertices = entity.size();
-            VectorXi E(num_entity_vertices);
-            for ( int kk=0; kk<num_entity_vertices; ++kk)
+            vector<int> subface = it->first;
+            int num_subface_vertices = subface.size();
+            VectorXi SF(num_subface_vertices);
+            for ( int kk=0; kk<num_subface_vertices; ++kk)
             {
-                E(kk) = entity[kk];
+                SF(kk) = subface[kk];
             }
-            subfaces.push_back(E);
+            subfaces.push_back(SF);
 
-            vector<int> faces_containing_this_entity = it->second;
-            for ( int bb=0; bb<faces_containing_this_entity.size(); ++bb )
+            vector<int> faces_containing_this_subface = it->second;
+            for ( int bb=0; bb<faces_containing_this_subface.size(); ++bb )
             {
-                int face_ind = faces_containing_this_entity[bb];
-                face2subface_vector[face_ind].push_back(entity_number);
+                int face_ind = faces_containing_this_subface[bb];
+                face2subface_vector[face_ind].push_back(subface_number);
             }
-            entity_number += 1;
+            subface_number += 1;
         }
 
         face2subface.resize(num_faces);
@@ -518,14 +518,14 @@ public:
         subface_simplices.resize(num_subfaces);
         for ( int ee=0; ee<num_subfaces; ++ee )
         {
-            int num_vertices_in_entity = subfaces[ee].size();
-            MatrixXd entity_vertices(K, num_vertices_in_entity);
-            for (int vv=0; vv<num_vertices_in_entity; ++vv )
+            int num_vertices_in_subface = subfaces[ee].size();
+            MatrixXd subface_vertices(K, num_vertices_in_subface);
+            for (int vv=0; vv<num_vertices_in_subface; ++vv )
             {
-                entity_vertices.col(vv) = vertices.col(subfaces[ee](vv));
+                subface_vertices.col(vv) = vertices.col(subfaces[ee](vv));
             }
-            std::pair<MatrixXd, VectorXd> STS = make_simplex_transform_operator( entity_vertices );
-            subface_simplices[ee] = Simplex { entity_vertices, // V
+            std::pair<MatrixXd, VectorXd> STS = make_simplex_transform_operator( subface_vertices );
+            subface_simplices[ee] = Simplex { subface_vertices, // V
                                               STS.first,       // A
                                               STS.second };    // b
         }
@@ -567,24 +567,24 @@ public:
             entities.reserve(power_of_two(K));
             for ( int ii=0; ii<face_inds.size(); ++ii )
             {
-                VectorXi & entity_inds = face2subface[face_inds(ii)];
-                for ( int jj=0; jj<entity_inds.size(); ++jj )
+                VectorXi & subface_inds = face2subface[face_inds(ii)];
+                for ( int jj=0; jj<subface_inds.size(); ++jj )
                 {
-                    entities.push_back(entity_inds(jj));
+                    entities.push_back(subface_inds(jj));
                 }
             }
             sort( entities.begin(), entities.end() );
             entities.erase( unique( entities.begin(), entities.end() ), entities.end() );
 
-            // 3. Project query onto the affine subspaces associated with each entity.
-            // 4. Discard "bad" projections that to not land in their entity.
+            // 3. Project query onto the affine subspaces associated with each subface.
+            // 4. Discard "bad" projections that to not land in their subface.
             // 5. Return closest "good" projection.
             double dsq_best = (closest_point - query).squaredNorm();
             for ( int ee=0; ee<entities.size(); ++ee )
             {
                 Simplex & E = subface_simplices[entities[ee]];
                 VectorXd projected_affine_coords = E.A * query + E.b;
-                if ( (projected_affine_coords.array() >= 0.0).all() ) // projection is in entity
+                if ( (projected_affine_coords.array() >= 0.0).all() ) // projection is in subface simplex
                 {
                     KDVector projected_query = E.V * projected_affine_coords;
                     double dsq = (projected_query - query).squaredNorm();
