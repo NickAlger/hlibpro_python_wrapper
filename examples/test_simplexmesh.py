@@ -159,8 +159,8 @@ print('fraction_outside_mesh=', fraction_outside_mesh)
 
 t = time()
 pp = SM.closest_point_vectorized(qq)
-dt_query_SM = time() - t
-print('nquery=', nquery, ', dt_query_SM=', dt_query_SM)
+dt_closest_SM = time() - t
+print('nquery=', nquery, ', dt_closest_SM=', dt_closest_SM)
 
 # Without inside mesh pre-check:
 # num_cells= 39478 , dt_build_SM= 7.367134094238281e-05
