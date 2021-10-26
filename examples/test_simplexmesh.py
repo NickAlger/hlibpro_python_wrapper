@@ -81,7 +81,7 @@ plt.gca().set_aspect('equal')
 
 npts = 3
 dim = 2
-nquery = int(1e6)
+nquery = int(1e5)
 
 qq = np.random.randn(dim, nquery)
 SS = np.random.randn(dim*npts, nquery)
@@ -140,7 +140,7 @@ plt.gca().set_aspect('equal')
 
 # CLOSEST POINT TO MESH TIMING
 
-nquery = int(1e5)
+nquery = int(1e6)
 mesh_h = 1e-2
 
 mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, mesh_h)
@@ -191,7 +191,21 @@ print('err_multi=', err_multi)
 # nquery= 100000 , dt_closest_SM= 0.1751554012298584
 
 # With multithreading
-# nquery= 100000 , dt_closest_SM_multi= 0.0556492805480957
+# nquery= 100000 , dt_closest_SM_multi= 0.0556492805480957s
+
+# No multithreading, no geometric ordering
+# closest_point_vectorized() took 220725 microseconds
+# nquery= 100000 , dt_closest_SM= 0.1983785629272461
+# and
+# closest_point_vectorized() took 1940110 microseconds
+# nquery= 1000000 , dt_closest_SM= 1.940319299697876
+
+# no multithreading, geometric ordering
+# closest_point_vectorized() took 157871 microseconds
+# nquery= 100000 , dt_closest_SM= 0.2701895236968994
+# and
+# closest_point_vectorized() took 1249172 microseconds
+# nquery= 1000000 , dt_closest_SM= 3.3071250915527344
 
 # EVALUATE FUNCTION AT POINT
 

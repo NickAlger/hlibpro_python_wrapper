@@ -4,8 +4,8 @@
 #include <list>
 #include <stdexcept>
 
-#include <thread>
-#include <execution>
+//#include <thread>
+//#include <execution>
 #include <chrono>
 
 #include "thread-pool-master/thread_pool.hpp"
@@ -15,6 +15,7 @@
 
 #include "kdtree.h"
 #include "aabbtree.h"
+#include "geometric_sort.h"
 
 using namespace Eigen;
 using namespace std;
@@ -640,7 +641,11 @@ public:
         Matrix<double, K, Dynamic> closest_points;
         closest_points.resize(K, num_queries);
 
+//        vector<int> geometrically_ordered_inds = geometric_sort(query_points);
+
         auto t1 = std::chrono::high_resolution_clock::now();
+
+//        for ( int ii : geometrically_ordered_inds )
         for ( int ii=0; ii<num_queries; ++ii )
         {
             closest_points.col(ii) = closest_point( query_points.col(ii) );
