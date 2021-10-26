@@ -5,6 +5,9 @@
 #include <stdexcept>
 
 #include <thread>
+#include <execution>
+
+#include "thread-pool-master/thread_pool.hpp"
 
 #include <math.h>
 #include <Eigen/Dense>
@@ -309,6 +312,8 @@ private:
 
     vector< Simplex > cell_simplices;
     vector< Simplex > subface_simplices;
+
+    thread_pool pool;
 
     int num_vertices;
     int num_cells;
@@ -642,27 +647,67 @@ public:
         Matrix<double, K, Dynamic> closest_points;
         closest_points.resize(K, num_queries);
 
-        auto solve_first_half = [&](int dummy)
+//        vector<int> ii_range(num_queries);
+//        iota(ii_range.begin(), ii_range.end(), 0);
+
+        auto loop = [&](const int &a, const int &b)
         {
-            for ( int ii=0; ii<num_queries/2; ++ii )
+            for ( int ii=a; ii<b; ++ii )
             {
                 closest_points.col(ii) = closest_point( query_points.col(ii) );
             }
         };
+        pool.parallelize_loop(0, num_queries, loop);
 
-        auto solve_second_half = [&](int dummy)
-        {
-            for ( int ii=num_queries/2; ii<num_queries; ++ii )
-            {
-                closest_points.col(ii) = closest_point( query_points.col(ii) );
-            }
-        };
+//        for_each(execution::par_unseq,
+//                 ii_range.begin(),
+//                 ii_range.end(),
+//                 [&](auto&& ii)
+//                 {
+//                     closest_points.col(ii) = closest_point( query_points.col(ii) );
+//                 });
 
-        thread t1(solve_first_half, 0);
-        thread t2(solve_second_half, 0);
-
-        t1.join();
-        t2.join();
+//        auto solve_first = [&](int dummy)
+//        {
+//            for ( int ii=0; ii<num_queries/4; ++ii )
+//            {
+//                closest_points.col(ii) = closest_point( query_points.col(ii) );
+//            }
+//        };
+//
+//        auto solve_second = [&](int dummy)
+//        {
+//            for ( int ii=num_queries/4; ii<2*num_queries/4; ++ii )
+//            {
+//                closest_points.col(ii) = closest_point( query_points.col(ii) );
+//            }
+//        };
+//
+//        auto solve_third = [&](int dummy)
+//        {
+//            for ( int ii=2*num_queries/4; ii<3*num_queries/4; ++ii )
+//            {
+//                closest_points.col(ii) = closest_point( query_points.col(ii) );
+//            }
+//        };
+//
+//        auto solve_fourth = [&](int dummy)
+//        {
+//            for ( int ii=3*num_queries/4; ii<num_queries/4; ++ii )
+//            {
+//                closest_points.col(ii) = closest_point( query_points.col(ii) );
+//            }
+//        };
+//
+//        thread t1(solve_first, 0);
+//        thread t2(solve_second, 0);
+//        thread t3(solve_third, 0);
+//        thread t4(solve_fourth, 0);
+//
+//        t1.join();
+//        t2.join();
+//        t3.join();
+//        t4.join();
 
         return closest_points;
     }

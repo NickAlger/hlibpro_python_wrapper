@@ -140,7 +140,7 @@ plt.gca().set_aspect('equal')
 
 # CLOSEST POINT TO MESH TIMING
 
-nquery = int(1e6)
+nquery = int(1e7)
 mesh_h = 1e-2
 
 mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, mesh_h)
@@ -166,6 +166,9 @@ t = time()
 pp_multi = SM.closest_point_vectorized_multithreaded(qq)
 dt_closest_SM_multi = time() - t
 print('nquery=', nquery, ', dt_closest_SM_multi=', dt_closest_SM_multi)
+
+err_multi = np.linalg.norm(pp_multi - pp)
+print('err_multi=', err_multi)
 
 # Without inside mesh pre-check:
 # num_cells= 39478 , dt_build_SM= 7.367134094238281e-05
