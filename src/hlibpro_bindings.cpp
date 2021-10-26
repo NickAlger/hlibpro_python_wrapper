@@ -765,6 +765,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        const Ref<const Array<int, 3, Dynamic>> >())
         .def("closest_point", &SimplexMesh<2>::closest_point)
         .def("closest_point_vectorized", &SimplexMesh<2>::closest_point_vectorized)
+        .def("closest_point_vectorized_multithreaded", &SimplexMesh<2>::closest_point_vectorized_multithreaded)
         .def("point_is_in_mesh", &SimplexMesh<2>::point_is_in_mesh)
         .def("point_is_in_mesh_vectorized", &SimplexMesh<2>::point_is_in_mesh_vectorized)
         .def("index_of_first_simplex_containing_point", &SimplexMesh<2>::index_of_first_simplex_containing_point)

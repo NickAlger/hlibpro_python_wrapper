@@ -4,6 +4,8 @@
 #include <list>
 #include <stdexcept>
 
+#include <thread>
+
 #include <math.h>
 #include <Eigen/Dense>
 
@@ -631,6 +633,37 @@ public:
         {
             closest_points.col(ii) = closest_point( query_points.col(ii) );
         }
+        return closest_points;
+    }
+
+    Matrix<double, K, Dynamic> closest_point_vectorized_multithreaded( const Ref<const Matrix<double, K, Dynamic>> query_points )
+    {
+        int num_queries = query_points.cols();
+        Matrix<double, K, Dynamic> closest_points;
+        closest_points.resize(K, num_queries);
+
+        auto solve_first_half = [&](int dummy)
+        {
+            for ( int ii=0; ii<num_queries/2; ++ii )
+            {
+                closest_points.col(ii) = closest_point( query_points.col(ii) );
+            }
+        };
+
+        auto solve_second_half = [&](int dummy)
+        {
+            for ( int ii=num_queries/2; ii<num_queries; ++ii )
+            {
+                closest_points.col(ii) = closest_point( query_points.col(ii) );
+            }
+        };
+
+        thread t1(solve_first_half, 0);
+        thread t2(solve_second_half, 0);
+
+        t1.join();
+        t2.join();
+
         return closest_points;
     }
 
