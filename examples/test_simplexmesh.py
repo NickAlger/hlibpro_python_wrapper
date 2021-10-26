@@ -1,6 +1,6 @@
 import numpy as np
 import hlibpro_python_wrapper as hpro
-from time import time
+from time import time, sleep
 import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
 import dolfin as dl
@@ -140,7 +140,7 @@ plt.gca().set_aspect('equal')
 
 # CLOSEST POINT TO MESH TIMING
 
-nquery = int(1e7)
+nquery = int(1e5)
 mesh_h = 1e-2
 
 mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, mesh_h)
@@ -162,10 +162,15 @@ pp = SM.closest_point_vectorized(qq)
 dt_closest_SM = time() - t
 print('nquery=', nquery, ', dt_closest_SM=', dt_closest_SM)
 
+SM.set_sleep_duration(10)
+sleep(1) # Wait for change to take effect
+
 t = time()
 pp_multi = SM.closest_point_vectorized_multithreaded(qq)
 dt_closest_SM_multi = time() - t
 print('nquery=', nquery, ', dt_closest_SM_multi=', dt_closest_SM_multi)
+
+SM.reset_sleep_duration_to_default()
 
 err_multi = np.linalg.norm(pp_multi - pp)
 print('err_multi=', err_multi)
@@ -184,6 +189,9 @@ print('err_multi=', err_multi)
 
 # With boundary search
 # nquery= 100000 , dt_closest_SM= 0.1751554012298584
+
+# With multithreading
+# nquery= 100000 , dt_closest_SM_multi= 0.0556492805480957
 
 # EVALUATE FUNCTION AT POINT
 

@@ -6,6 +6,7 @@
 
 #include <thread>
 #include <execution>
+#include <chrono>
 
 #include "thread-pool-master/thread_pool.hpp"
 
@@ -320,11 +321,15 @@ private:
     int num_faces;
     int num_subfaces;
 
+    int default_sleep_duration;
+
 public:
     SimplexMesh( const Ref<const Matrix<double, K,   Dynamic>> input_vertices,
                  const Ref<const Matrix<int   , K+1, Dynamic>> input_cells )
     {
-        // ------------------------    Input checking and copying    ------------------------
+        // ------------------------    Input checking and initialization    ------------------------
+        default_sleep_duration = pool.sleep_duration;
+
         num_vertices = input_vertices.cols();
         num_cells = input_cells.cols();
 
@@ -634,10 +639,17 @@ public:
         int num_queries = query_points.cols();
         Matrix<double, K, Dynamic> closest_points;
         closest_points.resize(K, num_queries);
+
+        auto t1 = std::chrono::high_resolution_clock::now();
         for ( int ii=0; ii<num_queries; ++ii )
         {
             closest_points.col(ii) = closest_point( query_points.col(ii) );
         }
+        auto t2 = std::chrono::high_resolution_clock::now();
+        std::cout << "closest_point_vectorized() took "
+                  << std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()
+                  << " microseconds\n";
+
         return closest_points;
     }
 
@@ -647,9 +659,6 @@ public:
         Matrix<double, K, Dynamic> closest_points;
         closest_points.resize(K, num_queries);
 
-//        vector<int> ii_range(num_queries);
-//        iota(ii_range.begin(), ii_range.end(), 0);
-
         auto loop = [&](const int &a, const int &b)
         {
             for ( int ii=a; ii<b; ++ii )
@@ -657,57 +666,15 @@ public:
                 closest_points.col(ii) = closest_point( query_points.col(ii) );
             }
         };
+
+        auto t1 = std::chrono::high_resolution_clock::now();
+
         pool.parallelize_loop(0, num_queries, loop);
+        auto t2 = std::chrono::high_resolution_clock::now();
 
-//        for_each(execution::par_unseq,
-//                 ii_range.begin(),
-//                 ii_range.end(),
-//                 [&](auto&& ii)
-//                 {
-//                     closest_points.col(ii) = closest_point( query_points.col(ii) );
-//                 });
-
-//        auto solve_first = [&](int dummy)
-//        {
-//            for ( int ii=0; ii<num_queries/4; ++ii )
-//            {
-//                closest_points.col(ii) = closest_point( query_points.col(ii) );
-//            }
-//        };
-//
-//        auto solve_second = [&](int dummy)
-//        {
-//            for ( int ii=num_queries/4; ii<2*num_queries/4; ++ii )
-//            {
-//                closest_points.col(ii) = closest_point( query_points.col(ii) );
-//            }
-//        };
-//
-//        auto solve_third = [&](int dummy)
-//        {
-//            for ( int ii=2*num_queries/4; ii<3*num_queries/4; ++ii )
-//            {
-//                closest_points.col(ii) = closest_point( query_points.col(ii) );
-//            }
-//        };
-//
-//        auto solve_fourth = [&](int dummy)
-//        {
-//            for ( int ii=3*num_queries/4; ii<num_queries/4; ++ii )
-//            {
-//                closest_points.col(ii) = closest_point( query_points.col(ii) );
-//            }
-//        };
-//
-//        thread t1(solve_first, 0);
-//        thread t2(solve_second, 0);
-//        thread t3(solve_third, 0);
-//        thread t4(solve_fourth, 0);
-//
-//        t1.join();
-//        t2.join();
-//        t3.join();
-//        t4.join();
+        std::cout << "closest_point_vectorized_multithreaded() took "
+                  << std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()
+                  << " microseconds\n";
 
         return closest_points;
     }
@@ -771,6 +738,16 @@ public:
             }
         }
         return function_at_points;
+    }
+
+    void set_sleep_duration(int duration_in_microseconds)
+    {
+        pool.sleep_duration = duration_in_microseconds;
+    }
+
+    void reset_sleep_duration_to_default()
+    {
+        pool.sleep_duration = default_sleep_duration;
     }
 
 };
