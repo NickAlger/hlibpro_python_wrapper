@@ -233,16 +233,17 @@ public:
 
     VectorXi all_point_intersections( const Matrix<double, K, 1> & query )
     {
-        int ii_consideration = 0; // <-- This is the "pointer" to the front of the list
-        nodes_under_consideration(ii_consideration) = 0; // <-- This is the "list" of ints.
+        vector<int> nodes_under_consideration;
+        nodes_under_consideration.reserve(100);
+        nodes_under_consideration.push_back(0);
 
-        int jj_selected = 0;
-        selected_nodes(jj_selected) = 0;
+        vector<int> collision_leafs;
+        collision_leafs.reserve(100);
 
-        while ( ii_consideration >= 0 )
+        while ( !nodes_under_consideration.empty() )
         {
-            int current_node_ind =  nodes_under_consideration(ii_consideration);
-            ii_consideration = ii_consideration - 1;
+            int current_node_ind = nodes_under_consideration.back();
+            nodes_under_consideration.pop_back();
 
             AABBNode<K> & current_node = nodes[current_node_ind];
             Box<K> & B = current_node.box;
@@ -262,34 +263,49 @@ public:
             {
                 if ( B.index >= 0 ) // if current box is leaf
                 {
-                    selected_nodes[jj_selected] = B.index;
-                    jj_selected = jj_selected + 1;
+                    collision_leafs.push_back(B.index);
                 }
                 else // current box is internal node
                 {
-                    nodes_under_consideration(ii_consideration+1) = current_node.right;
-                    nodes_under_consideration(ii_consideration+2) = current_node.left;
-                    ii_consideration = ii_consideration + 2;
+                    nodes_under_consideration.push_back(current_node.right);
+                    nodes_under_consideration.push_back(current_node.left);
                 }
             }
         }
-        return selected_nodes.head(jj_selected);
+
+        VectorXi collision_leafs_eigen(collision_leafs.size());
+        for ( int ii=0; ii<collision_leafs.size(); ++ii )
+        {
+            collision_leafs_eigen(ii) = collision_leafs[ii];
+        }
+        return collision_leafs_eigen;
     }
 
     VectorXi all_ball_intersections( const Matrix<double, K, 1> & center, double radius )
     {
         double radius_squared = radius*radius;
 
-        int ii_consideration = 0; // <-- This is the "pointer" to the front of the list
-        nodes_under_consideration(ii_consideration) = 0; // <-- This is the "list" of ints.
+        vector<int> nodes_under_consideration;
+        nodes_under_consideration.reserve(100);
+        nodes_under_consideration.push_back(0);
 
-        int jj_selected = 0;
-        selected_nodes(jj_selected) = 0;
+        vector<int> collision_leafs;
+        collision_leafs.reserve(100);
 
-        while ( ii_consideration >= 0 )
+//        int ii_consideration = 0; // <-- This is the "pointer" to the front of the list
+//        nodes_under_consideration(ii_consideration) = 0; // <-- This is the "list" of ints.
+//
+//        int jj_selected = 0;
+//        selected_nodes(jj_selected) = 0;
+
+//        while ( ii_consideration >= 0 )
+//        {
+//            int current_node_ind =  nodes_under_consideration(ii_consideration);
+//            ii_consideration = ii_consideration - 1;
+        while ( !nodes_under_consideration.empty() )
         {
-            int current_node_ind =  nodes_under_consideration(ii_consideration);
-            ii_consideration = ii_consideration - 1;
+            int current_node_ind = nodes_under_consideration.back();
+            nodes_under_consideration.pop_back();
 
             AABBNode<K> & current_node = nodes[current_node_ind];
             Box<K> & B = current_node.box;
@@ -319,18 +335,28 @@ public:
             {
                 if ( B.index >= 0 ) // if current box is leaf
                 {
-                    selected_nodes[jj_selected] = B.index;
-                    jj_selected = jj_selected + 1;
+                    collision_leafs.push_back(B.index);
+//                    selected_nodes[jj_selected] = B.index;
+//                    jj_selected = jj_selected + 1;
                 }
                 else // current box is internal node
                 {
-                    nodes_under_consideration(ii_consideration+1) = current_node.right;
-                    nodes_under_consideration(ii_consideration+2) = current_node.left;
-                    ii_consideration = ii_consideration + 2;
+                    nodes_under_consideration.push_back(current_node.right);
+                    nodes_under_consideration.push_back(current_node.left);
+//                    nodes_under_consideration(ii_consideration+1) = current_node.right;
+//                    nodes_under_consideration(ii_consideration+2) = current_node.left;
+//                    ii_consideration = ii_consideration + 2;
                 }
             }
         }
-        return selected_nodes.head(jj_selected);
+
+        VectorXi collision_leafs_eigen(collision_leafs.size());
+        for ( int ii=0; ii<collision_leafs.size(); ++ii )
+        {
+            collision_leafs_eigen(ii) = collision_leafs[ii];
+        }
+        return collision_leafs_eigen;
+//        return selected_nodes.head(jj_selected);
     }
 
 vector<VectorXi> all_ball_intersections_vectorized( const Ref<const Matrix<double, K, Dynamic>> centers,

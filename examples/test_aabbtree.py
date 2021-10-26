@@ -198,3 +198,23 @@ print('num_boxes=', num_boxes, ', num_balls=', num_balls, ', dt_ball=', dt_ball)
 # VectorXi for intersections, radius squared
 # num_boxes= 1000000 , num_balls= 100000 , dt_ball= 0.4457828998565674
 
+
+# BEFORE REMOVING nodes_under_consideration:
+# all_good_points_are_in_their_boxes= True
+# bad_points_are_the_points_outside_all_boxes= True
+# all_good_points_are_in_their_boxes= True
+# bad_points_are_the_points_outside_all_boxes= True
+# num_boxes= 100000 , num_pts= 1000000
+# dt_build= 0.12497305870056152
+# dt_first_point_intersection_vectorized= 0.5357162952423096
+# num_boxes= 100000 , num_balls= 1000000 , dt_ball= 3.665412664413452
+
+# AFTER:
+# all_good_points_are_in_their_boxes= True
+# bad_points_are_the_points_outside_all_boxes= True
+# all_good_points_are_in_their_boxes= True
+# bad_points_are_the_points_outside_all_boxes= True
+# num_boxes= 100000 , num_pts= 1000000
+# dt_build= 0.12599444389343262
+# dt_first_point_intersection_vectorized= 0.5189225673675537
+# num_boxes= 100000 , num_balls= 1000000 , dt_ball= 3.6354219913482666
