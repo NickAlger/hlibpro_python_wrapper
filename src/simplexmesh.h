@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <list>
+#include <stdexcept>
 
 #include <math.h>
 #include <Eigen/Dense>
@@ -316,11 +317,33 @@ public:
     SimplexMesh( const Ref<const Matrix<double, K,   Dynamic>> input_vertices,
                  const Ref<const Matrix<int   , K+1, Dynamic>> input_cells )
     {
+        // ------------------------    Input checking and copying    ------------------------
+        num_vertices = input_vertices.cols();
+        num_cells = input_cells.cols();
+
+        if ( num_vertices < 1 )
+        {
+            throw std::invalid_argument( "no vertices provided" );
+        }
+
+        if ( num_cells < 1 )
+        {
+            throw std::invalid_argument( "no cells provided" );
+        }
+
+        if ( input_cells.minCoeff() < 0 )
+        {
+            throw std::invalid_argument( "at least one vertex index in input_cells is negative" );
+        }
+
+        if ( input_cells.maxCoeff() >= num_vertices )
+        {
+            throw std::invalid_argument( "at least one vertex index in input_cells >= num_vertices" );
+        }
+
         vertices = input_vertices; // copy
         cells    = input_cells;    // copy
 
-        num_vertices = input_vertices.cols();
-        num_cells = input_cells.cols();
 
         // ------------------------    CELLS    ------------------------
         // Generate cell simplices and transform operators
