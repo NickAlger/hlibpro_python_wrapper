@@ -88,8 +88,6 @@ template <int K>
 class AABBTree {
 private:
     vector< AABBNode<K> > nodes; // All nodes in the tree
-    VectorXi nodes_under_consideration;
-    VectorXi selected_nodes;
 
     // creates subtree and returns the index for root of subtree
     int make_subtree( int start, int stop,
@@ -167,71 +165,12 @@ public:
         }
 
         int num_boxes = 2*num_leaf_boxes - 1; // full binary tree with n leafs has 2n-1 nodes
-        nodes_under_consideration.resize(num_boxes, 1);
-        selected_nodes.resize(num_boxes, 1);
         nodes.reserve(num_boxes);
         int counter = 0;
         int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
     }
 
-    int first_point_intersection( const Matrix<double, K, 1> & query )
-    {
-        int first_intersection = -1;
-
-        // Normal iterative traversal of a tree uses a list.
-        // However, I found that std::list is crazy slow.
-        // Here I use a pre-allocated vector<int> to simulate a list. It is 2-3x faster.
-        int ii = 0; // <-- This is the "pointer" to the front of the list
-        nodes_under_consideration(ii) = 0; // <-- This is the "list" of ints.
-        while ( ii >= 0 )
-        {
-            int current_node_ind =  nodes_under_consideration(ii);
-            ii = ii - 1;
-
-            AABBNode<K> & current_node = nodes[current_node_ind];
-            Box<K> & B = current_node.box;
-
-            // Determine if query point is in current box
-            bool query_is_in_box = true;
-            for ( int kk=0; kk<K; ++kk)
-            {
-                if ( (query(kk) < B.min(kk)) || (B.max(kk) < query(kk)) )
-                {
-                    query_is_in_box = false;
-                    break;
-                }
-            }
-
-            if ( query_is_in_box )
-            {
-                if ( B.index >= 0 ) // if current box is leaf
-                {
-                    first_intersection = B.index;
-                    break;
-                }
-                else // current box is internal node
-                {
-                    nodes_under_consideration(ii+1) = current_node.right;
-                    nodes_under_consideration(ii+2) = current_node.left;
-                    ii = ii + 2;
-                }
-            }
-        }
-        return first_intersection;
-    }
-
-    VectorXi first_point_intersection_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_array )
-    {
-        int num_querys = query_array.cols();
-        VectorXi first_intersection_inds(num_querys);
-        for (int ii=0; ii<num_querys; ++ii)
-        {
-            first_intersection_inds(ii) = first_point_intersection( query_array.col(ii) );
-        }
-        return first_intersection_inds;
-    }
-
-    VectorXi all_point_intersections( const Matrix<double, K, 1> & query )
+    VectorXi point_collisions( const Matrix<double, K, 1> & query )
     {
         vector<int> nodes_under_consideration;
         nodes_under_consideration.reserve(100);
@@ -281,7 +220,7 @@ public:
         return collision_leafs_eigen;
     }
 
-    VectorXi all_ball_intersections( const Matrix<double, K, 1> & center, double radius )
+    VectorXi ball_collisions( const Matrix<double, K, 1> & center, double radius )
     {
         double radius_squared = radius*radius;
 
@@ -292,16 +231,6 @@ public:
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
-//        int ii_consideration = 0; // <-- This is the "pointer" to the front of the list
-//        nodes_under_consideration(ii_consideration) = 0; // <-- This is the "list" of ints.
-//
-//        int jj_selected = 0;
-//        selected_nodes(jj_selected) = 0;
-
-//        while ( ii_consideration >= 0 )
-//        {
-//            int current_node_ind =  nodes_under_consideration(ii_consideration);
-//            ii_consideration = ii_consideration - 1;
         while ( !nodes_under_consideration.empty() )
         {
             int current_node_ind = nodes_under_consideration.back();
@@ -336,16 +265,11 @@ public:
                 if ( B.index >= 0 ) // if current box is leaf
                 {
                     collision_leafs.push_back(B.index);
-//                    selected_nodes[jj_selected] = B.index;
-//                    jj_selected = jj_selected + 1;
                 }
                 else // current box is internal node
                 {
                     nodes_under_consideration.push_back(current_node.right);
                     nodes_under_consideration.push_back(current_node.left);
-//                    nodes_under_consideration(ii_consideration+1) = current_node.right;
-//                    nodes_under_consideration(ii_consideration+2) = current_node.left;
-//                    ii_consideration = ii_consideration + 2;
                 }
             }
         }
@@ -356,19 +280,29 @@ public:
             collision_leafs_eigen(ii) = collision_leafs[ii];
         }
         return collision_leafs_eigen;
-//        return selected_nodes.head(jj_selected);
     }
 
-vector<VectorXi> all_ball_intersections_vectorized( const Ref<const Matrix<double, K, Dynamic>> centers,
-                                                    const Ref<const VectorXd>                   radii )
+    vector<VectorXi> point_collisions_vectorized( const Matrix<double, K, Dynamic> & query_points)
+    {
+        int num_points = query_points.cols();
+        vector<VectorXi> all_collisions(num_points);
+        for ( int ii=0; ii<num_points; ++ii )
+        {
+            all_collisions[ii] = point_collisions( query_points.col(ii) );
+        }
+        return all_collisions;
+    }
+
+    vector<VectorXi> ball_collisions_vectorized( const Ref<const Matrix<double, K, Dynamic>> centers,
+                                                 const Ref<const VectorXd>                   radii )
     {
         int num_balls = centers.cols();
-        vector<VectorXi> all_intersections(num_balls);
+        vector<VectorXi> all_collisions(num_balls);
         for ( int ii=0; ii<num_balls; ++ii )
         {
-            all_intersections[ii] = all_ball_intersections( centers.col(ii), radii(ii) );
+            all_collisions[ii] = ball_collisions( centers.col(ii), radii(ii) );
         }
-        return all_intersections;
+        return all_collisions;
     }
 
 };

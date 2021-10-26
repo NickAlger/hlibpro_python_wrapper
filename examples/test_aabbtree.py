@@ -19,10 +19,10 @@ b_maxes0 = np.array(np.random.randn(K, num_boxes), order='F')
 AABB = hcpp.AABBTree2D(b_mins0, b_maxes0)
 
 q = np.random.randn(K)
-ind = AABB.first_point_intersection(q)
+inds = AABB.point_collisions(q)
 
 qq = np.array(np.random.randn(K, num_boxes), order='F')
-inds = AABB.first_point_intersection_vectorized(qq)
+many_inds = AABB.point_collisions_vectorized(qq)
 
 # Real boxes
 
@@ -35,25 +35,34 @@ b_maxes = np.array(np.max(bb0, axis=2), order='F')
 
 AABB = hcpp.AABBTree2D(b_mins, b_maxes)
 qq = 2.5 * np.array(np.random.randn(K, num_pts), order='F')
-box_inds = AABB.first_point_intersection_vectorized(qq)
+all_box_inds = AABB.point_collisions_vectorized(qq)
 
-good_points = (box_inds >= 0)
-bad_points = np.logical_not(good_points)
+all_points_are_in_their_boxes = True
+for kk in range(num_pts):
+    qk = qq[:,kk]
+    box_inds = all_box_inds[kk]
+    qk_is_in_box = np.logical_and(np.all(b_mins[:, box_inds] <= qk[:, None]),
+                                  np.all(qk[:, None] <= b_maxes[:, box_inds]))
+    if not qk_is_in_box:
+        all_points_are_in_their_boxes = False
+        print('qk_is_in_box is false for kk=', kk)
 
-good_qq = qq[:, good_points]
-S1 = b_mins[:, box_inds[good_points]] <= good_qq
-S2 = good_qq <= b_maxes[:, box_inds[good_points]]
-good_points_that_are_in_their_box = np.logical_and(S1, S2)
-all_good_points_are_in_their_boxes = np.all(good_points_that_are_in_their_box)
-print('all_good_points_are_in_their_boxes=', all_good_points_are_in_their_boxes)
+print('all_points_are_in_their_boxes=', all_points_are_in_their_boxes)
 
 
-points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[:, None, :] <= qq[:, :, None],
-                                                                   qq[:, :, None] <= b_maxes[:, None, :]), axis=0), axis=1)
+bad_boxes_do_not_contain_points = True
+for kk in range(num_pts):
+    qk = qq[:,kk]
+    box_inds = all_box_inds[kk]
+    bad_box_inds = np.setdiff1d(np.arange(num_boxes, dtype=int), box_inds)
+    qk_is_in_bad_box = np.any(np.logical_and(np.all(b_mins[:, bad_box_inds] <= qk[:, None], axis=0),
+                                             np.all(qk[:, None] <= b_maxes[:, bad_box_inds], axis=0)))
+    if qk_is_in_bad_box:
+        bad_boxes_do_not_contain_points = False
+        print('qk_is_in_bad_box for kk=', kk)
 
-points_that_are_not_in_any_box = np.logical_not(points_that_are_in_at_least_one_box)
-bad_points_are_the_points_outside_all_boxes = np.all(points_that_are_not_in_any_box == bad_points)
-print('bad_points_are_the_points_outside_all_boxes=', bad_points_are_the_points_outside_all_boxes)
+print('bad_boxes_do_not_contain_points=', bad_boxes_do_not_contain_points)
+
 
 # More realistic setting, check correctness
 
@@ -72,25 +81,33 @@ qq = np.array(np.random.randn(K, num_pts), order='F')
 
 AABB = hcpp.AABBTree2D(b_mins, b_maxes)
 
-box_inds = AABB.first_point_intersection_vectorized(qq)
+all_box_inds = AABB.point_collisions_vectorized(qq)
+all_points_are_in_their_boxes = True
+for kk in range(num_pts):
+    qk = qq[:,kk]
+    box_inds = all_box_inds[kk]
+    qk_is_in_box = np.logical_and(np.all(b_mins[:, box_inds] <= qk[:, None]),
+                                  np.all(qk[:, None] <= b_maxes[:, box_inds]))
+    if not qk_is_in_box:
+        all_points_are_in_their_boxes = False
+        print('qk_is_in_box is false for kk=', kk)
 
-good_points = (box_inds >= 0)
-bad_points = np.logical_not(good_points)
-
-good_qq = qq[:, good_points]
-S1 = b_mins[:, box_inds[good_points]] <= good_qq
-S2 = good_qq <= b_maxes[:, box_inds[good_points]]
-good_points_that_are_in_their_box = np.logical_and(S1, S2)
-all_good_points_are_in_their_boxes = np.all(good_points_that_are_in_their_box)
-print('all_good_points_are_in_their_boxes=', all_good_points_are_in_their_boxes)
+print('all_points_are_in_their_boxes=', all_points_are_in_their_boxes)
 
 
-points_that_are_in_at_least_one_box = np.any(np.all(np.logical_and(b_mins[:, None, :] <= qq[:, :, None],
-                                                                   qq[:, :, None] <= b_maxes[:, None, :]), axis=0), axis=1)
+bad_boxes_do_not_contain_points = True
+for kk in range(num_pts):
+    qk = qq[:,kk]
+    box_inds = all_box_inds[kk]
+    bad_box_inds = np.setdiff1d(np.arange(num_boxes, dtype=int), box_inds)
+    qk_is_in_bad_box = np.any(np.logical_and(np.all(b_mins[:, bad_box_inds] <= qk[:, None], axis=0),
+                                             np.all(qk[:, None] <= b_maxes[:, bad_box_inds], axis=0)))
+    if qk_is_in_bad_box:
+        bad_boxes_do_not_contain_points = False
+        print('qk_is_in_bad_box for kk=', kk)
 
-points_that_are_not_in_any_box = np.logical_not(points_that_are_in_at_least_one_box)
-bad_points_are_the_points_outside_all_boxes = np.all(points_that_are_not_in_any_box == bad_points)
-print('bad_points_are_the_points_outside_all_boxes=', bad_points_are_the_points_outside_all_boxes)
+print('bad_boxes_do_not_contain_points=', bad_boxes_do_not_contain_points)
+
 
 # More realistic setting, timing
 
@@ -115,9 +132,9 @@ dt_build = time() - t
 print('dt_build=', dt_build)
 
 t = time()
-box_inds = AABB.first_point_intersection_vectorized(qq)
-dt_first_point_intersection_vectorized = time() - t
-print('dt_first_point_intersection_vectorized=', dt_first_point_intersection_vectorized)
+all_box_inds = AABB.point_collisions_vectorized(qq)
+dt_point_collisions_vectorized = time() - t
+print('dt_point_collisions_vectorized=', dt_point_collisions_vectorized)
 
 # Recursive:
 # num_boxes= 100000 , num_pts= 10000000
@@ -129,6 +146,10 @@ print('dt_first_point_intersection_vectorized=', dt_first_point_intersection_vec
 # dt_build= 0.13932013511657715
 # dt_first_point_intersection_vectorized= 5.261875629425049
 
+# ALL collisions (not just first one)
+# num_boxes= 100000 , num_pts= 10000000
+# dt_build= 0.1232149600982666
+# dt_point_collisions_vectorized= 11.313974857330322
 
 # Ball query
 
@@ -147,7 +168,7 @@ AABB = hcpp.AABBTree2D(b_mins, b_maxes)
 c = np.random.randn(K)
 r = 8.0 * box_h * np.random.randn()
 
-intersections = AABB.all_ball_intersections(c, r)
+intersections = AABB.ball_collisions(c, r)
 
 plt.figure()
 for k in range(num_boxes):
@@ -185,7 +206,7 @@ ball_centers = np.array(np.random.randn(K, num_balls), order='F')
 ball_radii = np.array(8.0 * box_h * np.random.randn(num_balls), order='F')
 
 t = time()
-all_intersections = AABB.all_ball_intersections_vectorized(ball_centers, ball_radii)
+all_collisions = AABB.ball_collisions_vectorized(ball_centers, ball_radii)
 dt_ball = time() - t
 print('num_boxes=', num_boxes, ', num_balls=', num_balls, ', dt_ball=', dt_ball)
 

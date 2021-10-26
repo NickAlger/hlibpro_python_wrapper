@@ -583,7 +583,7 @@ public:
             // 1. Find a set of candidate boundary faces, one of which contains the closest point
             pair<KDVector, double> kd_result = face_kdtree.nearest_neighbor( query );
             double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
-            VectorXi face_inds = face_aabbtree.all_ball_intersections( query, dist_estimate );
+            VectorXi face_inds = face_aabbtree.ball_collisions( query, dist_estimate );
 
             // 2. Determine unique set of boundary entities to visit
             vector<int> entities;
@@ -642,7 +642,7 @@ public:
 
     inline int index_of_first_simplex_containing_point( const KDVector query )
     {
-        VectorXi candidate_inds =  cell_aabbtree.all_point_intersections( query );
+        VectorXi candidate_inds =  cell_aabbtree.point_collisions( query );
         int num_candidates = candidate_inds.size();
         int ind = -1;
         for ( int ii=0; ii<num_candidates; ++ii )
@@ -671,7 +671,7 @@ public:
 
         for ( int ii=0; ii<num_pts; ++ii ) // for each point
         {
-            VectorXi candidate_inds =  cell_aabbtree.all_point_intersections( points.col(ii) );
+            VectorXi candidate_inds =  cell_aabbtree.point_collisions( points.col(ii) );
             int num_candidates = candidate_inds.size();
             for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
             {

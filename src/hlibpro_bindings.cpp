@@ -755,10 +755,10 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     py::class_<AABBTree<2>>(m, "AABBTree2D")
         .def(py::init< const Ref<const Array<double, 2, Dynamic>>,
                        const Ref<const Array<double, 2, Dynamic>> >())
-        .def("first_point_intersection", &AABBTree<2>::first_point_intersection)
-        .def("first_point_intersection_vectorized", &AABBTree<2>::first_point_intersection_vectorized)
-        .def("all_ball_intersections", &AABBTree<2>::all_ball_intersections)
-        .def("all_ball_intersections_vectorized", &AABBTree<2>::all_ball_intersections_vectorized);
+        .def("point_collisions", &AABBTree<2>::point_collisions)
+        .def("point_collisions_vectorized", &AABBTree<2>::point_collisions_vectorized)
+        .def("ball_collisions", &AABBTree<2>::ball_collisions)
+        .def("ball_collisions_vectorized", &AABBTree<2>::ball_collisions_vectorized);
 
     py::class_<SimplexMesh<2>>(m, "SimplexMesh2D")
         .def(py::init< const Ref<const Array<double, 2, Dynamic>>,
@@ -771,7 +771,6 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("evaluate_functions_at_points", &SimplexMesh<2>::evaluate_functions_at_points);
 
     m.def("projected_affine_coordinates", &projected_affine_coordinates);
-//    m.def("closest_point_in_simplex", &closest_point_in_simplex);
     m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);
     m.def("powerset", &powerset);
 }
