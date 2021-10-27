@@ -274,3 +274,59 @@ print('err_eval_function=', err_eval_function)
 # With multithreading:
 # V.dim()= 20054 , nquery= 100000 , num_functions= 20 , dt_eval= 0.025378704071044922 dt_eval_fenics= 24.46290874481201
 
+
+# EVALUATE FUNCTION AT POINT USING REFLECTION
+
+mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 1e-2)
+V = dl.FunctionSpace(mesh, 'CG', 1)
+
+mesh_coords = mesh.coordinates()
+dof_coords = V.tabulate_dof_coordinates()
+dof2vertex = dl.dof_to_vertex_map(V)
+vertex2dof = dl.vertex_to_dof_map(V)
+
+vertices = np.array(mesh.coordinates().T, order='F')
+cells = np.array(mesh.cells().T, order='F')
+SM = hcpp.SimplexMesh2D(vertices, cells)
+
+nquery = int(1e5)
+nx = 100
+ny = 100
+xmin = -1.25
+xmax = 1.25
+ymin = -1.25
+ymax = 1.25
+X, Y = np.meshgrid(np.linspace(xmin, xmax, nx), np.linspace(ymin, ymax, ny))
+pp = np.array([X.reshape(-1), Y.reshape(-1)], order='F')
+
+uu = list()
+uu.append(dl.interpolate(dl.Expression('sin(x[0])', degree=3), V))
+uu.append(dl.interpolate(dl.Expression('cos(2*x[1] + x[0])', degree=3), V))
+uu.append(dl.interpolate(dl.Expression('sin(pow(x[0],2) + pow(x[1],2))', degree=3), V))
+uu.append(dl.interpolate(dl.Expression('sin(pow((x[0]-0.2)*2,2) + pow((x[1]-0.5)*3,2))', degree=3), V))
+uu.append(dl.interpolate(dl.Expression('sin(8*x[0]) * cos(9*x[1])', degree=3), V))
+
+num_functions = len(uu)
+
+UU = np.array([u.vector()[vertex2dof] for u in uu], order='F')
+
+t = time()
+Z = SM.evaluate_functions_at_points_with_reflection(UU, pp).reshape((num_functions, nx, ny))
+dt_eval_reflection = time() - t
+print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval_reflection=', dt_eval_reflection)
+
+for ii in range(num_functions):
+    plt.figure()
+    plt.subplot(1,2,1)
+    dl.plot(uu[ii])
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)
+    plt.gca().set_aspect('equal')
+    plt.title('original')
+
+    plt.subplot(1,2,2)
+    plt.pcolor(X, Y, Z[ii, :, :], shading='auto')
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)
+    plt.gca().set_aspect('equal')
+    plt.title('with reflection')
