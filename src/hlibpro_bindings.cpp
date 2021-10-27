@@ -765,13 +765,15 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        const Ref<const Array<int, 3, Dynamic>> >())
         .def("closest_point", &SimplexMesh<2>::closest_point)
         .def("closest_point_vectorized", &SimplexMesh<2>::closest_point_vectorized)
-        .def("closest_point_vectorized_multithreaded", &SimplexMesh<2>::closest_point_vectorized_multithreaded)
+//        .def("closest_point_vectorized_multithreaded", &SimplexMesh<2>::closest_point_vectorized_multithreaded)
         .def("point_is_in_mesh", &SimplexMesh<2>::point_is_in_mesh)
         .def("point_is_in_mesh_vectorized", &SimplexMesh<2>::point_is_in_mesh_vectorized)
         .def("index_of_first_simplex_containing_point", &SimplexMesh<2>::index_of_first_simplex_containing_point)
         .def("evaluate_functions_at_points", &SimplexMesh<2>::evaluate_functions_at_points)
         .def("set_sleep_duration", &SimplexMesh<2>::set_sleep_duration)
         .def("reset_sleep_duration_to_default", &SimplexMesh<2>::reset_sleep_duration_to_default);
+//        .def("set_num_parallel_blocks", &SimplexMesh<2>::set_num_parallel_blocks)
+//        .def("reset_num_parallel_blocks_to_default", &SimplexMesh<2>::reset_num_parallel_blocks_to_default);
 
     m.def("projected_affine_coordinates", &projected_affine_coordinates);
     m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);

@@ -140,7 +140,7 @@ plt.gca().set_aspect('equal')
 
 # CLOSEST POINT TO MESH TIMING
 
-nquery = int(1e6)
+nquery = int(1e5)
 mesh_h = 1e-2
 
 mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, mesh_h)
@@ -157,23 +157,23 @@ qq = 0.7*np.array(np.random.randn(2, nquery), order='F')
 fraction_outside_mesh = np.sum(np.linalg.norm(qq, axis=0) >= 1) / nquery
 print('fraction_outside_mesh=', fraction_outside_mesh)
 
+SM.set_sleep_duration(10)
+sleep(1) # Wait for change to take effect
+
 t = time()
 pp = SM.closest_point_vectorized(qq)
 dt_closest_SM = time() - t
 print('nquery=', nquery, ', dt_closest_SM=', dt_closest_SM)
 
-SM.set_sleep_duration(10)
-sleep(1) # Wait for change to take effect
-
-t = time()
-pp_multi = SM.closest_point_vectorized_multithreaded(qq)
-dt_closest_SM_multi = time() - t
-print('nquery=', nquery, ', dt_closest_SM_multi=', dt_closest_SM_multi)
-
 SM.reset_sleep_duration_to_default()
 
-err_multi = np.linalg.norm(pp_multi - pp)
-print('err_multi=', err_multi)
+# t = time()
+# pp_multi = SM.closest_point_vectorized_multithreaded(qq)
+# dt_closest_SM_multi = time() - t
+# print('nquery=', nquery, ', dt_closest_SM_multi=', dt_closest_SM_multi)
+#
+# err_multi = np.linalg.norm(pp_multi - pp)
+# print('err_multi=', err_multi)
 
 # Without inside mesh pre-check:
 # num_cells= 39478 , dt_build_SM= 7.367134094238281e-05
@@ -253,7 +253,7 @@ UU = np.array([u.vector()[vertex2dof] for u in uu], order='F')
 t = time()
 upp = SM.evaluate_functions_at_points(UU, pp)
 dt_eval = time() - t
-# print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval=', dt_eval)
+print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval=', dt_eval)
 
 t = time()
 upp_true = np.zeros((num_functions, nquery))
@@ -267,3 +267,10 @@ print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_function
 
 err_eval_function = np.linalg.norm(upp - upp_true) / np.linalg.norm(upp_true)
 print('err_eval_function=', err_eval_function)
+
+# No multithreading:
+# V.dim()= 20054 , nquery= 100000 , num_functions= 20 , dt_eval= 0.10272383689880371 dt_eval_fenics= 23.443379878997803
+
+# With multithreading:
+# V.dim()= 20054 , nquery= 100000 , num_functions= 20 , dt_eval= 0.025378704071044922 dt_eval_fenics= 24.46290874481201
+

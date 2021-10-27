@@ -328,9 +328,7 @@ public:
     SimplexMesh( const Ref<const Matrix<double, K,   Dynamic>> input_vertices,
                  const Ref<const Matrix<int   , K+1, Dynamic>> input_cells )
     {
-        // ------------------------    Input checking and initialization    ------------------------
-        default_sleep_duration = pool.sleep_duration;
-
+        // ------------------------    Input checking and copying    ------------------------
         num_vertices = input_vertices.cols();
         num_cells = input_cells.cols();
 
@@ -356,6 +354,10 @@ public:
 
         vertices = input_vertices; // copy
         cells    = input_cells;    // copy
+
+
+        // ------------------------    Multithreading stuff    ------------------------
+        default_sleep_duration = pool.sleep_duration;
 
 
         // ------------------------    CELLS    ------------------------
@@ -641,29 +643,6 @@ public:
         Matrix<double, K, Dynamic> closest_points;
         closest_points.resize(K, num_queries);
 
-//        vector<int> geometrically_ordered_inds = geometric_sort(query_points);
-
-        auto t1 = std::chrono::high_resolution_clock::now();
-
-//        for ( int ii : geometrically_ordered_inds )
-        for ( int ii=0; ii<num_queries; ++ii )
-        {
-            closest_points.col(ii) = closest_point( query_points.col(ii) );
-        }
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::cout << "closest_point_vectorized() took "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()
-                  << " microseconds\n";
-
-        return closest_points;
-    }
-
-    Matrix<double, K, Dynamic> closest_point_vectorized_multithreaded( const Ref<const Matrix<double, K, Dynamic>> query_points )
-    {
-        int num_queries = query_points.cols();
-        Matrix<double, K, Dynamic> closest_points;
-        closest_points.resize(K, num_queries);
-
         auto loop = [&](const int &a, const int &b)
         {
             for ( int ii=a; ii<b; ++ii )
@@ -672,14 +651,7 @@ public:
             }
         };
 
-        auto t1 = std::chrono::high_resolution_clock::now();
-
         pool.parallelize_loop(0, num_queries, loop);
-        auto t2 = std::chrono::high_resolution_clock::now();
-
-        std::cout << "closest_point_vectorized_multithreaded() took "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(t2-t1).count()
-                  << " microseconds\n";
 
         return closest_points;
     }
@@ -719,29 +691,58 @@ public:
         function_at_points.resize(num_functions, num_pts);
         function_at_points.setZero();
 
-        for ( int ii=0; ii<num_pts; ++ii ) // for each point
+        auto loop = [&](const int & start, const int & stop)
         {
-            VectorXi candidate_inds =  cell_aabbtree.point_collisions( points.col(ii) );
-            int num_candidates = candidate_inds.size();
-            for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
+            for ( int ii=start; ii<stop; ++ii )
             {
-                int simplex_ind = candidate_inds(jj);
-                Simplex & S = cell_simplices[simplex_ind];
-                Matrix<double, K+1, 1> affine_coords = S.A * points.col(ii) + S.b;
-                bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-                if ( point_is_in_simplex ) // point is in simplex
+                VectorXi candidate_inds =  cell_aabbtree.point_collisions( points.col(ii) );
+                int num_candidates = candidate_inds.size();
+                for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
                 {
-                    for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+                    int simplex_ind = candidate_inds(jj);
+                    Simplex & S = cell_simplices[simplex_ind];
+                    Matrix<double, K+1, 1> affine_coords = S.A * points.col(ii) + S.b;
+                    bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
+                    if ( point_is_in_simplex ) // point is in simplex
                     {
-                        for ( int ll=0; ll<num_functions; ++ll ) // for each function
+                        for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
                         {
-                            function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
+                            for ( int ll=0; ll<num_functions; ++ll ) // for each function
+                            {
+                                function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
+                            }
                         }
+                        break;
                     }
-                    break;
                 }
             }
-        }
+        };
+
+        pool.parallelize_loop(0, num_pts, loop);
+//
+//        for ( int ii=0; ii<num_pts; ++ii ) // for each point
+//        {
+//            VectorXi candidate_inds =  cell_aabbtree.point_collisions( points.col(ii) );
+//            int num_candidates = candidate_inds.size();
+//            for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
+//            {
+//                int simplex_ind = candidate_inds(jj);
+//                Simplex & S = cell_simplices[simplex_ind];
+//                Matrix<double, K+1, 1> affine_coords = S.A * points.col(ii) + S.b;
+//                bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
+//                if ( point_is_in_simplex ) // point is in simplex
+//                {
+//                    for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+//                    {
+//                        for ( int ll=0; ll<num_functions; ++ll ) // for each function
+//                        {
+//                            function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
+//                        }
+//                    }
+//                    break;
+//                }
+//            }
+//        }
         return function_at_points;
     }
 
