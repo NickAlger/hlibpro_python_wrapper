@@ -750,57 +750,27 @@ public:
 
         auto loop = [&](const int & start, const int & stop)
         {
+            ind_and_coords IC;
             for ( int ii=start; ii<stop; ++ii )
             {
-                VectorXi candidate_inds =  cell_aabbtree.point_collisions( points.col(ii) );
-                int num_candidates = candidate_inds.size();
+                KDVector point = points.col(ii);
+                get_simplex_ind_and_affine_coordinates_of_point( point, IC );
 
-                bool point_is_outside_mesh = true;
-                for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
+                if ( IC.simplex_ind < 0 ) // if point is outside mesh
                 {
-                    int simplex_ind = candidate_inds(jj);
-                    Simplex & S = cell_simplices[simplex_ind];
-                    Matrix<double, K+1, 1> affine_coords = S.A * points.col(ii) + S.b;
-                    bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-                    if ( point_is_in_simplex ) // point is in simplex
-                    {
-                        for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
-                        {
-                            for ( int ll=0; ll<num_functions; ++ll ) // for each function
-                            {
-                                function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
-                            }
-                        }
-                        point_is_outside_mesh = false;
-                        break;
-                    }
+                    point = 2.0 * closest_point( point ) - point; // reflect point across boundary
+                    get_simplex_ind_and_affine_coordinates_of_point( point, IC );
                 }
 
-                if ( point_is_outside_mesh )
+                if ( IC.simplex_ind >= 0 ) // if point is inside mesh
                 {
-                    KDVector reflected_point = 2.0 * closest_point( points.col(ii) ) - points.col(ii);
-                    VectorXi reflected_candidate_inds =  cell_aabbtree.point_collisions( reflected_point );
-                    int num_candidates_reflected = reflected_candidate_inds.size();
-
-                    for ( int jj=0; jj<num_candidates_reflected; ++jj ) // for each candidate simplex that the point might be in
+                    for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
                     {
-                        int simplex_ind = reflected_candidate_inds(jj);
-                        Simplex & S = cell_simplices[simplex_ind];
-                        Matrix<double, K+1, 1> affine_coords = S.A * reflected_point + S.b;
-                        bool reflected_point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-                        if ( reflected_point_is_in_simplex )
+                        for ( int ll=0; ll<num_functions; ++ll ) // for each function
                         {
-                            for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
-                            {
-                                for ( int ll=0; ll<num_functions; ++ll ) // for each function
-                                {
-                                    function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
-                                }
-                            }
-                            break;
+                            function_at_points(ll, ii) += IC.affine_coords(kk) * functions_at_vertices(ll, cells(kk, IC.simplex_ind));
                         }
                     }
-
                 }
             }
         };
