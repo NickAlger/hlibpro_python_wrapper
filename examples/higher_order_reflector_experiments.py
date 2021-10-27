@@ -2,10 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # x0 = 0.0
-x0 = 0.25
+# x0 = 0.25
 # x0 = 1.0
 # x0 = 2.0
-# x0 = -0.25
+x0 = -0.25
 # x0 = -1.0
 
 func = lambda x: np.exp(-0.5 * np.power(x - x0, 2)) * (x<=0)
