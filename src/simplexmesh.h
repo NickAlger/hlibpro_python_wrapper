@@ -681,6 +681,29 @@ public:
         return ind;
     }
 
+    struct ind_and_coords { int simplex_ind;
+                            Matrix<double, K+1, 1> affine_coords; };
+
+    void get_simplex_ind_and_affine_coordinates_of_point( const KDVector & point, ind_and_coords & IC )
+    {
+        IC.simplex_ind = -1;
+
+        VectorXi candidate_inds =  cell_aabbtree.point_collisions( point );
+        int num_candidates = candidate_inds.size();
+
+        for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
+        {
+            int candidate_simplex_ind = candidate_inds(jj);
+            Simplex & S = cell_simplices[candidate_simplex_ind];
+            IC.affine_coords = S.A * point + S.b;
+            if ( (IC.affine_coords.array() >= 0.0).all() ) // point is in simplex
+            {
+                IC.simplex_ind = candidate_simplex_ind;
+                break;
+            }
+        }
+    }
+
     MatrixXd evaluate_functions_at_points( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
                                            const Ref<const Matrix<double, K, Dynamic>> points ) // shape=(K, num_pts)
     {
@@ -693,26 +716,18 @@ public:
 
         auto loop = [&](const int & start, const int & stop)
         {
+            ind_and_coords IC;
             for ( int ii=start; ii<stop; ++ii )
             {
-                VectorXi candidate_inds =  cell_aabbtree.point_collisions( points.col(ii) );
-                int num_candidates = candidate_inds.size();
-                for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
+                get_simplex_ind_and_affine_coordinates_of_point( points.col(ii), IC );
+                if ( IC.simplex_ind >= 0 ) // point is in mesh
                 {
-                    int simplex_ind = candidate_inds(jj);
-                    Simplex & S = cell_simplices[simplex_ind];
-                    Matrix<double, K+1, 1> affine_coords = S.A * points.col(ii) + S.b;
-                    bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-                    if ( point_is_in_simplex ) // point is in simplex
+                    for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
                     {
-                        for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+                        for ( int ll=0; ll<num_functions; ++ll ) // for each function
                         {
-                            for ( int ll=0; ll<num_functions; ++ll ) // for each function
-                            {
-                                function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
-                            }
+                            function_at_points(ll, ii) += IC.affine_coords(kk) * functions_at_vertices(ll, cells(kk, IC.simplex_ind));
                         }
-                        break;
                     }
                 }
             }
@@ -794,6 +809,92 @@ public:
 
         return function_at_points; // shape=(num_functions, num_points)
     }
+
+
+//    MatrixXd evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation(
+//        const Ref<const MatrixXd>                     functions_at_vertices,         // shape=(num_functions, num_vertices)
+//        const Ref<const Matrix<double, K, Dynamic>>   points,                        // shape=(K, num_pts)
+//        const Ref<const Matrix<double, K, Dynamic>>   ellipsoid_means,               // shape=(K, num_functions)
+//        const Ref<const Matrix<double, K*K, Dynamic>> ellipsoid_covariance_matrices, // shape=(K*K, num_functions)
+//        int                                           ellipsoid_tau )
+//    {
+//        int num_functions = functions_at_vertices.rows();
+//        int num_pts = points.cols();
+//
+//        MatrixXd function_at_points;
+//        function_at_points.resize(num_functions, num_pts);
+//        function_at_points.setZero();
+//
+//        auto loop = [&](const int & start, const int & stop)
+//        {
+//            for ( int ii=start; ii<stop; ++ii )
+//            {
+////                vector<int> relevant_function_inds;
+////                relevant_function_inds.reserve(num_functions);
+////                for ( int ll=0; ll<num_functions; ++ll )
+////                {
+////
+////                }
+//
+//                VectorXi candidate_inds =  cell_aabbtree.point_collisions( points.col(ii) );
+//                int num_candidates = candidate_inds.size();
+//
+//                int simplex_ind = -1;
+//                Matrix<double, K+1, 1> affine_coords;
+//                for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
+//                {
+//                    int candidate_simplex_ind = candidate_inds(jj);
+//                    Simplex & S = cell_simplices[candidate_simplex_ind];
+//                    Matrix<double, K+1, 1> affine_coords = S.A * points.col(ii) + S.b;
+//                    bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
+//                    if ( point_is_in_simplex ) // point is in simplex
+//                    {
+//                        point_is_outside_mesh = false;
+//                        break;
+//                    }
+//                }
+//
+//                for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+//                {
+//                    for ( int ll=0; ll<num_functions; ++ll ) // for each function
+//                    {
+//                        function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
+//                    }
+//                }
+//
+//                if ( point_is_outside_mesh )
+//                {
+//                    KDVector reflected_point = 2.0 * closest_point( points.col(ii) ) - points.col(ii);
+//                    VectorXi reflected_candidate_inds =  cell_aabbtree.point_collisions( reflected_point );
+//                    int num_candidates_reflected = reflected_candidate_inds.size();
+//
+//                    for ( int jj=0; jj<num_candidates_reflected; ++jj ) // for each candidate simplex that the point might be in
+//                    {
+//                        int simplex_ind = reflected_candidate_inds(jj);
+//                        Simplex & S = cell_simplices[simplex_ind];
+//                        Matrix<double, K+1, 1> affine_coords = S.A * reflected_point + S.b;
+//                        bool reflected_point_is_in_simplex = (affine_coords.array() >= 0.0).all();
+//                        if ( reflected_point_is_in_simplex )
+//                        {
+//                            for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+//                            {
+//                                for ( int ll=0; ll<num_functions; ++ll ) // for each function
+//                                {
+//                                    function_at_points(ll, ii) += affine_coords(kk) * functions_at_vertices(ll, cells(kk, simplex_ind));
+//                                }
+//                            }
+//                            break;
+//                        }
+//                    }
+//
+//                }
+//            }
+//        };
+//
+//        pool.parallelize_loop(0, num_pts, loop);
+//
+//        return function_at_points; // shape=(num_functions, num_points)
+//    }
 
     void set_sleep_duration(int duration_in_microseconds)
     {

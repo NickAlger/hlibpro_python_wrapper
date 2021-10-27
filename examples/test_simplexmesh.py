@@ -289,7 +289,6 @@ vertices = np.array(mesh.coordinates().T, order='F')
 cells = np.array(mesh.cells().T, order='F')
 SM = hcpp.SimplexMesh2D(vertices, cells)
 
-nquery = int(1e5)
 nx = 100
 ny = 100
 xmin = -1.25
@@ -298,6 +297,7 @@ ymin = -1.25
 ymax = 1.25
 X, Y = np.meshgrid(np.linspace(xmin, xmax, nx), np.linspace(ymin, ymax, ny))
 pp = np.array([X.reshape(-1), Y.reshape(-1)], order='F')
+nquery = pp.shape[1]
 
 uu = list()
 uu.append(dl.interpolate(dl.Expression('sin(x[0])', degree=3), V))
@@ -330,3 +330,6 @@ for ii in range(num_functions):
     plt.ylim(ymin, ymax)
     plt.gca().set_aspect('equal')
     plt.title('with reflection')
+
+# simplex ind and affine coords getter inside function
+# V.dim()= 20054 , nquery= 10000 , num_functions= 5 , dt_eval_reflection= 0.014193296432495117
