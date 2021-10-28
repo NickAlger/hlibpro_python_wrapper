@@ -323,6 +323,7 @@ private:
     int num_subfaces;
 
     int default_sleep_duration;
+    int default_number_of_threads;
 
 public:
     SimplexMesh( const Ref<const Matrix<double, K,   Dynamic>> input_vertices,
@@ -358,6 +359,7 @@ public:
 
         // ------------------------    Multithreading stuff    ------------------------
         default_sleep_duration = pool.sleep_duration;
+        default_number_of_threads = pool.get_thread_count();
 
 
         // ------------------------    CELLS    ------------------------
@@ -704,6 +706,32 @@ public:
         }
     }
 
+
+    // ------------    SimplexMesh::evaluate_functions_at_points()    --------------
+    // INPUT:
+    //   Finite element function nodal values:
+    //      functions_at_vertices = [[f_1, f_2, f_3, f_4, ..., f_N],
+    //                               [g_1, g_2, g_3, g_4, ..., g_N],
+    //                               [h_1, h_2, h_3, h_4, ..., h_N]]
+    //      - shape = (num_functions, num_vertices)
+    //      - f(x) = sum_{i=1}^N f_i phi_i(x)
+    //      - g(x) = sum_{i=1}^N g_i phi_i(x)
+    //      - h(x) = sum_{i=1}^N h_i phi_i(x)
+    //      - phi_i is CG1 FEM basis function (hat function)
+    //
+    //   Points to evaluate finite element functions at:
+    //      points = [[p1_x, p2_x, p3_x, ..., pM_x],
+    //                [p1_y, p2_y, p3_y, ..., pM_y]]
+    //      - shape = (K, num_pts)
+    //      - K = spatial dimension
+    //      - pi = [pi_x, pi_y] is ith point
+    //
+    // OUTPUT:
+    //   Finite element functions evaluated at points:
+    //      function_at_points = [[f(p1), f(p2), ..., f(pM)],
+    //                            [g(p1), g(p2), ..., g(pM)],
+    //                            [h(p1), h(p2), ..., h(pM)]]
+    //       - shape = (num_functions, num_pts)
     MatrixXd evaluate_functions_at_points( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
                                            const Ref<const Matrix<double, K, Dynamic>> points ) // shape=(K, num_pts)
     {
@@ -713,6 +741,24 @@ public:
         MatrixXd function_at_points;
         function_at_points.resize(num_functions, num_pts);
         function_at_points.setZero();
+
+//        Standard version (no multithreading)
+//        ind_and_coords IC;
+//        for ( int ii=0; ii<num_pts; ++ii )
+//        {
+//            get_simplex_ind_and_affine_coordinates_of_point( points.col(ii), IC );
+//            if ( IC.simplex_ind >= 0 ) // point is in mesh
+//            {
+//                for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+//                {
+//                    int vv = cells(kk, IC.simplex_ind);
+//                    for ( int ll=0; ll<num_functions; ++ll ) // for each function
+//                    {
+//                        function_at_points(ll, ii) += IC.affine_coords(kk) * functions_at_vertices(ll, vv);
+//                    }
+//                }
+//            }
+//        }
 
         auto loop = [&](const int & start, const int & stop)
         {
@@ -735,6 +781,7 @@ public:
         };
 
         pool.parallelize_loop(0, num_pts, loop);
+//        cout << pool.get_thread_count() << endl;
 
         return function_at_points;
     }
@@ -857,6 +904,16 @@ public:
     void reset_sleep_duration_to_default()
     {
         pool.sleep_duration = default_sleep_duration;
+    }
+
+    void set_thread_count(int num_threads)
+    {
+        pool.reset(num_threads);
+    }
+
+    void reset_thread_count_to_default()
+    {
+        pool.reset(default_number_of_threads);
     }
 
 };

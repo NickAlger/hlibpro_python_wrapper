@@ -772,6 +772,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("evaluate_functions_at_points", &SimplexMesh<2>::evaluate_functions_at_points)
         .def("set_sleep_duration", &SimplexMesh<2>::set_sleep_duration)
         .def("reset_sleep_duration_to_default", &SimplexMesh<2>::reset_sleep_duration_to_default)
+        .def("set_thread_count", &SimplexMesh<2>::set_thread_count)
+        .def("reset_thread_count_to_default", &SimplexMesh<2>::reset_thread_count_to_default)
         .def("evaluate_functions_at_points_with_reflection", &SimplexMesh<2>::evaluate_functions_at_points_with_reflection)
         .def("evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation", &SimplexMesh<2>::evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation);
 

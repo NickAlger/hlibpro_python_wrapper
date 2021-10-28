@@ -22,7 +22,9 @@ plt.plot(xx, ff)
 all_orders = [0,1,2,3]
 for order in all_orders:
     kk = np.arange(order+1)
-    jj = np.arange(order+1) + 1 # Standard nodes, e.g., in textbook proof
+    # jj = np.arange(order+1) + 1 # Standard nodes, e.g., in textbook proof
+    # jj = np.linspace(0., 1., order+1)
+    jj = np.linspace(0.1, 1., order + 1)
     # jj = 1. + 0.5*(jj-1.) # squash/stretch nodes
     # jj = 1. / jj # invert nodes
     M = np.power(-jj[None,:], kk[:,None]) # Vandermonde matrix

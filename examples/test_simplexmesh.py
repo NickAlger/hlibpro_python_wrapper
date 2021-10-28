@@ -158,6 +158,7 @@ fraction_outside_mesh = np.sum(np.linalg.norm(qq, axis=0) >= 1) / nquery
 print('fraction_outside_mesh=', fraction_outside_mesh)
 
 SM.set_sleep_duration(10)
+SM.set_thread_count(8)
 sleep(1) # Wait for change to take effect
 
 t = time()
@@ -165,6 +166,7 @@ pp = SM.closest_point_vectorized(qq)
 dt_closest_SM = time() - t
 print('nquery=', nquery, ', dt_closest_SM=', dt_closest_SM)
 
+SM.reset_thread_count_to_default()
 SM.reset_sleep_duration_to_default()
 
 # t = time()
