@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
 import dolfin as dl
 
-from nalger_helper_functions import circle_mesh
+from nalger_helper_functions import circle_mesh, plot_ellipse
 
 hcpp = hpro.hpro_cpp
 
@@ -291,10 +291,10 @@ SM = hcpp.SimplexMesh2D(vertices, cells)
 
 nx = 100
 ny = 100
-xmin = -1.25
-xmax = 1.25
-ymin = -1.25
-ymax = 1.25
+xmin = -2.0
+xmax = 2.0
+ymin = -2.0
+ymax = 2.0
 X, Y = np.meshgrid(np.linspace(xmin, xmax, nx), np.linspace(ymin, ymax, ny))
 pp = np.array([X.reshape(-1), Y.reshape(-1)], order='F')
 nquery = pp.shape[1]
@@ -333,3 +333,72 @@ for ii in range(num_functions):
 
 # simplex ind and affine coords getter inside function
 # V.dim()= 20054 , nquery= 10000 , num_functions= 5 , dt_eval_reflection= 0.014193296432495117
+
+# simplex ind and affine coords getter outside function
+# V.dim()= 20054 , nquery= 10000 , num_functions= 5 , dt_eval_reflection= 0.01358175277709961
+
+# EVALUATE FUNCTION AT POINT USING REFLECTION AND ELLIPSOID TRUNCATION
+
+mu1 = np.array([0.26, 0.25])
+Sigma1 = 0.5*np.array([[1., 0.2],[0.2, 1.]])
+
+mu2 = np.array([-0.65, 0.1])
+Sigma2 = 0.25*np.array([[0.25, -0.1],[-0.1, 1.0]])
+
+all_mu = [mu1, mu2]
+all_inv_Sigma = [np.linalg.inv(Sigma1), np.linalg.inv(Sigma2)]
+
+tau = 1.
+
+mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 1e-2)
+V = dl.FunctionSpace(mesh, 'CG', 1)
+
+mesh_coords = mesh.coordinates()
+dof_coords = V.tabulate_dof_coordinates()
+dof2vertex = dl.dof_to_vertex_map(V)
+vertex2dof = dl.vertex_to_dof_map(V)
+
+vertices = np.array(mesh.coordinates().T, order='F')
+cells = np.array(mesh.cells().T, order='F')
+SM = hcpp.SimplexMesh2D(vertices, cells)
+
+nx = 100
+ny = 100
+xmin = -2.0
+xmax = 2.0
+ymin = -2.0
+ymax = 2.0
+X, Y = np.meshgrid(np.linspace(xmin, xmax, nx), np.linspace(ymin, ymax, ny))
+pp = np.array([X.reshape(-1), Y.reshape(-1)], order='F')
+nquery = pp.shape[1]
+
+uu = list()
+uu.append(dl.interpolate(dl.Expression('sin(pow((x[0]-0.2)*2,2) + pow((x[1]-0.5)*3,2))', degree=3), V))
+uu.append(dl.interpolate(dl.Expression('sin(8*x[0]) * cos(9*x[1])', degree=3), V))
+
+num_functions = len(uu)
+
+UU = np.array([u.vector()[vertex2dof] for u in uu], order='F')
+
+t = time()
+Z = SM.evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation(UU, pp, all_mu, all_inv_Sigma, tau).reshape((num_functions, nx, ny))
+dt_eval_etrunc = time() - t
+print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval_etrunc=', dt_eval_etrunc)
+
+for ii in range(num_functions):
+    plt.figure()
+    plt.subplot(1,2,1)
+    dl.plot(uu[ii])
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)
+    plt.gca().set_aspect('equal')
+    plt.title('original')
+
+    plt.subplot(1,2,2)
+    plt.pcolor(X, Y, Z[ii, :, :], shading='auto')
+    plot_ellipse(np.zeros(2), np.eye(2), 1.0)
+    plot_ellipse(all_mu[ii], np.linalg.inv(all_inv_Sigma[ii]), tau)
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)
+    plt.gca().set_aspect('equal')
+    plt.title('with reflection')
