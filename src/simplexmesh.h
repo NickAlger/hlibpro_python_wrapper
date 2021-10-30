@@ -918,4 +918,20 @@ public:
 
 };
 
+template <int K>
+struct SamplePointData {Matrix<double, K, 1> point;
+                        Matrix<double, K, 1> mu;
+                        Matrix<double, K, K> inv_Sigma};
 
+template <int K>
+class ProductConvolutionRBF
+{
+private:
+    MatrixXd                interpolation_matrix;
+    vector<SamplePointData> sample_point_data;
+
+    int num_sample_points;
+
+public:
+
+};
