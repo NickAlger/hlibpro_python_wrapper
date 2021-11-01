@@ -985,28 +985,80 @@ template <int K>
 class ProductConvolutionKernelRBF
 {
 private:
-    SimplexMesh<K>                 mesh;
-    MatrixXd                       interpolation_matrix;
-    MatrixXd                       interpolation_matrix_inverse;
-    vector<vector<SamplePoint<K>>> sample_point_batches;
-    vector<VectorXd>               impulse_response_batches;
+    SimplexMesh<K>         mesh;
+    MatrixXd               interpolation_matrix;
+    MatrixXd               interpolation_matrix_inverse;
+    vector<SamplePoint<K>> sample_points;
+    vector<VectorXd>       impulse_response_batches;
 
-    int         num_batches;
-    vector<int> batch_lengths;
-    vector<int> point2batch_batchind;
-    vector<int> point2batch_pointind;
+    vector<int> point2batch;
     int         num_sample_points;
     double      tau_squared;
 
 public:
+    ProductConvolutionKernelRBF( const vector<Matrix<double, K, 1>> all_points,
+                                 const vector<Matrix<double, K, 1>> all_mu,
+                                 const vector<Matrix<double, K, K>> all_Sigma,
+                                 double                             tau,
+                                 const vector<VectorXd>             input_impulse_response_batches,
+                                 const vector<int>                  batch_lengths,
+                                 const Ref<const Matrix<double, K,   Dynamic>> mesh_vertices,
+                                 const Ref<const Matrix<int   , K+1, Dynamic>> mesh_cells ) : mesh(mesh_vertices, mesh_cells)
+    {
+        num_sample_points = all_points.size();
+        sample_points.resize(num_sample_points);
+        for ( int ii=0; ii<num_sample_points; ++ii )
+        {
+            sample_points[ii].point = all_points[ii];
+            sample_points[ii].mu = all_mu[ii];
+            sample_points[ii].inv_Sigma = all_Sigma[ii].inverse();
+        }
+
+        impulse_response_batches.resize(num_sample_points);
+        for ( int ii=0; ii<num_sample_points; ++ii )
+        {
+            impulse_response_batches[ii] = input_impulse_response_batches[ii];
+        }
+
+        tau_squared = tau * tau;
+
+        point2batch.resize(num_sample_points);
+        int ii = 0;
+        for ( int bb=0; bb<batch_lengths.size(); ++bb )
+        {
+            for ( int dummy=0; dummy<batch_lengths[bb]; ++dummy )
+            {
+                point2batch[ii] = bb;
+                ii += 1;
+            }
+        }
+
+        interpolation_matrix.resize(num_sample_points, num_sample_points);
+        for ( int ii=0; ii<num_sample_points; ++ii )
+        {
+            interpolation_matrix.col(ii) = eval_thin_plate_splines_at_point(all_points[ii]);
+        }
+
+        interpolation_matrix_inverse = interpolation_matrix.inverse();
+    }
+
+    VectorXd eval_thin_plate_splines_at_point( const Matrix<double, K, 1> & x )
+    {
+        VectorXd thin_plate_splines_at_x(num_sample_points);
+        for ( int kk=0; kk<num_sample_points; ++kk )
+        {
+            double r_squared = (x - sample_points[kk].point).squaredNorm();
+            thin_plate_splines_at_x(kk) = 0.5 * r_squared * log(r_squared);
+        }
+        return thin_plate_splines_at_x;
+    }
+
     double eval_integral_kernel(Matrix<double, K, 1> y, Matrix<double, K, 1> x)
     {
         vector<ind_and_coords<K>> all_IC(num_sample_points);
         for ( int kk=0; kk<num_sample_points; ++kk )
         {
-            int bb = point2batch_batchind[kk];
-            int ii = point2batch_pointind[kk];
-            Matrix<double, K, 1> z = y - x + sample_point_batches[bb][ii].point;
+            Matrix<double, K, 1> z = y - x + sample_points[kk].point;
             mesh.get_simplex_ind_and_affine_coordinates_of_point( z, all_IC[kk] );
         }
 
@@ -1026,14 +1078,7 @@ public:
             }
         }
 
-        Matrix<double, Dynamic, 1> thin_plate_splines_at_x(num_sample_points);
-        for ( int kk=0; kk<num_sample_points; ++kk )
-        {
-            int bb = point2batch_batchind;
-            int ii = point2batch_pointind;
-            double r_squared = (x - sample_point_batches[bb][ii].point).squaredNorm();
-            thin_plate_splines_at_x(kk) = 0.5 * r_squared * log(r_squared);
-        }
+        VectorXd thin_plate_splines_at_x = eval_thin_plate_splines_at_point( x );
 
         Matrix<double, Dynamic, 1> weights = interpolation_matrix_inverse * thin_plate_splines_at_x;
 
@@ -1046,9 +1091,8 @@ public:
         double kernel_entry = 0.0;
         for ( int jj : inside_mesh_inds )
         {
-            int bb = point2batch_batchind[jj];
-            int ii = point2batch_pointind[jj];
-            SamplePoint<K> & SP = sample_point_batches[bb][ii];
+            VectorXd & phi_j = impulse_response_batches[point2batch[jj]];
+            SamplePoint<K> & SP = sample_points[jj];
             ind_and_coords<K> & IC = all_IC[jj];
 
             double varphi_j_of_y_minus_x = 0.0;
@@ -1058,7 +1102,7 @@ public:
                 for ( int kk=0; kk<K; ++kk )
                 {
                     int kth_vertex_ind = mesh.cells(kk, IC.simplex_ind);
-                    varphi_j_of_y_minus_x += IC.affine_coords(kk) * impulse_response_batches[bb](kth_vertex_ind);
+                    varphi_j_of_y_minus_x += IC.affine_coords(kk) * phi_j(kth_vertex_ind);
                 }
             }
             kernel_entry += weights[jj] * varphi_j_of_y_minus_x;
