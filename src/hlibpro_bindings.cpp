@@ -780,6 +780,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("projected_affine_coordinates", &projected_affine_coordinates);
     m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);
     m.def("powerset", &powerset);
+    m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
 }
 
 

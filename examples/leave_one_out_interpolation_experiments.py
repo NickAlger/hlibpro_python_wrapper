@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import hlibpro_python_wrapper as hpro
 from time import time
+
+hcpp = hpro.hpro_cpp;
 
 N = 100
 A = np.random.randn(N,N)
@@ -177,6 +180,14 @@ B_true[np.ix_(bad_rows, bad_cols)] = A[np.ix_(bad_rows, bad_cols)]
 err = np.linalg.norm(B - B_true) / np.linalg.norm(B_true)
 print('err=', err)
 
+good_rows = np.setdiff1d(np.arange(A.shape[0]), bad_rows)
+good_cols = np.setdiff1d(np.arange(A.shape[1]), bad_cols)
+
+U2, V2 = hcpp.submatrix_deletion_factors(A, bad_rows, bad_cols)
+
+err_deletion_factors_cpp = np.linalg.norm(U - U2) + np.linalg.norm(V - V2)
+print('err_deletion_factors_cpp=', err_deletion_factors_cpp)
+
 
 def submatrix_woodbury_solve(B_good, solve_A, bad_rows, bad_cols):
     # Solves A[good_rows, good_cols] * X[good_cols,:] = B_good[good_rows,:]
@@ -240,9 +251,9 @@ U = np.zeros((A.shape[0], 2*k))
 U[bad_rows, :k] = np.eye(k)
 U[good_rows, k:] = A[np.ix_(good_rows, bad_cols)]
 
-V = np.zeros((len(bad_rows) + len(bad_cols), A.shape[1]))
-V[:len(bad_rows), good_cols] = A[np.ix_(bad_rows, good_cols)]
-V[len(bad_rows):, bad_cols] = np.eye(len(bad_cols))
+V = np.zeros((2*k, A.shape[1]))
+V[:k, good_cols] = A[np.ix_(bad_rows, good_cols)]
+V[k:, bad_cols] = np.eye(k)
 
 A_tilde = A - np.dot(U, V)
 err_UV = np.linalg.norm(A_tilde_true - A_tilde) / np.linalg.norm(A_tilde_true)

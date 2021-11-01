@@ -918,20 +918,137 @@ public:
 
 };
 
-template <int K>
-struct SamplePointData {Matrix<double, K, 1> point;
-                        Matrix<double, K, 1> mu;
-                        Matrix<double, K, K> inv_Sigma};
 
-template <int K>
-class ProductConvolutionRBF
+pair<MatrixXd, MatrixXd> submatrix_deletion_factors( const MatrixXd &    A,
+                                                     const vector<int> & bad_rows,
+                                                     const vector<int> & bad_cols )
 {
-private:
-    MatrixXd                interpolation_matrix;
-    vector<SamplePointData> sample_point_data;
+    MatrixXd left_factor(A.rows(), bad_rows.size() + bad_cols.size());
+    left_factor.setZero();
 
-    int num_sample_points;
+    for ( int jj=0; jj<bad_cols.size(); ++jj )
+    {
+        left_factor.col(bad_rows.size() + jj) = A.col(bad_cols[jj]);
+    }
 
-public:
+    for ( int ii=0; ii<bad_rows.size(); ++ii )
+    {
+        left_factor.row(bad_rows[ii]).setZero();
+        left_factor(bad_rows[ii], ii) = 1.0;
+    }
 
-};
+    MatrixXd right_factor(bad_rows.size() + bad_cols.size(), A.cols());
+    right_factor.setZero();
+
+    for ( int ii=0; ii<bad_rows.size(); ++ii )
+    {
+        right_factor.row(ii) = A.row(bad_rows[ii]);
+    }
+
+    for ( int jj=0; jj<bad_cols.size(); ++jj )
+    {
+        right_factor.col(bad_cols[jj]).setZero();
+        right_factor(bad_rows.size() + jj, bad_cols[jj]) = 1.0;
+    }
+
+    return make_pair(left_factor, right_factor);
+}
+
+template <int K>
+struct SamplePoint {Matrix<double, K, 1> point;
+                    Matrix<double, K, 1> mu;
+                    Matrix<double, K, K> inv_Sigma; };
+
+//template <int K>
+//class ProductConvolutionRBF
+//{
+//private:
+//    SimplexMesh                 mesh;
+//    MatrixXd                    interpolation_matrix;
+//    MatrixXd                    interpolation_matrix_inverse;
+//    vector<vector<SamplePoint>> sample_point_batches;
+//    MatrixXd                    impulse_response_batches;
+//
+//    int         num_batches;
+//    vector<int> batch_lengths;
+//    vector<int> point2batch_batchind;
+//    vector<int> point2batch_pointind;
+//    int         num_sample_points;
+//
+//public:
+//    double eval_integral_kernel(Matrix<double, K, 1> y, Matrix<double, K, 1> x)
+//    {
+//        vector<ind_and_coords> all_IC(num_sample_points);
+//        for ( int kk=0; kk<num_sample_points; ++kk )
+//        {
+//            int bb = point2batch_batchind;
+//            int ii = point2batch_pointind;
+//            Matrix<double, K, 1> z = y - x + sample_point_batches[bb][ii].point;
+//            mesh.get_simplex_ind_and_affine_coordinates_of_point( z, all_IC[kk] );
+//        }
+//
+//        vector<int> inside_mesh_inds;
+//        vector<int> outside_mesh_inds;
+//        inside_mesh_inds.reserve(num_sample_points);
+//        inside_mesh_inds.reserve(num_sample_points);
+//        for ( int kk=0; kk<num_sample_points; ++kk )
+//        {
+//            if ( all_IC[kk].simplex_ind >= 0 )
+//            {
+//                inside_mesh_inds.push_back(kk);
+//            }
+//            else
+//            {
+//                outside_mesh_inds.push_back(kk);
+//            }
+//        }
+//
+//        Matrix<double, Dynamic, 1> thin_plate_splines_at_x(num_sample_points);
+//        for ( int kk=0; kk<num_sample_points; ++kk )
+//        {
+//            int bb = point2batch_batchind;
+//            int ii = point2batch_pointind;
+//            double r_squared = (x - sample_point_batches[bb][ii].point).squaredNorm();
+//            thin_plate_splines_at_x(kk) = 0.5 * r_squared * log(r_squared);
+//        }
+//
+//        Matrix<double, Dynamic, 1> w_full = interpolation_matrix_inverse * thin_plate_splines_at_x;
+//
+//        int num_good_points = inside_mesh_inds.size();
+//        int num_bad_points = outside_mesh_inds.size();
+//
+//        MatrixXd U(num_sample_points, 2*num_bad_points);
+//        for ( int jj=0; jj<num_bad_points; ++jj )
+//        {
+//            U.col(num_bad_points+jj) = interpolation_matrix.col(outside_mesh_inds[jj]);
+//        }
+//
+//        for ( int jj=0; jj<num_bad_points; ++jj )
+//        {
+//            U.row(outside_mesh_inds[jj]).setZero();
+//            U(outside_mesh_inds[jj], jj) = 1.;
+//        }
+//
+//        MatrixXd V(2*num_bad_points, num_sample_points);
+//        for ( int jj=0; jj<num_bad_points; ++jj )
+//        {
+//            V.row(jj) = interpolation_matrix.row(outside_mesh_inds[jj]);
+//        }
+//
+//        for ( int jj=0; jj<num_bad_points; ++jj )
+//        {
+//            V.col(outside_mesh_inds[jj]).setZero();
+//            V(num_bad_points+jj, outside_mesh_inds[jj]) = 1.;
+//        }
+//
+//        Matrix<double, Dynamic, 1> good_thin_plate_splines_at_x(num_good_points);
+//        for ( int gg=0; gg<num_good_points; ++gg )
+//        {
+//            good_thin_plate_splines_at_x(gg) = thin_plate_splines_at_x(inside_mesh_inds[gg]);
+//        }
+//
+//
+//
+//
+//    }
+//};
