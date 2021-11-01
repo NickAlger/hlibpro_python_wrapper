@@ -942,16 +942,36 @@ pair<MatrixXd, MatrixXd> submatrix_deletion_factors( const MatrixXd &    A,
 
     for ( int ii=0; ii<bad_rows.size(); ++ii )
     {
-        right_factor.row(ii) = A.row(bad_rows[ii]);
+        right_factor.row(ii) = -A.row(bad_rows[ii]);
     }
 
     for ( int jj=0; jj<bad_cols.size(); ++jj )
     {
         right_factor.col(bad_cols[jj]).setZero();
-        right_factor(bad_rows.size() + jj, bad_cols[jj]) = 1.0;
+        right_factor(bad_rows.size() + jj, bad_cols[jj]) = -1.0;
     }
 
     return make_pair(left_factor, right_factor);
+}
+
+// Woodbury formula:
+// The solution to the modified linear system:
+//     (A + UV) x = b
+// is given by
+//     x = inv(A)*b - inv(A)*U*inv(I+V*inv(A)*U)*V*inv(A)*b
+// which may be computed via
+//     Step 1) x <- inv(A)*b
+//     Step 2) x <- x - inv(A)*U*inv(I+V*inv(A)*U)*V*x
+// This function performs step 2.
+void woodbury_update( Ref<VectorXd>    x,
+                      const MatrixXd & A,
+                      const MatrixXd & invA,
+                      const MatrixXd & U,
+                      const MatrixXd & V )
+{
+    MatrixXd Z = invA * U; // Z = inv(A)*U
+    MatrixXd C = MatrixXd::Identity(V.rows(),U.cols()) + V * Z; // C = I + V*inv(A)*U
+    x -= Z * C.lu().solve(V * x); // x = x - inv(A)*U*inv(C)*V*x
 }
 
 template <int K>

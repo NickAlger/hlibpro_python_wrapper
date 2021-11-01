@@ -184,6 +184,7 @@ good_rows = np.setdiff1d(np.arange(A.shape[0]), bad_rows)
 good_cols = np.setdiff1d(np.arange(A.shape[1]), bad_cols)
 
 U2, V2 = hcpp.submatrix_deletion_factors(A, bad_rows, bad_cols)
+V2 = -V2
 
 err_deletion_factors_cpp = np.linalg.norm(U - U2) + np.linalg.norm(V - V2)
 print('err_deletion_factors_cpp=', err_deletion_factors_cpp)
@@ -277,3 +278,18 @@ x = x_tilde[good_cols]
 
 err_woodbury = np.linalg.norm(x - x_true) / np.linalg.norm(x_true)
 print('err_woodbury=', err_woodbury)
+
+#
+
+A = np.random.randn(7,7)
+U = np.random.randn(7,3)
+V = np.random.randn(3,7)
+b = np.random.randn(7)
+
+iA = np.linalg.inv(A)
+x = np.dot(iA, b)
+hcpp.woodbury_update(x, A, iA, U, V)
+
+err_woodbury_cpp = np.linalg.norm(np.dot(A + np.dot(U, V), x) - b) / np.linalg.norm(b)
+print('err_woodbury_cpp=', err_woodbury_cpp)
+

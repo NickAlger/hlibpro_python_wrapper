@@ -781,6 +781,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);
     m.def("powerset", &powerset);
     m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
+    m.def("woodbury_update", &woodbury_update);
 }
 
 
