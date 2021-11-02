@@ -782,8 +782,19 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("powerset", &powerset);
     m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
     m.def("woodbury_update", &woodbury_update);
-}
 
+    py::class_<ProductConvolutionKernelRBF<2>>(m, "ProductConvolutionKernelRBF")
+        .def(py::init< const vector<Matrix<double, 2, 1>>, // all_points,
+                       const vector<Matrix<double, 2, 1>>, // all_mu,
+                       const vector<Matrix<double, 2, 2>>, // all_Sigma,
+                       double,                             // tau,
+                       const vector<VectorXd>,             // input_impulse_response_batches,
+                       const vector<int>,                  // batch_lengths,
+                       const Ref<const Matrix<double, 2,   Dynamic>>, // mesh_vertices,
+                       const Ref<const Matrix<int   , 3, Dynamic>> // mesh_cells
+                       >())
+        .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel);
+}
 
 
 
