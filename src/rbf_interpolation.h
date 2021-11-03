@@ -17,3 +17,4 @@ public:
     ThinPlateSplineWeightingFunctions ( const Array<double, Dynamic, 2> rbf_points );
     MatrixXd eval_weighting_functions ( const Array<double, Dynamic, 2> & eval_points );
 };
+
