@@ -781,7 +781,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);
     m.def("powerset", &powerset);
     m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
-    m.def("woodbury_update", &woodbury_update);
+//    m.def("woodbury_update", &woodbury_update);
 
     py::class_<ProductConvolutionKernelRBF<2>>(m, "ProductConvolutionKernelRBF")
         .def(py::init< const vector<Matrix<double, 2, 1>>, // all_points,
@@ -790,6 +790,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        double,                             // tau,
                        const vector<VectorXd>,             // input_impulse_response_batches,
                        const vector<int>,                  // batch_lengths,
+                       double,                             // rbf_sigma,
                        const Ref<const Matrix<double, 2,   Dynamic>>, // mesh_vertices,
                        const Ref<const Matrix<int   , 3, Dynamic>> // mesh_cells
                        >())

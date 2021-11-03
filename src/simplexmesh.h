@@ -967,11 +967,13 @@ pair<MatrixXd, MatrixXd> submatrix_deletion_factors( const MatrixXd &    A,
 // This function performs step 2.
 void woodbury_update( Ref<VectorXd>    x,
                       const MatrixXd & A,
-                      const MatrixXd & invA,
+//                      const MatrixXd & invA,
+                      FullPivLU<MatrixXd> & factorized_A,
                       const MatrixXd & U,
                       const MatrixXd & V )
 {
-    MatrixXd Z = invA * U; // Z = inv(A)*U
+//    MatrixXd Z = invA * U; // Z = inv(A)*U
+    MatrixXd Z = factorized_A.solve(U);
     MatrixXd C = MatrixXd::Identity(V.rows(),U.cols()) + V * Z; // C = I + V*inv(A)*U
     x -= Z * C.lu().solve(V * x); // x = x - inv(A)*U*inv(C)*V*x
 }
@@ -987,13 +989,15 @@ class ProductConvolutionKernelRBF
 private:
     SimplexMesh<K>         mesh;
     MatrixXd               interpolation_matrix;
-    MatrixXd               interpolation_matrix_inverse;
+    FullPivLU<MatrixXd>    interpolation_matrix_factorization;
     vector<SamplePoint<K>> sample_points;
     vector<VectorXd>       impulse_response_batches;
 
     vector<int> point2batch;
     int         num_sample_points;
+    int         num_batches;
     double      tau_squared;
+    double      rbf_sigma_squared;
 
 public:
     ProductConvolutionKernelRBF( const vector<Matrix<double, K, 1>> all_points,
@@ -1002,6 +1006,7 @@ public:
                                  double                             tau,
                                  const vector<VectorXd>             input_impulse_response_batches,
                                  const vector<int>                  batch_lengths,
+                                 double                             rbf_sigma,
                                  const Ref<const Matrix<double, K,   Dynamic>> mesh_vertices,
                                  const Ref<const Matrix<int   , K+1, Dynamic>> mesh_cells ) : mesh(mesh_vertices, mesh_cells)
     {
@@ -1014,17 +1019,20 @@ public:
             sample_points[ii].inv_Sigma = all_Sigma[ii].inverse();
         }
 
-        impulse_response_batches.resize(num_sample_points);
-        for ( int ii=0; ii<num_sample_points; ++ii )
+        num_batches = input_impulse_response_batches.size();
+        impulse_response_batches.resize(num_batches);
+        for ( int ii=0; ii<num_batches; ++ii )
         {
             impulse_response_batches[ii] = input_impulse_response_batches[ii];
         }
 
         tau_squared = tau * tau;
 
+        rbf_sigma_squared = rbf_sigma * rbf_sigma;
+
         point2batch.resize(num_sample_points);
         int ii = 0;
-        for ( int bb=0; bb<batch_lengths.size(); ++bb )
+        for ( int bb=0; bb<num_batches; ++bb )
         {
             for ( int dummy=0; dummy<batch_lengths[bb]; ++dummy )
             {
@@ -1036,24 +1044,50 @@ public:
         interpolation_matrix.resize(num_sample_points, num_sample_points);
         for ( int ii=0; ii<num_sample_points; ++ii )
         {
-            interpolation_matrix.col(ii) = eval_thin_plate_splines_at_point(all_points[ii]);
+            interpolation_matrix.col(ii) = eval_rbfs_at_point(all_points[ii]);
         }
 
-        interpolation_matrix_inverse = interpolation_matrix.inverse();
+//        interpolation_matrix_inverse = interpolation_matrix.inverse();
+//        interpolation_matrix_factorization(interpolation_matrix);
+//        interpolation_matrix_factorization = interpolation_matrix.lu();
+        interpolation_matrix_factorization = interpolation_matrix.fullPivLu();
+
+//        cout << "interpolation_matrix=" << endl << interpolation_matrix << endl;
+//        cout << "interpolation_matrix_inverse=" << endl << interpolation_matrix_inverse << endl;
+//
+//        cout << "point2batch=(";
+//        for ( int b : point2batch )
+//        {
+//            cout << b << ',';
+//        }
+//        cout << ")" << endl;
     }
 
-    VectorXd eval_thin_plate_splines_at_point( const Matrix<double, K, 1> & x )
+    VectorXd eval_rbfs_at_point( const Matrix<double, K, 1> & x )
     {
-        VectorXd thin_plate_splines_at_x(num_sample_points);
+        VectorXd rbfs_at_x(num_sample_points);
         for ( int kk=0; kk<num_sample_points; ++kk )
         {
             double r_squared = (x - sample_points[kk].point).squaredNorm();
-            thin_plate_splines_at_x(kk) = 0.5 * r_squared * log(r_squared);
+            rbfs_at_x(kk) = exp(-0.5 * r_squared / rbf_sigma_squared);
+            if (r_squared == 0)
+            {
+                rbfs_at_x(kk) += 1e-4;
+            }
+
+//            if (r_squared > 0)
+//            {
+//                rbfs_at_x(kk) = 0.5 * r_squared * log(r_squared);
+//            }
+//            else
+//            {
+//                rbfs_at_x(kk) = 1e-3;
+//            }
         }
-        return thin_plate_splines_at_x;
+        return rbfs_at_x;
     }
 
-    double eval_integral_kernel(Matrix<double, K, 1> y, Matrix<double, K, 1> x)
+    double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x)
     {
         vector<ind_and_coords<K>> all_IC(num_sample_points);
         for ( int kk=0; kk<num_sample_points; ++kk )
@@ -1062,52 +1096,61 @@ public:
             mesh.get_simplex_ind_and_affine_coordinates_of_point( z, all_IC[kk] );
         }
 
+        VectorXd rbfs_at_x = eval_rbfs_at_point( x );
+        Matrix<double, Dynamic, 1> weights = interpolation_matrix_factorization.solve(rbfs_at_x);
+
         vector<int> inside_mesh_inds;
-        vector<int> outside_mesh_inds;
+        vector<int> woodbury_inds;
         inside_mesh_inds.reserve(num_sample_points);
-        inside_mesh_inds.reserve(num_sample_points);
+        woodbury_inds.reserve(num_sample_points);
         for ( int kk=0; kk<num_sample_points; ++kk )
         {
-            if ( all_IC[kk].simplex_ind >= 0 )
+            if ( all_IC[kk].simplex_ind >= 0 ) // if the point is in the mesh
             {
                 inside_mesh_inds.push_back(kk);
             }
             else
             {
-                outside_mesh_inds.push_back(kk);
+                if ( abs(weights(kk)) > 1e-3) // 1e-3
+                {
+                    woodbury_inds.push_back(kk);
+                }
             }
         }
 
-        VectorXd thin_plate_splines_at_x = eval_thin_plate_splines_at_point( x );
-
-        Matrix<double, Dynamic, 1> weights = interpolation_matrix_inverse * thin_plate_splines_at_x;
-
-        if ( outside_mesh_inds.size() > 0 )
+        vector<int> nonzero_phi_inds;
+        nonzero_phi_inds.reserve(inside_mesh_inds.size());
+        for ( int ii : inside_mesh_inds )
         {
-            pair<MatrixXd, MatrixXd> SDF = submatrix_deletion_factors( interpolation_matrix, outside_mesh_inds, outside_mesh_inds );
-            woodbury_update(weights, interpolation_matrix, interpolation_matrix_inverse, SDF.first, SDF.second);
-        }
-
-        double kernel_entry = 0.0;
-        for ( int jj : inside_mesh_inds )
-        {
-            VectorXd & phi_j = impulse_response_batches[point2batch[jj]];
-            SamplePoint<K> & SP = sample_points[jj];
-            ind_and_coords<K> & IC = all_IC[jj];
-
-            double varphi_j_of_y_minus_x = 0.0;
+            SamplePoint<K> & SP = sample_points[ii];
             Matrix<double, K, 1> dp = y - x + SP.point - SP.mu;
             if ( dp.transpose() * (SP.inv_Sigma * dp) < tau_squared )
             {
-                for ( int kk=0; kk<K; ++kk )
-                {
-                    int kth_vertex_ind = mesh.cells(kk, IC.simplex_ind);
-                    varphi_j_of_y_minus_x += IC.affine_coords(kk) * phi_j(kth_vertex_ind);
-                }
+                nonzero_phi_inds.push_back(ii);
             }
-            kernel_entry += weights[jj] * varphi_j_of_y_minus_x;
         }
 
+        double kernel_entry = 0.0;
+        if ( !nonzero_phi_inds.empty() )
+        {
+            if ( woodbury_inds.size() > 0 )
+            {
+                pair<MatrixXd, MatrixXd> SDF = submatrix_deletion_factors( interpolation_matrix, woodbury_inds, woodbury_inds );
+                woodbury_update(weights, interpolation_matrix, interpolation_matrix_factorization, SDF.first, SDF.second);
+            }
+
+            for ( int jj : nonzero_phi_inds )
+            {
+                double varphi_j_of_y_minus_x = 0.0;
+                VectorXd & phi_j = impulse_response_batches[point2batch[jj]];
+                ind_and_coords<K> & IC = all_IC[jj];
+                for ( int kk=0; kk<K+1; ++kk )
+                {
+                    varphi_j_of_y_minus_x += IC.affine_coords(kk) * phi_j(mesh.cells(kk, IC.simplex_ind));
+                }
+                kernel_entry += weights[jj] * varphi_j_of_y_minus_x;
+            }
+        }
         return kernel_entry;
     }
 };
