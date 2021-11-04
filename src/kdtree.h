@@ -9,6 +9,12 @@
 using namespace Eigen;
 using namespace std;
 
+// Nearest neighbor in subtree to query point
+struct SubtreeResult { int index; // index of nearest neighbor
+                       double distance_squared; }; // distance squared to nearest neighbor
+
+bool compare_subtree_results(SubtreeResult r1, SubtreeResult r2){return r1.distance_squared < r2.distance_squared;}
+bool compare_subtree_result_to_distance_squared(SubtreeResult r, double dsq){return r.distance_squared < dsq;}
 
 template <int K>
 class KDTree {
@@ -19,10 +25,6 @@ private:
     struct Node { KDVector point;
                   int      left;       // index of left child
                   int      right; };   // index of right child
-
-    // Nearest neighbor in subtree to query point
-    struct SubtreeResult { int index; // index of nearest neighbor
-                           double distance_squared; }; // distance squared to nearest neighbor
 
     vector< Node > nodes; // All nodes in the tree
 
@@ -105,49 +107,60 @@ private:
         KDVector delta = query - root.point;
 
         vector<SubtreeResult> nn;
-        nn.reserve(2*num_neighbors + 1);
-        nn.push_back(SubtreeResult {root_index, delta.squaredNorm()});
 
-        int axis = depth % K;
-        double displacement_to_splitting_plane = delta(axis);
-
-        int A;
-        int B;
-        if (displacement_to_splitting_plane >= 0)
+        if ( (root.left < 0) && (root.right < 0) ) // root is a leaf
         {
-            A = root.left;
-            B = root.right;
+            nn.push_back(SubtreeResult {root_index, delta.squaredNorm()});
         }
-        else
+        else // this node is not a leaf
         {
-            A = root.right;
-            B = root.left;
-        }
-
-        auto compare_results = [&](SubtreeResult r1, SubtreeResult r2){return r1.distance_squared < r2.distance_squared;};
-
-        if (A >= 0)
-        {
-            vector<SubtreeResult> nn_A = nn_subtree_many( query, A, depth + 1, num_neighbors );
-            nn.insert( nn.end(), nn_A.begin(), nn_A.end() );
-            inplace_merge(nn.begin(), nn.begin()+1, nn.end(), compare_results);
-        }
-
-        if (B >= 0)
-        {
-            double displacement_to_splitting_plane_squared = displacement_to_splitting_plane*displacement_to_splitting_plane;
-            int num_good = lower_bound(nn.begin(), nn.end(),
-                                       displacement_to_splitting_plane_squared,
-                                       [&](SubtreeResult SR, double dsq)
-                                          {return SR.distance_squared < dsq;}) - nn.begin();
-//            int num_good = 0;
-            int num_neighbors_B = num_neighbors - num_good;
-            if (num_neighbors_B > 0)
+            if ( (root.left >= 0) && (root.right >= 0) ) // root has two child nodes
             {
-                vector<SubtreeResult> nn_B = nn_subtree_many( query, B, depth + 1, num_neighbors_B );
-                int size0 = nn.size();
-                nn.insert( nn.end(), nn_B.begin(), nn_B.end() );
-                inplace_merge(nn.begin(), nn.begin()+size0, nn.end(), compare_results);
+                nn.reserve(2*num_neighbors + 1);
+            }
+            else // root has one child node
+            {
+                nn.reserve(num_neighbors + 1);
+            }
+            nn.push_back(SubtreeResult {root_index, delta.squaredNorm()});
+
+            int axis = depth % K;
+            double displacement_to_splitting_plane = delta(axis);
+
+            int A;
+            int B;
+            if (displacement_to_splitting_plane >= 0)
+            {
+                A = root.left;
+                B = root.right;
+            }
+            else
+            {
+                A = root.right;
+                B = root.left;
+            }
+
+            if (A >= 0)
+            {
+                vector<SubtreeResult> nn_A = nn_subtree_many( query, A, depth + 1, num_neighbors );
+                nn.insert( nn.end(), nn_A.begin(), nn_A.end() );
+                inplace_merge(nn.begin(), nn.begin()+1, nn.end(), compare_subtree_results);
+            }
+
+            if (B >= 0)
+            {
+                double displacement_squared = displacement_to_splitting_plane*displacement_to_splitting_plane;
+                int num_good = lower_bound(nn.begin(), nn.end(),
+                                           displacement_squared,
+                                           compare_subtree_result_to_distance_squared) - nn.begin();
+                int num_neighbors_B = num_neighbors - num_good;
+                if (num_neighbors_B > 0)
+                {
+                    vector<SubtreeResult> nn_B = nn_subtree_many( query, B, depth + 1, num_neighbors_B );
+                    int size0 = nn.size();
+                    nn.insert( nn.end(), nn_B.begin(), nn_B.end() );
+                    inplace_merge(nn.begin(), nn.begin()+size0, nn.end(), compare_subtree_results);
+                }
             }
         }
 

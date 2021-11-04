@@ -112,17 +112,17 @@ dsqs_true = np.linalg.norm(nearest_points_true - q[:,None], axis=0)**2
 err_nearest_neighbors = np.linalg.norm(nearest_points - nearest_points_true) + np.linalg.norm(dsqs - dsqs_true)
 print('err_nearest_neighbors=', err_nearest_neighbors)
 
-print('nearest_points=')
-print(nearest_points)
-
-print('nearest_points_true=')
-print(nearest_points_true)
-
-print('dsqs=')
-print(dsqs)
-
-actual_dsqs = np.linalg.norm(nearest_points - q[:,None], axis=0)**2
-print('actual_dsqs=')
-print(actual_dsqs)
+# print('nearest_points=')
+# print(nearest_points)
+#
+# print('nearest_points_true=')
+# print(nearest_points_true)
+#
+# print('dsqs=')
+# print(dsqs)
+#
+# actual_dsqs = np.linalg.norm(nearest_points - q[:,None], axis=0)**2
+# print('actual_dsqs=')
+# print(actual_dsqs)
 
 
