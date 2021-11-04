@@ -978,6 +978,47 @@ void woodbury_update( Ref<VectorXd>    x,
     x -= Z * C.lu().solve(V * x); // x = x - inv(A)*U*inv(C)*V*x
 }
 
+
+VectorXi nearest_points_brute_force( const MatrixXd & candidate_points,
+                                     const VectorXd & query_point,
+                                     int k )
+{
+    int N = candidate_points.cols();
+    vector<double> squared_distances(N);
+    for ( int ii=0; ii<N; ++ii )
+    {
+        squared_distances[ii] = (candidate_points.col(ii) - query_point).squaredNorm();
+    }
+    vector<int> sort_inds(N);
+    iota(sort_inds.begin(), sort_inds.end(), 0);
+
+    sort(sort_inds.begin(), sort_inds.end(),
+         [&squared_distances](int ii, int jj) {return squared_distances[ii] < squared_distances[jj];});
+
+    VectorXi nearest_k_points(k);
+    for ( int ii=0; ii<k; ++ii )
+    {
+        nearest_k_points(ii) = sort_inds[ii];
+    }
+    return nearest_k_points;
+}
+
+MatrixXi nearest_points_brute_force_vectorized( const MatrixXd & candidate_points,
+                                                const MatrixXd & query_points,
+                                                int k )
+{
+    int num_querys = query_points.cols();
+    MatrixXi nearest_inds(k, num_querys);
+    for ( int ii=0; ii<num_querys; ++ii )
+    {
+        nearest_inds.col(ii) = nearest_points_brute_force( candidate_points,
+                                                           query_points.col(ii),
+                                                           k );
+    }
+    return nearest_inds;
+}
+
+
 template <int K>
 struct SamplePoint {Matrix<double, K, 1> point;
                     Matrix<double, K, 1> mu;

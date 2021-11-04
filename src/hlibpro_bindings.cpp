@@ -740,6 +740,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     py::class_<KDTree<2>>(m, "KDTree2D")
         .def(py::init< const Ref<const Array<double, Dynamic, 2>> >())
         .def("nearest_neighbor", &KDTree<2>::nearest_neighbor)
+        .def("nearest_neighbors", &KDTree<2>::nearest_neighbors)
         .def("nearest_neighbor_vectorized", &KDTree<2>::nearest_neighbor_vectorized);
 
 //    py::class_<KDTree<3>>(m, "KDTree3D")
@@ -795,6 +796,9 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        const Ref<const Matrix<int   , 3, Dynamic>> // mesh_cells
                        >())
         .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel);
+
+    m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
+    m.def("nearest_points_brute_force_vectorized", &nearest_points_brute_force_vectorized);
 }
 
 
