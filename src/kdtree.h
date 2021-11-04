@@ -135,19 +135,26 @@ private:
 
         if (B >= 0)
         {
-            int num_neighbors_B = nn.end() - lower_bound(nn.begin(), nn.end(),
-                                                         displacement_to_splitting_plane*displacement_to_splitting_plane,
-                                                         [&](SubtreeResult SR, double dsq)
-                                                         {return SR.distance_squared < dsq;});
+            double displacement_to_splitting_plane_squared = displacement_to_splitting_plane*displacement_to_splitting_plane;
+            int num_good = lower_bound(nn.begin(), nn.end(),
+                                       displacement_to_splitting_plane_squared,
+                                       [&](SubtreeResult SR, double dsq)
+                                          {return SR.distance_squared < dsq;}) - nn.begin();
+//            int num_good = 0;
+            int num_neighbors_B = num_neighbors - num_good;
             if (num_neighbors_B > 0)
             {
-                vector<SubtreeResult> nn_B = nn_subtree_many( query, A, depth + 1, num_neighbors_B );
+                vector<SubtreeResult> nn_B = nn_subtree_many( query, B, depth + 1, num_neighbors_B );
+                int size0 = nn.size();
                 nn.insert( nn.end(), nn_B.begin(), nn_B.end() );
-                inplace_merge(nn.begin(), nn.begin()+num_neighbors+1, nn.end(), compare_results);
+                inplace_merge(nn.begin(), nn.begin()+size0, nn.end(), compare_results);
             }
         }
 
-        nn.resize(num_neighbors);
+        if (nn.size() > num_neighbors)
+        {
+            nn.resize(num_neighbors);
+        }
         return nn;
     }
 

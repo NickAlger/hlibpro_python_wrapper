@@ -93,3 +93,36 @@ print('dt_query_scipy=', dt_query_scipy)
 # dt_build_scipy= 0.0027768611907958984
 # dt_query_scipy= 6.6427671909332275
 
+
+# test multiple nearest neighbors
+
+num_neighbors = 6
+
+pp = np.random.randn(100,K)
+KDT = make_KDT(pp)
+
+q = np.random.randn(K)
+
+nearest_points, dsqs = KDT.nearest_neighbors(q, num_neighbors)
+
+nearest_inds = np.argsort(np.linalg.norm(pp - q[None,:], axis=1))
+nearest_points_true = pp[nearest_inds[:num_neighbors], :].T
+dsqs_true = np.linalg.norm(nearest_points_true - q[:,None], axis=0)**2
+
+err_nearest_neighbors = np.linalg.norm(nearest_points - nearest_points_true) + np.linalg.norm(dsqs - dsqs_true)
+print('err_nearest_neighbors=', err_nearest_neighbors)
+
+print('nearest_points=')
+print(nearest_points)
+
+print('nearest_points_true=')
+print(nearest_points_true)
+
+print('dsqs=')
+print(dsqs)
+
+actual_dsqs = np.linalg.norm(nearest_points - q[:,None], axis=0)**2
+print('actual_dsqs=')
+print(actual_dsqs)
+
+
