@@ -112,6 +112,28 @@ dsqs_true = np.linalg.norm(nearest_points_true - q[:,None], axis=0)**2
 err_nearest_neighbors = np.linalg.norm(nearest_points - nearest_points_true) + np.linalg.norm(dsqs - dsqs_true)
 print('err_nearest_neighbors=', err_nearest_neighbors)
 
+#
+
+num_queries = 11
+qq = np.array(np.random.randn(K, num_queries), order='F')
+
+all_nearest_points, all_dsqs = KDT.nearest_neighbors_vectorized(qq, num_neighbors)
+
+err_nearest_neighbors_vectorized = 0.0
+for ii in range(num_queries):
+    nearest_points = all_nearest_points[ii]
+    dsqs = all_dsqs[ii]
+    q = qq[:,ii]
+
+    nearest_inds = np.argsort(np.linalg.norm(pp - q[None, :], axis=1))
+    nearest_points_true = pp[nearest_inds[:num_neighbors], :].T
+    dsqs_true = np.linalg.norm(nearest_points_true - q[:, None], axis=0) ** 2
+
+    err_nearest_neighbors = np.linalg.norm(nearest_points - nearest_points_true) + np.linalg.norm(dsqs - dsqs_true)
+    err_nearest_neighbors_vectorized += err_nearest_neighbors
+
+print('err_nearest_neighbors_vectorized=', err_nearest_neighbors_vectorized)
+
 # print('nearest_points=')
 # print(nearest_points)
 #
@@ -125,4 +147,27 @@ print('err_nearest_neighbors=', err_nearest_neighbors)
 # print('actual_dsqs=')
 # print(actual_dsqs)
 
+# timing
 
+num_pts = int(1e5)
+num_queries = int(1e6)
+num_neighbors = 10
+
+pp = np.random.randn(num_pts, K)
+KDT = make_KDT(pp)
+
+qq = np.array(np.random.randn(K, num_queries), order='F')
+
+t = time()
+all_nearest_points, all_dsqs = KDT.nearest_neighbors_vectorized(qq, num_neighbors)
+dt_nearest_neighbors = time() - t
+print('num_pts=', num_pts, ', num_queries=', num_queries, ', num_neighbors=', num_neighbors, ', dt_nearest_neighbors=', dt_nearest_neighbors)
+
+KDT_scipy = KDTree(pp)
+
+qqC = np.array(qq.T, order='C')
+
+t = time()
+KDT_scipy.query(qqC, k=num_neighbors)
+dt_nearest_neighbors_scipy = time() - t
+print('dt_nearest_neighbors_scipy=', dt_nearest_neighbors_scipy)

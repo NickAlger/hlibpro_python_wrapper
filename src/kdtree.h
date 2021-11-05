@@ -204,6 +204,24 @@ public:
         return make_pair(nn_vectors, nn_dsq);
     }
 
+    pair< vector<Matrix<double, K, Dynamic>>, vector<VectorXd> >
+        nearest_neighbors_vectorized( const Matrix<double, K, Dynamic> & query_array,
+                                      int num_neighbors )
+    {
+        int num_querys = query_array.cols();
+
+        vector<Matrix<double, K, Dynamic>> closest_points(num_querys);
+        vector<VectorXd> squared_distances(num_querys);
+
+        for ( int ii=0; ii<num_querys; ++ii )
+        {
+            pair<MatrixXd, VectorXd> result = nearest_neighbors( query_array.col(ii), num_neighbors );
+            closest_points[ii] = result.first;
+            squared_distances[ii] = result.second;
+        }
+        return make_pair(closest_points, squared_distances);
+    }
+
     pair< Array<double, Dynamic, K>, VectorXd >
         nearest_neighbor_vectorized( Array<double, Dynamic, K> & query_array ) {
         int num_querys = query_array.rows();
