@@ -22,7 +22,7 @@ struct SubtreeResult
     }
 };
 
-bool compare_subtree_results(SubtreeResult r1, SubtreeResult r2){return r1.distance_squared < r2.distance_squared;}
+//bool compare_subtree_results(SubtreeResult r1, SubtreeResult r2){return r1.distance_squared < r2.distance_squared;}
 bool compare_subtree_result_to_distance_squared(SubtreeResult r, double dsq){return r.distance_squared < dsq;}
 
 template <int K>
@@ -153,7 +153,8 @@ private:
             {
                 vector<SubtreeResult> nn_A = nn_subtree_many( query, A, depth + 1, num_neighbors );
                 nn.insert( nn.end(), nn_A.begin(), nn_A.end() );
-                inplace_merge(nn.begin(), nn.begin()+1, nn.end(), compare_subtree_results);
+//                inplace_merge(nn.begin(), nn.begin()+1, nn.end(), compare_subtree_results);
+                inplace_merge(nn.begin(), nn.begin()+1, nn.end());
             }
 
             if (B >= 0)
@@ -168,7 +169,8 @@ private:
                     vector<SubtreeResult> nn_B = nn_subtree_many( query, B, depth + 1, num_neighbors_B );
                     int size0 = nn.size();
                     nn.insert( nn.end(), nn_B.begin(), nn_B.end() );
-                    inplace_merge(nn.begin(), nn.begin()+size0, nn.end(), compare_subtree_results);
+//                    inplace_merge(nn.begin(), nn.begin()+size0, nn.end(), compare_subtree_results);
+                    inplace_merge(nn.begin(), nn.begin()+size0, nn.end());
                 }
             }
         }
@@ -267,7 +269,6 @@ public:
             int jj = num_neighbors - ii - 1;
             SubtreeResult n_ii = nn.top();
             nn.pop();
-//            cout << "ii=" << ii << ", jj=" << jj << ", n_ii.index=" << n_ii.index << ", n_ii.distance_squared=" << n_ii.distance_squared << endl;
             nn_vectors.col(jj) = nodes[n_ii.index].point;
             nn_dsq(jj) = n_ii.distance_squared;
         }
