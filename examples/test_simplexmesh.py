@@ -112,6 +112,7 @@ not_in_mesh = np.logical_not(in_mesh)
 plt.plot(qq[0,in_mesh], qq[1,in_mesh], '.r')
 plt.plot(qq[0,not_in_mesh], qq[1,not_in_mesh], '.k')
 
+print('asdf1')
 
 # CLOSEST POINT TO MESH
 

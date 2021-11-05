@@ -468,7 +468,7 @@ public:
             face_vertices.col(vv) = vertices.col( *it );
             vv += 1;
         }
-        face_kdtree = KDTree<K>( face_vertices.transpose() );
+        face_kdtree = KDTree<K>( face_vertices );
 
 
         // Create face AABB tree
