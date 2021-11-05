@@ -22,9 +22,6 @@ struct SubtreeResult
     }
 };
 
-//bool compare_subtree_results(SubtreeResult r1, SubtreeResult r2){return r1.distance_squared < r2.distance_squared;}
-bool compare_subtree_result_to_distance_squared(SubtreeResult r, double dsq){return r.distance_squared < dsq;}
-
 template <int K>
 class KDTree {
 private:
@@ -107,11 +104,11 @@ private:
 
 
     // finds num_neighbors nearest neighbors of query in subtree
-    void nn_subtree_many( const KDVector &                   query,
-                          priority_queue<SubtreeResult> &    nn,
-                          int                                cur_index,
-                          int                                depth,
-                          int                                num_neighbors )
+    void nn_subtree_many( const KDVector &                                          query,
+                          priority_queue<SubtreeResult, vector<SubtreeResult>> &    nn,
+                          int                                                       cur_index,
+                          int                                                       depth,
+                          int                                                       num_neighbors )
     {
         Node cur = nodes[cur_index];
 
@@ -188,8 +185,11 @@ public:
 
     pair<MatrixXd, VectorXd> nearest_neighbors( const KDVector & point, int num_neighbors )
     {
-        priority_queue<SubtreeResult> nn;
-        nn_subtree_many( point, nn, 0, 0, num_neighbors);
+        vector<SubtreeResult> nn_container;
+        nn_container.reserve(2*num_neighbors);
+        priority_queue<SubtreeResult, vector<SubtreeResult>> nn(less<SubtreeResult>(), move(nn_container));
+
+        nn_subtree_many( point, nn, 0, 0, num_neighbors );
 
         MatrixXd nn_vectors(K, num_neighbors);
         VectorXd nn_dsq(num_neighbors);
