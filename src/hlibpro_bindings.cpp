@@ -21,6 +21,7 @@
 #include "kdtree.h"
 #include "aabbtree.h"
 #include "simplexmesh.h"
+#include "product_convolution_kernel.h"
 
 using namespace Eigen;
 
