@@ -33,8 +33,8 @@ plt.colorbar()
 # timing
 
 dim = 2
-num_rbf_points = 15
-num_eval_points = int(1e4)
+num_rbf_points = 20
+num_eval_points = int(1e5)
 
 rbf_points = np.array(np.random.randn(dim, num_rbf_points), order='F')
 function_at_rbf_points = np.random.randn(num_rbf_points)
