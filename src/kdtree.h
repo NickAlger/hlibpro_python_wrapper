@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <list>
+#include <queue>
 
 #include <math.h>
 #include <Eigen/Dense>
@@ -10,8 +11,16 @@ using namespace Eigen;
 using namespace std;
 
 // Nearest neighbor in subtree to query point
-struct SubtreeResult { int index; // index of nearest neighbor
-                       double distance_squared; }; // distance squared to nearest neighbor
+struct SubtreeResult
+{
+    int index; // index of nearest neighbor
+    double distance_squared; // distance squared to query point
+
+    const bool operator < ( const SubtreeResult& other ) const
+    {
+        return ( distance_squared < other.distance_squared );
+    }
+};
 
 bool compare_subtree_results(SubtreeResult r1, SubtreeResult r2){return r1.distance_squared < r2.distance_squared;}
 bool compare_subtree_result_to_distance_squared(SubtreeResult r, double dsq){return r.distance_squared < dsq;}
@@ -97,7 +106,7 @@ private:
         return SubtreeResult { best_index, best_distance_squared }; }
 
     // finds num_neighbors nearest neighbors of query in subtree
-    vector<SubtreeResult> nn_subtree_many( const KDVector & query,
+    vector<SubtreeResult> nn_subtree_many2( const KDVector & query,
                                            int              root_index,
                                            int              depth,
                                            int              num_neighbors )
@@ -171,6 +180,60 @@ private:
         return nn;
     }
 
+    // finds num_neighbors nearest neighbors of query in subtree
+    void nn_subtree_many( const KDVector & query,
+                          priority_queue<SubtreeResult> &    nn,
+                          int              cur_index,
+                          int              depth,
+                          int              num_neighbors )
+    {
+        Node cur = nodes[cur_index];
+
+        KDVector delta = query - cur.point;
+        double dsq_cur = delta.squaredNorm();
+        SubtreeResult cur_result = {cur_index, dsq_cur};
+
+        if ( nn.size() < num_neighbors )
+        {
+            nn.push( cur_result );
+        }
+        else if ( dsq_cur < nn.top().distance_squared )
+        {
+            nn.pop();
+            nn.push( cur_result );
+        }
+
+        int axis = depth % K;
+        double displacement_to_splitting_plane = delta(axis);
+
+        int A;
+        int B;
+        if (displacement_to_splitting_plane >= 0)
+        {
+            A = cur.left;
+            B = cur.right;
+        }
+        else
+        {
+            A = cur.right;
+            B = cur.left;
+        }
+
+        if (A >= 0)
+        {
+            nn_subtree_many( query, nn, A, depth+1, num_neighbors );
+        }
+
+        if (B >= 0)
+        {
+            if ( displacement_to_splitting_plane*displacement_to_splitting_plane
+                 < nn.top().distance_squared )
+            {
+                nn_subtree_many( query, nn, B, depth+1, num_neighbors );
+            }
+        }
+    }
+
 public:
     KDTree( ) {}
 
@@ -191,9 +254,30 @@ public:
         return make_pair(nodes[nn_result.index].point,
                          nn_result.distance_squared); }
 
+
     pair<MatrixXd, VectorXd> nearest_neighbors( KDVector point, int num_neighbors )
     {
-        vector<SubtreeResult> nn = nn_subtree_many( point, 0, 0, num_neighbors );
+        priority_queue<SubtreeResult> nn;
+        nn_subtree_many( point, nn, 0, 0, num_neighbors);
+
+        MatrixXd nn_vectors(K, num_neighbors);
+        VectorXd nn_dsq(num_neighbors);
+        for ( int ii=0; ii<num_neighbors; ++ii )
+        {
+            int jj = num_neighbors - ii - 1;
+            SubtreeResult n_ii = nn.top();
+            nn.pop();
+//            cout << "ii=" << ii << ", jj=" << jj << ", n_ii.index=" << n_ii.index << ", n_ii.distance_squared=" << n_ii.distance_squared << endl;
+            nn_vectors.col(jj) = nodes[n_ii.index].point;
+            nn_dsq(jj) = n_ii.distance_squared;
+        }
+        return make_pair(nn_vectors, nn_dsq);
+
+    }
+
+    pair<MatrixXd, VectorXd> nearest_neighbors2( KDVector point, int num_neighbors )
+    {
+        vector<SubtreeResult> nn = nn_subtree_many2( point, 0, 0, num_neighbors );
         MatrixXd nn_vectors(K, num_neighbors);
         VectorXd nn_dsq(num_neighbors);
         for ( int ii=0; ii<num_neighbors; ++ii )
