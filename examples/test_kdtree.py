@@ -150,7 +150,7 @@ print('err_nearest_neighbors_vectorized=', err_nearest_neighbors_vectorized)
 # timing
 
 num_pts = int(1e5)
-num_queries = int(1e6)
+num_queries = int(1e5)
 num_neighbors = 10
 
 pp = np.random.randn(num_pts, K)
