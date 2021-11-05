@@ -738,7 +738,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 //        .def("nearest_neighbor_vectorized", &KDTree<1>::nearest_neighbor_vectorized);
 
     py::class_<KDTree<2>>(m, "KDTree2D")
-        .def(py::init< const Ref<const Array<double, Dynamic, 2>> >())
+        .def(py::init< const Ref<const Array<double, 2, Dynamic>> >())
         .def("nearest_neighbor", &KDTree<2>::nearest_neighbor)
         .def("nearest_neighbors", &KDTree<2>::nearest_neighbors)
         .def("nearest_neighbors_vectorized", &KDTree<2>::nearest_neighbors_vectorized)

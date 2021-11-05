@@ -105,89 +105,13 @@ private:
 
         return SubtreeResult { best_index, best_distance_squared }; }
 
-    // finds num_neighbors nearest neighbors of query in subtree
-    vector<SubtreeResult> nn_subtree_many2( const KDVector & query,
-                                           int              root_index,
-                                           int              depth,
-                                           int              num_neighbors )
-    {
-        Node root = nodes[root_index];
-
-        KDVector delta = query - root.point;
-
-        vector<SubtreeResult> nn;
-
-        if ( (root.left < 0) && (root.right < 0) ) // root is a leaf
-        {
-            nn.push_back(SubtreeResult {root_index, delta.squaredNorm()});
-        }
-        else // this node is not a leaf
-        {
-            if ( (root.left >= 0) && (root.right >= 0) ) // root has two child nodes
-            {
-                nn.reserve(2*num_neighbors + 1);
-            }
-            else // root has one child node
-            {
-                nn.reserve(num_neighbors + 1);
-            }
-            nn.push_back(SubtreeResult {root_index, delta.squaredNorm()});
-
-            int axis = depth % K;
-            double displacement_to_splitting_plane = delta(axis);
-
-            int A;
-            int B;
-            if (displacement_to_splitting_plane >= 0)
-            {
-                A = root.left;
-                B = root.right;
-            }
-            else
-            {
-                A = root.right;
-                B = root.left;
-            }
-
-            if (A >= 0)
-            {
-                vector<SubtreeResult> nn_A = nn_subtree_many( query, A, depth + 1, num_neighbors );
-                nn.insert( nn.end(), nn_A.begin(), nn_A.end() );
-//                inplace_merge(nn.begin(), nn.begin()+1, nn.end(), compare_subtree_results);
-                inplace_merge(nn.begin(), nn.begin()+1, nn.end());
-            }
-
-            if (B >= 0)
-            {
-                double displacement_squared = displacement_to_splitting_plane*displacement_to_splitting_plane;
-                int num_good = lower_bound(nn.begin(), nn.end(),
-                                           displacement_squared,
-                                           compare_subtree_result_to_distance_squared) - nn.begin();
-                int num_neighbors_B = num_neighbors - num_good;
-                if (num_neighbors_B > 0)
-                {
-                    vector<SubtreeResult> nn_B = nn_subtree_many( query, B, depth + 1, num_neighbors_B );
-                    int size0 = nn.size();
-                    nn.insert( nn.end(), nn_B.begin(), nn_B.end() );
-//                    inplace_merge(nn.begin(), nn.begin()+size0, nn.end(), compare_subtree_results);
-                    inplace_merge(nn.begin(), nn.begin()+size0, nn.end());
-                }
-            }
-        }
-
-        if (nn.size() > num_neighbors)
-        {
-            nn.resize(num_neighbors);
-        }
-        return nn;
-    }
 
     // finds num_neighbors nearest neighbors of query in subtree
-    void nn_subtree_many( const KDVector & query,
+    void nn_subtree_many( const KDVector &                   query,
                           priority_queue<SubtreeResult> &    nn,
-                          int              cur_index,
-                          int              depth,
-                          int              num_neighbors )
+                          int                                cur_index,
+                          int                                depth,
+                          int                                num_neighbors )
     {
         Node cur = nodes[cur_index];
 
@@ -239,25 +163,30 @@ private:
 public:
     KDTree( ) {}
 
-    KDTree( const Ref<const Array<double, Dynamic, K>> points_array ) {
-        int num_pts = points_array.rows();
+    KDTree( const Ref<const Matrix<double, K, Dynamic>> points_array )
+    {
+        int num_pts = points_array.cols();
 
         // Copy eigen matrix input into std::vector of tuples which will be re-ordered
         vector< KDVector > points(num_pts);
-        for ( int ii=0; ii<num_pts; ++ii) {
-            points[ii] = points_array.row(ii); }
+        for ( int ii=0; ii<num_pts; ++ii)
+        {
+            points[ii] = points_array.col(ii);
+        }
 
         nodes.reserve(num_pts);
         int counter = 0;
-        int zero = make_subtree(0, num_pts, 0, points, counter); }
+        int zero = make_subtree(0, num_pts, 0, points, counter);
+    }
 
-    pair<KDVector, double> nearest_neighbor( KDVector point ) {
+    pair<KDVector, double> nearest_neighbor( const KDVector & point )
+    {
         SubtreeResult nn_result = nn_subtree( point, 0, 0 );
         return make_pair(nodes[nn_result.index].point,
-                         nn_result.distance_squared); }
+                         nn_result.distance_squared);
+    }
 
-
-    pair<MatrixXd, VectorXd> nearest_neighbors( KDVector point, int num_neighbors )
+    pair<MatrixXd, VectorXd> nearest_neighbors( const KDVector & point, int num_neighbors )
     {
         priority_queue<SubtreeResult> nn;
         nn_subtree_many( point, nn, 0, 0, num_neighbors);
@@ -273,24 +202,10 @@ public:
             nn_dsq(jj) = n_ii.distance_squared;
         }
         return make_pair(nn_vectors, nn_dsq);
-
-    }
-
-    pair<MatrixXd, VectorXd> nearest_neighbors2( KDVector point, int num_neighbors )
-    {
-        vector<SubtreeResult> nn = nn_subtree_many2( point, 0, 0, num_neighbors );
-        MatrixXd nn_vectors(K, num_neighbors);
-        VectorXd nn_dsq(num_neighbors);
-        for ( int ii=0; ii<num_neighbors; ++ii )
-        {
-            nn_vectors.col(ii) = nodes[nn[ii].index].point;
-            nn_dsq(ii) = nn[ii].distance_squared;
-        }
-        return make_pair(nn_vectors, nn_dsq);
     }
 
     pair< vector<Matrix<double, K, Dynamic>>, vector<VectorXd> >
-        nearest_neighbors_vectorized( const Matrix<double, K, Dynamic> & query_array,
+        nearest_neighbors_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_array,
                                       int num_neighbors )
     {
         int num_querys = query_array.cols();
@@ -307,20 +222,24 @@ public:
         return make_pair(closest_points, squared_distances);
     }
 
-    pair< Array<double, Dynamic, K>, VectorXd >
-        nearest_neighbor_vectorized( Array<double, Dynamic, K> & query_array ) {
-        int num_querys = query_array.rows();
+    pair< Matrix<double, K, Dynamic>, VectorXd >
+        nearest_neighbor_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_array )
+    {
+        int num_querys = query_array.cols();
 
-        Array<double, Dynamic, K> closest_points_array;
-        closest_points_array.resize(num_querys, K);
+        Matrix<double, K, Dynamic> closest_points_array(K, num_querys);
 
         VectorXd squared_distances(num_querys);
 
-        for ( int ii=0; ii<num_querys; ++ii ) {
-            KDVector query = query_array.row(ii);
+        for ( int ii=0; ii<num_querys; ++ii )
+        {
+            KDVector query = query_array.col(ii);
             SubtreeResult nn_result = nn_subtree( query, 0, 0 );
-            closest_points_array.row(ii) = nodes[nn_result.index].point;
-            squared_distances(ii) = nn_result.distance_squared; }
+            closest_points_array.col(ii) = nodes[nn_result.index].point;
+            squared_distances(ii) = nn_result.distance_squared;
+        }
 
-        return make_pair(closest_points_array, squared_distances); } };
+        return make_pair(closest_points_array, squared_distances);
+    }
+};
 
