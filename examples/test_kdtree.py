@@ -152,9 +152,9 @@ print('err_nearest_neighbors_vectorized=', err_nearest_neighbors_vectorized)
 
 # timing
 
-num_pts = int(1e3)
+num_pts = int(1e5)
 num_queries = int(1e5)
-num_neighbors = 20
+num_neighbors = 10
 
 pp = np.array(np.random.randn(K, num_pts), order='F')
 KDT = make_KDT(pp)
