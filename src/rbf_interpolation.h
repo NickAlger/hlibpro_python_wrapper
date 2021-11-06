@@ -26,40 +26,49 @@ double tps_interpolate( const VectorXd & function_at_rbf_points,
 {
     int N = rbf_points.cols();
 
-    MatrixXd M(N, N);
-    for ( int jj=0; jj<N; ++jj )
+    double function_at_eval_point;
+    if ( N == 1 )
     {
+        function_at_eval_point = function_at_rbf_points(0);
+    }
+    else
+    {
+        MatrixXd M(N, N);
+        for ( int jj=0; jj<N; ++jj )
+        {
+            for ( int ii=0; ii<N; ++ii )
+            {
+                if ( ii == jj )
+                {
+                    M(ii,jj) = 0.0;
+                }
+                else
+                {
+                    double r_squared = (rbf_points.col(ii) - rbf_points.col(jj)).squaredNorm();
+                    M(ii, jj) = 0.5 * r_squared * log(r_squared);
+                }
+            }
+        }
+
+        VectorXd weights = M.lu().solve(function_at_rbf_points);
+
+        VectorXd rbfs_at_eval_point(N);
         for ( int ii=0; ii<N; ++ii )
         {
-            if ( ii == jj )
+            double r_squared = (rbf_points.col(ii) - eval_point).squaredNorm();
+            if ( r_squared == 0.0 )
             {
-                M(ii,jj) = 0.0;
+                rbfs_at_eval_point(ii) = 0.0;
             }
             else
             {
-                double r_squared = (rbf_points.col(ii) - rbf_points.col(jj)).squaredNorm();
-                M(ii, jj) = 0.5 * r_squared * log(r_squared);
+                rbfs_at_eval_point(ii) = 0.5 * r_squared * log(r_squared);
             }
         }
+
+        function_at_eval_point = (weights.array() * rbfs_at_eval_point.array()).sum();
     }
-
-    VectorXd weights = M.lu().solve(function_at_rbf_points);
-
-    VectorXd rbfs_at_eval_point(N);
-    for ( int ii=0; ii<N; ++ii )
-    {
-        double r_squared = (rbf_points.col(ii) - eval_point).squaredNorm();
-        if ( r_squared == 0.0 )
-        {
-            rbfs_at_eval_point(ii) = 0.0;
-        }
-        else
-        {
-            rbfs_at_eval_point(ii) = 0.5 * r_squared * log(r_squared);
-        }
-    }
-
-    return (weights.array() * rbfs_at_eval_point.array()).sum();
+    return function_at_eval_point;
 }
 
 

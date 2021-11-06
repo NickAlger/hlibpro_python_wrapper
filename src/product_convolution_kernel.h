@@ -59,7 +59,7 @@ public:
             sample_points_array.col(ii) = all_sample_points[ii];
         }
 
-        sample_points_kdtree = KDTree(sample_points_array);
+        sample_points_kdtree = KDTree<K>(sample_points_array);
 
         num_batches = input_impulse_response_batches.size();
         impulse_response_batches.resize(num_batches);
@@ -96,45 +96,65 @@ public:
         vector<ind_and_coords<K>> good_IC;
         good_IC.reserve(N_nearest);
 
-        for ( ind : nearest_sample_point_inds )
+        for ( int jj=0; jj<N_nearest; ++jj )
         {
-            Matrix<double, K, 1> z = y - x + sample_points[ind].point;
+            int sample_ind = nearest_sample_point_inds[jj];
+            Matrix<double, K, 1> z = y - x + sample_points[sample_ind].point;
             ind_and_coords<K> IC;
             mesh.get_simplex_ind_and_affine_coordinates_of_point( z, IC );
             if ( IC.simplex_ind >= 0 ) // y-x+xi is in mesh => varphi(y-x) is defined
             {
-                good_sample_point_inds.push_back(ind);
+                good_sample_point_inds.push_back(sample_ind);
                 good_IC.push_back(IC);
             }
         }
 
         int N_good = good_sample_point_inds.size();
 
-        MatrixXd good_sample_points(K, N_good);
-        VectorXd good_varphis_at_y_minus_x(N_good);
-        good_varphis_at_y_minus_x.setZero();
-
-        for ( int jj=0; jj<N_good; ++jj )
+        double varphi_at_y_minus_x = 0.0;
+        if ( N_good > 0 )
         {
-            int sample_ind = good_sample_point_inds[jj];
-            SamplePoint & SP = sample_points[sample_ind];
-            good_sample_points.col(jj) = SP.point;
+            MatrixXd good_sample_points(K, N_good);
+            VectorXd good_varphis_at_y_minus_x(N_good);
+            good_varphis_at_y_minus_x.setZero();
 
-            Matrix<double, K, 1> dp = y - x + SP.point - SP.mu;
-            if ( dp.transpose() * (SP.inv_Sigma * dp) < tau_squared )
+            for ( int jj=0; jj<N_good; ++jj )
             {
-                int b = point2batch[sample_ind];
-                VectorXd & phi_j = impulse_response_batches[b];
-                ind_and_coords<K> & IC = good_IC[jj];
-                for ( int kk=0; kk<K+1; ++kk )
+                int sample_ind = good_sample_point_inds[jj];
+                SamplePoint<K> & SP = sample_points[sample_ind];
+                good_sample_points.col(jj) = SP.point;
+
+                Matrix<double, K, 1> dp = y - x + SP.point - SP.mu;
+                if ( dp.transpose() * (SP.inv_Sigma * dp) < tau_squared )
                 {
-                    good_varphis_at_y_minus_x(jj) += IC.affine_coords(kk) * phi_j(mesh.cells(kk, IC.simplex_ind));
+                    int b = point2batch[sample_ind];
+                    VectorXd & phi_j = impulse_response_batches[b];
+                    ind_and_coords<K> & IC = good_IC[jj];
+                    for ( int kk=0; kk<K+1; ++kk )
+                    {
+                        good_varphis_at_y_minus_x(jj) += IC.affine_coords(kk) * phi_j(mesh.cells(kk, IC.simplex_ind));
+                    }
                 }
             }
+            varphi_at_y_minus_x = tps_interpolate( good_varphis_at_y_minus_x, good_sample_points, x );
         }
 
-        return tps_interpolate( good_varphis_at_y_minus_x,
-                                good_sample_points,
-                                x )
+        return varphi_at_y_minus_x;
+    }
+
+    MatrixXd eval_integral_kernel_block(const Ref<const Matrix<double, K, Dynamic>> yy,
+                                        const Ref<const Matrix<double, K, Dynamic>> xx)
+    {
+        int nx = xx.cols();
+        int ny = yy.cols();
+        MatrixXd block(ny, nx);
+        for ( int jj=0; jj<nx; ++jj )
+        {
+            for ( int ii=0; ii<ny; ++ii )
+            {
+                block(ii, jj) = eval_integral_kernel(yy.col(ii), xx.col(jj));
+            }
+        }
+        return block;
     }
 };

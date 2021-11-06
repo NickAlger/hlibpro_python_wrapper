@@ -45,7 +45,7 @@ $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET): $(OBJ_DIR)/hlibpro_bindings.o $(OBJ_DIR
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-$(OBJ_DIR)/hlibpro_bindings.o: $(SRC_DIR)/hlibpro_bindings.cpp $(SRC_DIR)/aabbtree.h $(SRC_DIR)/kdtree.h $(SRC_DIR)/simplexmesh.h $(SRC_DIR)/geometric_sort.h
+$(OBJ_DIR)/hlibpro_bindings.o: $(SRC_DIR)/hlibpro_bindings.cpp $(SRC_DIR)/aabbtree.h $(SRC_DIR)/kdtree.h $(SRC_DIR)/simplexmesh.h $(SRC_DIR)/geometric_sort.h $(SRC_DIR)/product_convolution_kernel.h $(SRC_DIR)/misc.h
 	@echo 'Building target: $@'
 	g++ -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
 # 	cc -o "$@" -c "$<" $(ALL_COMPILE_STUFF)

@@ -797,7 +797,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        const Ref<const Matrix<double, 2,   Dynamic>>, // mesh_vertices,
                        const Ref<const Matrix<int   , 3, Dynamic>> // mesh_cells
                        >())
-        .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel);
+        .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel)
+        .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF<2>::eval_integral_kernel_block);
 
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
     m.def("nearest_points_brute_force_vectorized", &nearest_points_brute_force_vectorized);
