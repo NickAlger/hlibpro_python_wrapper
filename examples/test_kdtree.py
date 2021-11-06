@@ -27,7 +27,8 @@ KDT = make_KDT(pp)
 
 q = np.random.randn(K)
 
-nearest_point, dsq = KDT.nearest_neighbor(q)
+ind, dsq = KDT.nearest_neighbor(q)
+nearest_point = pp[:,ind]
 
 nearest_ind = np.argmin(np.linalg.norm(pp - q[:,None], axis=0))
 nearest_point_true = pp[:,nearest_ind]
@@ -149,8 +150,8 @@ print('err_nearest_neighbors_vectorized=', err_nearest_neighbors_vectorized)
 
 # timing
 
-num_pts = int(1e6)
-num_queries = int(1e6)
+num_pts = int(1e5)
+num_queries = int(1e5)
 num_neighbors = 10
 
 pp = np.array(np.random.randn(K, num_pts), order='F')

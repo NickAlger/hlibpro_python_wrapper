@@ -603,7 +603,7 @@ public:
         else
         {
             // 1. Find a set of candidate boundary faces, one of which contains the closest point
-            pair<KDVector, double> kd_result = face_kdtree.nearest_neighbor( query );
+            pair<int, double> kd_result = face_kdtree.nearest_neighbor( query );
             double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
             VectorXi face_inds = face_aabbtree.ball_collisions( query, dist_estimate );
 

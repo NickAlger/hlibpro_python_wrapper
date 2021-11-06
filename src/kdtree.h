@@ -22,31 +22,37 @@ struct SubtreeResult
     }
 };
 
+// Node in KD tree
+template <int K>
+struct KDNode { Matrix<double,K,1> point;
+              int                left;       // index of left child
+              int                right; };   // index of right child
+
+template <int K>
+struct PointWithIndex { Matrix<double,K,1> point;
+                        int index; };
+
 template <int K>
 class KDTree {
 private:
-    typedef Matrix<double, K, 1> KDVector;
-
-    // Node in KD tree
-    struct Node { KDVector point;
-                  int      left;       // index of left child
-                  int      right; };   // index of right child
-
-    vector< Node > nodes; // All nodes in the tree
+    vector< KDNode<K> > nodes; // All nodes in the tree
+    Matrix<int, Dynamic, 1> perm_i2e; // permutation from internal ordering to external ordering
 
     // creates subtree and returns the index for root of subtree
     int make_subtree( int start, int stop, int depth,
-                      vector< KDVector > & points,
-                      int & counter ) {
+                      vector< PointWithIndex<K> > & points,
+                      int & counter )
+    {
         int num_pts_local = stop - start;
         int current_node_ind = -1; // -1 indicates node does not exist
-        if (num_pts_local >= 1) {
+        if (num_pts_local >= 1)
+        {
             current_node_ind = counter;
             counter = counter + 1;
 
             int axis = depth % K;
             sort( points.begin() + start, points.begin() + stop,
-                  [axis](KDVector u, KDVector v) {return u(axis) > v(axis);} );
+                  [axis](PointWithIndex<K> u, PointWithIndex<K> v) {return u.point(axis) > v.point(axis);} );
 
             int mid = start + (num_pts_local / 2);
 
@@ -59,16 +65,19 @@ private:
             int left = make_subtree(left_start, left_stop, depth + 1, points, counter);
             int right = make_subtree(right_start, right_stop, depth + 1, points, counter);
 
-            nodes[current_node_ind] = Node { points[mid], left, right }; }
-        return current_node_ind; }
+            nodes[current_node_ind] = KDNode<K> { points[mid].point, left, right };
+            perm_i2e[current_node_ind] = points[mid].index;
+        }
+        return current_node_ind;
+    }
 
     // finds nearest neighbor of query in subtree
-    SubtreeResult nn_subtree( const KDVector & query,
-                              int              root_index,
-                              int              depth) {
-        Node root = nodes[root_index];
+    SubtreeResult nn_subtree( const Matrix<double,K,1> & query,
+                              int                        root_index,
+                              int                        depth) {
+        KDNode<K> root = nodes[root_index];
 
-        KDVector delta = query - root.point;
+        Matrix<double,K,1> delta = query - root.point;
 
         int best_index = root_index;
         double best_distance_squared = delta.squaredNorm();
@@ -104,15 +113,15 @@ private:
 
 
     // finds num_neighbors nearest neighbors of query in subtree
-    void nn_subtree_many( const KDVector &                                          query,
+    void nn_subtree_many( const Matrix<double,K,1> &                                query,
                           priority_queue<SubtreeResult, vector<SubtreeResult>> &    nn,
                           int                                                       cur_index,
                           int                                                       depth,
                           int                                                       num_neighbors )
     {
-        Node cur = nodes[cur_index];
+        KDNode<K> cur = nodes[cur_index];
 
-        KDVector delta = query - cur.point;
+        Matrix<double,K,1> delta = query - cur.point;
         double dsq_cur = delta.squaredNorm();
         SubtreeResult cur_result = {cur_index, dsq_cur};
 
@@ -165,25 +174,26 @@ public:
         int num_pts = points_array.cols();
 
         // Copy eigen matrix input into std::vector of tuples which will be re-ordered
-        vector< KDVector > points(num_pts);
+        vector< PointWithIndex<K> > points(num_pts); // (coords, original_index)
         for ( int ii=0; ii<num_pts; ++ii)
         {
-            points[ii] = points_array.col(ii);
+            points[ii].point = points_array.col(ii);
+            points[ii].index = ii;
         }
 
         nodes.reserve(num_pts);
+        perm_i2e.resize(num_pts, 1);
         int counter = 0;
         int zero = make_subtree(0, num_pts, 0, points, counter);
     }
 
-    pair<KDVector, double> nearest_neighbor( const KDVector & point )
+    pair<int, double> nearest_neighbor( const Matrix<double,K,1> & point )
     {
         SubtreeResult nn_result = nn_subtree( point, 0, 0 );
-        return make_pair(nodes[nn_result.index].point,
-                         nn_result.distance_squared);
+        return make_pair(perm_i2e[nn_result.index], nn_result.distance_squared);
     }
 
-    pair<MatrixXd, VectorXd> nearest_neighbors( const KDVector & point, int num_neighbors )
+    pair<MatrixXd, VectorXd> nearest_neighbors( const Matrix<double,K,1> & point, int num_neighbors )
     {
         vector<SubtreeResult> nn_container;
         nn_container.reserve(2*num_neighbors);
@@ -233,7 +243,7 @@ public:
 
         for ( int ii=0; ii<num_querys; ++ii )
         {
-            KDVector query = query_array.col(ii);
+            Matrix<double,K,1> query = query_array.col(ii);
             SubtreeResult nn_result = nn_subtree( query, 0, 0 );
             closest_points_array.col(ii) = nodes[nn_result.index].point;
             squared_distances(ii) = nn_result.distance_squared;
