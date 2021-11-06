@@ -193,7 +193,7 @@ public:
         return make_pair(perm_i2e[nn_result.index], nn_result.distance_squared);
     }
 
-    pair<MatrixXd, VectorXd> nearest_neighbors( const Matrix<double,K,1> & point, int num_neighbors )
+    pair<VectorXi, VectorXd> nearest_neighbors( const Matrix<double,K,1> & point, int num_neighbors )
     {
         vector<SubtreeResult> nn_container;
         nn_container.reserve(2*num_neighbors);
@@ -201,43 +201,43 @@ public:
 
         nn_subtree_many( point, nn, 0, 0, num_neighbors );
 
-        MatrixXd nn_vectors(K, num_neighbors);
+        VectorXi nn_inds(num_neighbors);
         VectorXd nn_dsq(num_neighbors);
         for ( int ii=0; ii<num_neighbors; ++ii )
         {
             int jj = num_neighbors - ii - 1;
             SubtreeResult n_ii = nn.top();
             nn.pop();
-            nn_vectors.col(jj) = nodes[n_ii.index].point;
+            nn_inds(jj) = perm_i2e[n_ii.index];
             nn_dsq(jj) = n_ii.distance_squared;
         }
-        return make_pair(nn_vectors, nn_dsq);
+        return make_pair(nn_inds, nn_dsq);
     }
 
-    pair< vector<Matrix<double, K, Dynamic>>, vector<VectorXd> >
+    pair< MatrixXi, MatrixXd >
         nearest_neighbors_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_array,
                                       int num_neighbors )
     {
         int num_querys = query_array.cols();
 
-        vector<Matrix<double, K, Dynamic>> closest_points(num_querys);
-        vector<VectorXd> squared_distances(num_querys);
+        MatrixXi closest_point_inds(num_neighbors, num_querys);
+        MatrixXd squared_distances(num_neighbors, num_querys);
 
         for ( int ii=0; ii<num_querys; ++ii )
         {
-            pair<MatrixXd, VectorXd> result = nearest_neighbors( query_array.col(ii), num_neighbors );
-            closest_points[ii] = result.first;
-            squared_distances[ii] = result.second;
+            pair<VectorXi, VectorXd> result = nearest_neighbors( query_array.col(ii), num_neighbors );
+            closest_point_inds.col(ii) = result.first;
+            squared_distances.col(ii) = result.second;
         }
-        return make_pair(closest_points, squared_distances);
+        return make_pair(closest_point_inds, squared_distances);
     }
 
-    pair< Matrix<double, K, Dynamic>, VectorXd >
+    pair< VectorXi, VectorXd >
         nearest_neighbor_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_array )
     {
         int num_querys = query_array.cols();
 
-        Matrix<double, K, Dynamic> closest_points_array(K, num_querys);
+        VectorXi closest_points_inds(num_querys);
 
         VectorXd squared_distances(num_querys);
 
@@ -245,11 +245,11 @@ public:
         {
             Matrix<double,K,1> query = query_array.col(ii);
             SubtreeResult nn_result = nn_subtree( query, 0, 0 );
-            closest_points_array.col(ii) = nodes[nn_result.index].point;
+            closest_points_inds(ii) = perm_i2e[nn_result.index];
             squared_distances(ii) = nn_result.distance_squared;
         }
 
-        return make_pair(closest_points_array, squared_distances);
+        return make_pair(closest_points_inds, squared_distances);
     }
 };
 
