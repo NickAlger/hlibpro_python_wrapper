@@ -786,23 +786,21 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
 //    m.def("woodbury_update", &woodbury_update);
 
-//    py::class_<ProductConvolutionKernelRBF<2>>(m, "ProductConvolutionKernelRBF")
-//        .def(py::init< const vector<Matrix<double, 2, 1>>, // all_points,
-//                       const vector<Matrix<double, 2, 1>>, // all_mu,
-//                       const vector<Matrix<double, 2, 2>>, // all_Sigma,
-//                       double,                             // tau,
-//                       const vector<VectorXd>,             // input_impulse_response_batches,
-//                       const vector<int>,                  // batch_lengths,
-//                       double,                             // rbf_sigma,
-//                       const Ref<const Matrix<double, 2,   Dynamic>>, // mesh_vertices,
-//                       const Ref<const Matrix<int   , 3, Dynamic>> // mesh_cells
-//                       >())
-//        .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel);
+    py::class_<ProductConvolutionKernelRBF<2>>(m, "ProductConvolutionKernelRBF")
+        .def(py::init< const vector<Matrix<double, 2, 1>>, // all_points,
+                       const vector<Matrix<double, 2, 1>>, // all_mu,
+                       const vector<Matrix<double, 2, 2>>, // all_Sigma,
+                       double,                             // tau,
+                       const vector<VectorXd>,             // input_impulse_response_batches,
+                       const vector<int>,                  // batch_lengths,
+                       int,                                // input_num_nearest_neighbors,
+                       const Ref<const Matrix<double, 2,   Dynamic>>, // mesh_vertices,
+                       const Ref<const Matrix<int   , 3, Dynamic>> // mesh_cells
+                       >())
+        .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel);
 
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
     m.def("nearest_points_brute_force_vectorized", &nearest_points_brute_force_vectorized);
 }
-
-
 
 
