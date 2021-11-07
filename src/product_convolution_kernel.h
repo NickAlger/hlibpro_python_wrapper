@@ -83,64 +83,122 @@ public:
 
     }
 
-    double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x)
+    vector<pair<int, double>> interpolation_inds_and_values(const Matrix<double, K, 1> & y,
+                                                            const Matrix<double, K, 1> & x)
     {
         pair<VectorXi, VectorXd> nn_result = sample_points_kdtree.nearest_neighbors( x, num_nearest_neighbors );
-        VectorXi nearest_sample_point_inds = nn_result.first;
+        VectorXi nearest_inds = nn_result.first;
 
-        int N_nearest = nearest_sample_point_inds.size();
+        int N_nearest = nearest_inds.size();
 
-        vector<int> good_sample_point_inds;
-        good_sample_point_inds.reserve(N_nearest);
+        vector<ind_and_coords<K>> all_IC(N_nearest);
+        vector<bool>              ind_is_good(N_nearest);
+        for ( int jj=0; jj<N_nearest; ++jj )
+        {
+            int ind = nearest_inds[jj];
+            Matrix<double, K, 1> z = y - x + sample_points[ind].point;
+            mesh.get_simplex_ind_and_affine_coordinates_of_point( z, all_IC[jj] );
+            ind_is_good[jj] = ( all_IC[jj].simplex_ind >= 0 ); // y-x+xi is in mesh => varphi_i(y-x) is defined
+        }
 
-        vector<ind_and_coords<K>> good_IC;
-        good_IC.reserve(N_nearest);
+        vector<pair<int, double>> good_inds_and_values;
+        good_inds_and_values.reserve(ind_is_good.size());
 
+        vector<int> good_inds;
+        good_inds.reserve(ind_is_good.size());
+
+        vector<double> ff;
+        ff.reserve(ind_is_good.size());
 
         for ( int jj=0; jj<N_nearest; ++jj )
         {
-            int sample_ind = nearest_sample_point_inds[jj];
-            Matrix<double, K, 1> z = y - x + sample_points[sample_ind].point;
-            ind_and_coords<K> IC;
-            mesh.get_simplex_ind_and_affine_coordinates_of_point( z, IC );
-            if ( IC.simplex_ind >= 0 ) // y-x+xi is in mesh => varphi(y-x) is defined
+            if ( ind_is_good[jj] )
             {
-                good_sample_point_inds.push_back(sample_ind);
-                good_IC.push_back(IC);
-            }
-        }
-
-        int N_good = good_sample_point_inds.size();
-
-        double varphi_at_y_minus_x = 0.0;
-        if ( N_good > 0 )
-        {
-            MatrixXd good_sample_points(K, N_good);
-            VectorXd good_varphis_at_y_minus_x(N_good);
-            good_varphis_at_y_minus_x.setZero();
-
-            for ( int jj=0; jj<N_good; ++jj )
-            {
-                int sample_ind = good_sample_point_inds[jj];
-                SamplePoint<K> & SP = sample_points[sample_ind];
-                good_sample_points.col(jj) = SP.point;
-
+                int ind = nearest_inds[jj];
+                SamplePoint<K> & SP = sample_points[ind];
                 Matrix<double, K, 1> dp = y - x + SP.point - SP.mu;
+                ind_and_coords<K> & IC = all_IC[jj];
+
+                double varphi_at_y_minus_x = 0.0;
                 if ( dp.transpose() * (SP.inv_Sigma * dp) < tau_squared )
                 {
-                    int b = point2batch[sample_ind];
+                    int b = point2batch[ind];
                     VectorXd & phi_j = impulse_response_batches[b];
-                    ind_and_coords<K> & IC = good_IC[jj];
                     for ( int kk=0; kk<K+1; ++kk )
                     {
-                        good_varphis_at_y_minus_x(jj) += IC.affine_coords(kk) * phi_j(mesh.cells(kk, IC.simplex_ind));
+                        varphi_at_y_minus_x += IC.affine_coords(kk) * phi_j(mesh.cells(kk, IC.simplex_ind));
                     }
                 }
+                good_inds_and_values.push_back(make_pair(ind, varphi_at_y_minus_x));
             }
-            varphi_at_y_minus_x = tps_interpolate( good_varphis_at_y_minus_x, good_sample_points, x );
         }
 
-        return varphi_at_y_minus_x;
+        return good_inds_and_values;
+    }
+
+    double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x)
+    {
+        vector<pair<int, double>> inds_and_values   = interpolation_inds_and_values(y, x); // forward
+        vector<pair<int, double>> inds_and_values_T = interpolation_inds_and_values(x, y); // transpose (swap x, y)
+
+        vector<pair<Matrix<double,K,1>, double>> points_and_values; // forward
+        points_and_values.reserve(inds_and_values.size() + inds_and_values_T.size());
+        for ( pair<int, double> ind_and_value : inds_and_values )
+        {
+            int ind = ind_and_value.first;
+            double val = ind_and_value.second;
+            Matrix<double, K, 1> shifted_point = sample_points[ind].point - x;
+            points_and_values.push_back(make_pair(shifted_point, val));
+        }
+
+        vector<pair<Matrix<double,K,1>, double>> points_and_values_T; // transpose
+        points_and_values_T.reserve(inds_and_values_T.size());
+        for ( pair<int, double> ind_and_value_T : inds_and_values_T )
+        {
+            int ind = ind_and_value_T.first;
+            double val = ind_and_value_T.second;
+            Matrix<double, K, 1> shifted_point = sample_points[ind].point - y;
+            points_and_values_T.push_back(make_pair(shifted_point, val));
+        }
+
+        // Add non-duplicates. Inefficient implementation but whatever.
+        // Asymptotic complexity not affected because we already have to do O(k^2) matrix operation later anyways
+        double tol = 1e-6;
+        double tol_squared = tol*tol;
+
+        for ( int ii=0; ii<points_and_values_T.size(); ++ii ) // inefficient, but whatever.
+        {
+            pair<Matrix<double,K,1>, double> & PV_T = points_and_values_T[ii];
+            bool is_duplicate = false;
+            for ( int jj=0; jj<points_and_values.size(); ++jj )
+            {
+                pair<Matrix<double,K,1>, double> & PV = points_and_values[jj];
+                if ( (PV.first - PV_T.first).squaredNorm() < tol_squared )
+                {
+                    is_duplicate = true;
+                    break;
+                }
+            }
+            if ( !is_duplicate )
+            {
+                points_and_values.push_back(PV_T);
+            }
+        }
+
+        int N_good = points_and_values.size();
+        double kernel_value = 0.0;
+        if ( N_good > 0 )
+        {
+            MatrixXd P(K, N_good);
+            VectorXd F(N_good);
+            for ( int jj=0; jj<N_good; ++jj )
+            {
+                P.col(jj) = points_and_values[jj].first;
+                F(jj)     = points_and_values[jj].second;
+            }
+            kernel_value = tps_interpolate( F, P, MatrixXd::Zero(K,1) );
+        }
+        return kernel_value;
     }
 
     MatrixXd eval_integral_kernel_block(const Ref<const Matrix<double, K, Dynamic>> yy,

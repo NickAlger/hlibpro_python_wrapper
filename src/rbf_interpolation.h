@@ -49,8 +49,10 @@ double tps_interpolate( const VectorXd & function_at_rbf_points,
                 }
             }
         }
+//        M += 1e-6 * MatrixXd::Identity(N, N);
 
         VectorXd weights = M.lu().solve(function_at_rbf_points);
+//        VectorXd weights = M.colPivHouseholderQr().solve(function_at_rbf_points);
 
         VectorXd rbfs_at_eval_point(N);
         for ( int ii=0; ii<N; ++ii )
