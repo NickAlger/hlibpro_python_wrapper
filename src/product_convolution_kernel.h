@@ -96,6 +96,7 @@ public:
         vector<ind_and_coords<K>> good_IC;
         good_IC.reserve(N_nearest);
 
+
         for ( int jj=0; jj<N_nearest; ++jj )
         {
             int sample_ind = nearest_sample_point_inds[jj];
