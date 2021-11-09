@@ -820,8 +820,15 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def_readwrite("tau", &ImpulseResponseBatches<2>::tau)
         .def_readwrite("num_neighbors", &ImpulseResponseBatches<2>::num_neighbors)
         .def_readonly("kdtree", &ImpulseResponseBatches<2>::kdtree)
+        .def_readonly("mesh", &ImpulseResponseBatches<2>::mesh)
+        .def_readonly("pts", &ImpulseResponseBatches<2>::pts)
+        .def_readonly("mu", &ImpulseResponseBatches<2>::mu)
+        .def_readonly("inv_Sigma", &ImpulseResponseBatches<2>::inv_Sigma)
+        .def_readonly("psi_batches", &ImpulseResponseBatches<2>::psi_batches)
+        .def_readonly("point2batch", &ImpulseResponseBatches<2>::point2batch)
         .def("num_pts", &ImpulseResponseBatches<2>::num_pts)
         .def("num_batches", &ImpulseResponseBatches<2>::num_batches)
-        .def("add_batch", &ImpulseResponseBatches<2>::add_batch);
+        .def("add_batch", &ImpulseResponseBatches<2>::add_batch)
+        .def("build_kdtree", &ImpulseResponseBatches<2>::build_kdtree);
 }
 

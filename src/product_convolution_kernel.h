@@ -23,6 +23,8 @@ template <int K>
 class ImpulseResponseBatches
 {
 private:
+
+public:
     SimplexMesh<K>               mesh;
     vector<Matrix<double, K, 1>> pts;
     vector<Matrix<double, K, 1>> mu;
@@ -30,9 +32,6 @@ private:
     vector<VectorXd>             psi_batches;
     vector<int>                  point2batch;
 
-    bool rebuild_kdtree = true;
-
-public:
     double                 tau;
     int                    num_neighbors;
     KDTree<K>              kdtree;
