@@ -28,7 +28,6 @@ private:
     vector<Matrix<double, K, 1>> mu;
     vector<Matrix<double, K, K>> inv_Sigma;
     vector<VectorXd>             psi_batches;
-    KDTree<K>                    kdtree;
     vector<int>                  point2batch;
 
     bool rebuild_kdtree = true;
@@ -36,25 +35,21 @@ private:
 public:
     double                 tau;
     int                    num_neighbors;
+    KDTree<K>              kdtree;
 
-    ImpulseResponseBatches( const vector<BatchData<K>>                    & all_batches_data,
-                            const Ref<const Matrix<double, K,   Dynamic>> & mesh_vertices,
+    ImpulseResponseBatches( const Ref<const Matrix<double, K,   Dynamic>> & mesh_vertices,
                             const Ref<const Matrix<int   , K+1, Dynamic>> & mesh_cells,
                             int                                             num_neighbors,
                             double                                          tau )
         : mesh(mesh_vertices, mesh_cells), num_neighbors(num_neighbors), tau(tau)
-    {
-        rebuild_kdtree = false;
-        for ( int ii=0; ii<all_batches_data.size(); ++ii )
-        {
-            add_batch(all_batches_data[ii]);
-        }
-        rebuild_kdtree = true;
+    {}
 
+    void build_kdtree()
+    {
         kdtree = KDTree<K>(pts);
     }
 
-    void add_batch( const BatchData<K> & batch_data )
+    void add_batch( const BatchData<K> & batch_data, bool rebuild_kdtree )
     {
         const vector<Matrix<double, K, 1>> & pts_batch              = get<0>(batch_data);
         const vector<Matrix<double, K, 1>> & mu_batch               = get<1>(batch_data);
@@ -76,7 +71,7 @@ public:
 
         if ( rebuild_kdtree )
         {
-            kdtree = KDTree<K>(pts);
+            build_kdtree();
         }
     }
 
@@ -147,17 +142,27 @@ public:
                                  const Ref<const Matrix<int   , K+1, Dynamic>> & mesh_cells_ADJ,
                                  int                                             num_neighbors_ADJ,
                                  double                                          tau_ADJ)
-        : IRO_FWD(all_batches_data_FWD,
-                  mesh_vertices_FWD,
+        : IRO_FWD(mesh_vertices_FWD,
                   mesh_cells_FWD,
                   num_neighbors_FWD,
                   tau_FWD),
-          IRO_ADJ(all_batches_data_ADJ,
-                  mesh_vertices_ADJ,
+          IRO_ADJ(mesh_vertices_ADJ,
                   mesh_cells_ADJ,
                   num_neighbors_ADJ,
                   tau_ADJ)
-    {}
+    {
+        for ( BatchData<K> batch_data : all_batches_data_FWD )
+        {
+            IRO_FWD.add_batch(batch_data, false);
+        }
+        IRO_FWD.build_kdtree();
+
+        for ( BatchData<K> batch_data : all_batches_data_ADJ )
+        {
+            IRO_ADJ.add_batch(batch_data, false);
+        }
+        IRO_ADJ.build_kdtree();
+    }
 
     void set_tau_FWD(double new_tau)
     {
@@ -191,14 +196,14 @@ public:
         set_num_neighbors_ADJ(new_num_neighbors);
     }
 
-    void add_batch_FWD( const BatchData<K> & batch_data )
+    void add_batch_FWD( const BatchData<K> & batch_data, bool rebuild_kdtree )
     {
-        IRO_FWD.add_batch(batch_data);
+        IRO_FWD.add_batch(batch_data, rebuild_kdtree);
     }
 
-    void add_batch_ADJ( const BatchData<K> & batch_data )
+    void add_batch_ADJ( const BatchData<K> & batch_data, bool rebuild_kdtree )
     {
-        IRO_ADJ.add_batch(batch_data);
+        IRO_ADJ.add_batch(batch_data, rebuild_kdtree);
     }
 
     double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x)
