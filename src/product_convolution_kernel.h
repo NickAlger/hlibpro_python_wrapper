@@ -49,6 +49,16 @@ public:
         kdtree = KDTree<K>(pts);
     }
 
+    int num_pts()
+    {
+        return pts.size();
+    }
+
+    int num_batches()
+    {
+        return psi_batches.size();
+    }
+
     void add_batch( const BatchData<K> & batch_data, bool rebuild_kdtree )
     {
         const vector<Matrix<double, K, 1>> & pts_batch              = get<0>(batch_data);
