@@ -810,6 +810,16 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
     m.def("nearest_points_brute_force_vectorized", &nearest_points_brute_force_vectorized);
-}
 
+    py::class_<ImpulseResponseBatches<2>, shared_ptr<ImpulseResponseBatches<2>>>(m, "ImpulseResponseBatches")
+        .def(py::init< const Ref<const Matrix<double, 2, Dynamic>>, // mesh_vertices,
+                       const Ref<const Matrix<int   , 3, Dynamic>>, // mesh_cells,
+                       int,                                         // num_neighbors,
+                       double                                       // tau
+                       >())
+        .def_readwrite("tau", &ImpulseResponseBatches<2>::tau)
+        .def_readwrite("num_neighbors", &ImpulseResponseBatches<2>::num_neighbors)
+        .def_readonly("kdtree", &ImpulseResponseBatches<2>::kdtree)
+        .def("add_batch", &ImpulseResponseBatches<2>::add_batch);
+}
 

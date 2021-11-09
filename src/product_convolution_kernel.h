@@ -37,10 +37,10 @@ public:
     int                    num_neighbors;
     KDTree<K>              kdtree;
 
-    ImpulseResponseBatches( const Ref<const Matrix<double, K,   Dynamic>> & mesh_vertices,
-                            const Ref<const Matrix<int   , K+1, Dynamic>> & mesh_cells,
-                            int                                             num_neighbors,
-                            double                                          tau )
+    ImpulseResponseBatches( const Ref<const Matrix<double, K,   Dynamic>> mesh_vertices,
+                            const Ref<const Matrix<int   , K+1, Dynamic>> mesh_cells,
+                            int                                           num_neighbors,
+                            double                                        tau )
         : mesh(mesh_vertices, mesh_cells), num_neighbors(num_neighbors), tau(tau)
     {}
 
@@ -125,8 +125,8 @@ template <int K>
 class ProductConvolutionKernelRBF
 {
 private:
-    ImpulseResponseBatches<K> IRO_FWD;
-    ImpulseResponseBatches<K> IRO_ADJ;
+    shared_ptr<ImpulseResponseBatches<K>> IRO_FWD;
+    shared_ptr<ImpulseResponseBatches<K>> IRO_ADJ;
 
 public:
     thread_pool pool;
@@ -142,36 +142,47 @@ public:
                                  const Ref<const Matrix<int   , K+1, Dynamic>> & mesh_cells_ADJ,
                                  int                                             num_neighbors_ADJ,
                                  double                                          tau_ADJ)
-        : IRO_FWD(mesh_vertices_FWD,
-                  mesh_cells_FWD,
-                  num_neighbors_FWD,
-                  tau_FWD),
-          IRO_ADJ(mesh_vertices_ADJ,
-                  mesh_cells_ADJ,
-                  num_neighbors_ADJ,
-                  tau_ADJ)
+//        : IRO_FWD(mesh_vertices_FWD,
+//                  mesh_cells_FWD,
+//                  num_neighbors_FWD,
+//                  tau_FWD),
+//          IRO_ADJ(mesh_vertices_ADJ,
+//                  mesh_cells_ADJ,
+//                  num_neighbors_ADJ,
+//                  tau_ADJ)
     {
+        IRO_FWD = make_shared<ImpulseResponseBatches<K>> ( mesh_vertices_FWD,
+                                                           mesh_cells_FWD,
+                                                           num_neighbors_FWD,
+                                                           tau_FWD );
+
         for ( BatchData<K> batch_data : all_batches_data_FWD )
         {
-            IRO_FWD.add_batch(batch_data, false);
+            IRO_FWD->add_batch(batch_data, false);
         }
-        IRO_FWD.build_kdtree();
+        IRO_FWD->build_kdtree();
+
+
+        IRO_ADJ = make_shared<ImpulseResponseBatches<K>> ( mesh_vertices_ADJ,
+                                                           mesh_cells_ADJ,
+                                                           num_neighbors_ADJ,
+                                                           tau_ADJ );
 
         for ( BatchData<K> batch_data : all_batches_data_ADJ )
         {
-            IRO_ADJ.add_batch(batch_data, false);
+            IRO_ADJ->add_batch(batch_data, false);
         }
-        IRO_ADJ.build_kdtree();
+        IRO_ADJ->build_kdtree();
     }
 
     void set_tau_FWD(double new_tau)
     {
-        IRO_FWD.tau = new_tau;
+        IRO_FWD->tau = new_tau;
     }
 
     void set_tau_ADJ(double new_tau)
     {
-        IRO_ADJ.tau = new_tau;
+        IRO_ADJ->tau = new_tau;
     }
 
     void set_tau(double new_tau)
@@ -182,12 +193,12 @@ public:
 
     void set_num_neighbors_FWD(int new_num_neighbors)
     {
-        IRO_FWD.num_neighbors = new_num_neighbors;
+        IRO_FWD->num_neighbors = new_num_neighbors;
     }
 
     void set_num_neighbors_ADJ(int new_num_neighbors)
     {
-        IRO_ADJ.num_neighbors = new_num_neighbors;
+        IRO_ADJ->num_neighbors = new_num_neighbors;
     }
 
     void set_num_neighbors(int new_num_neighbors)
@@ -198,21 +209,21 @@ public:
 
     void add_batch_FWD( const BatchData<K> & batch_data, bool rebuild_kdtree )
     {
-        IRO_FWD.add_batch(batch_data, rebuild_kdtree);
+        IRO_FWD->add_batch(batch_data, rebuild_kdtree);
     }
 
     void add_batch_ADJ( const BatchData<K> & batch_data, bool rebuild_kdtree )
     {
-        IRO_ADJ.add_batch(batch_data, rebuild_kdtree);
+        IRO_ADJ->add_batch(batch_data, rebuild_kdtree);
     }
 
     double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x)
     {
         vector<pair<Matrix<double,K,1>, double>> points_and_values_FWD
-            = IRO_FWD.interpolation_points_and_values(y, x); // forward
+            = IRO_FWD->interpolation_points_and_values(y, x); // forward
 
         vector<pair<Matrix<double,K,1>, double>> points_and_values_ADJ
-            = IRO_ADJ.interpolation_points_and_values(x, y); // adjoint (swap x, y)
+            = IRO_ADJ->interpolation_points_and_values(x, y); // adjoint (swap x, y)
 
         // Add non-duplicates. Inefficient implementation but whatever.
         // Asymptotic complexity not affected because we already have to do O(k^2) matrix operation later anyways
