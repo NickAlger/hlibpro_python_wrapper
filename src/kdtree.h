@@ -169,6 +169,24 @@ private:
 public:
     KDTree( ) {}
 
+    KDTree( const vector<Matrix<double, K, 1>> & input_points )
+    {
+        int num_pts = input_points.size();
+
+        // Copy points into std::vector of tuples which will be re-ordered
+        vector< PointWithIndex<K> > points(num_pts); // (coords, original_index)
+        for ( int ii=0; ii<num_pts; ++ii)
+        {
+            points[ii].point = input_points[ii];
+            points[ii].index = ii;
+        }
+
+        nodes.reserve(num_pts);
+        perm_i2e.resize(num_pts, 1);
+        int counter = 0;
+        int zero = make_subtree(0, num_pts, 0, points, counter);
+    }
+
     KDTree( const Ref<const Matrix<double, K, Dynamic>> points_array )
     {
         int num_pts = points_array.cols();

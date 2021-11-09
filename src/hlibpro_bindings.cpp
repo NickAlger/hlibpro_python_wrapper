@@ -787,16 +787,24 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 //    m.def("woodbury_update", &woodbury_update);
 
     py::class_<ProductConvolutionKernelRBF<2>>(m, "ProductConvolutionKernelRBF")
-        .def(py::init< const vector<Matrix<double, 2, 1>>, // all_points,
-                       const vector<Matrix<double, 2, 1>>, // all_mu,
-                       const vector<Matrix<double, 2, 2>>, // all_Sigma,
-                       double,                             // tau,
-                       const vector<VectorXd>,             // input_impulse_response_batches,
-                       const vector<int>,                  // batch_lengths,
-                       int,                                // input_num_nearest_neighbors,
-                       const Ref<const Matrix<double, 2,   Dynamic>>, // mesh_vertices,
-                       const Ref<const Matrix<int   , 3, Dynamic>> // mesh_cells
+        .def(py::init< const vector<BatchData<2>>                       &, // all_batches_data_FWD,
+                       const Ref<const Matrix<double, 2,   Dynamic>> &, // mesh_vertices_FWD,
+                       const Ref<const Matrix<int   , 3, Dynamic>> &, // mesh_cells_FWD,
+                       int,                                             // num_neighbors_FWD,
+                       double,                                          // tau_FWD,
+
+                       const vector<BatchData<2>>                       &, // all_batches_data_ADJ,
+                       const Ref<const Matrix<double, 2,   Dynamic>> &, // mesh_vertices_ADJ,
+                       const Ref<const Matrix<int   , 3, Dynamic>> &, // mesh_cells_ADJ,
+                       int,                                             // num_neighbors_ADJ,
+                       double                                           // tau_ADJ
                        >())
+        .def("set_tau_FWD", &ProductConvolutionKernelRBF<2>::set_tau_FWD)
+        .def("set_tau_ADJ", &ProductConvolutionKernelRBF<2>::set_tau_ADJ)
+        .def("set_num_neighbors_FWD", &ProductConvolutionKernelRBF<2>::set_num_neighbors_FWD)
+        .def("set_num_neighbors_ADJ", &ProductConvolutionKernelRBF<2>::set_num_neighbors_ADJ)
+        .def("add_batch_FWD", &ProductConvolutionKernelRBF<2>::add_batch_FWD)
+        .def("add_batch_ADJ", &ProductConvolutionKernelRBF<2>::add_batch_ADJ)
         .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel)
         .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF<2>::eval_integral_kernel_block);
 
