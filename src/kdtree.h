@@ -10,6 +10,7 @@
 using namespace Eigen;
 using namespace std;
 
+
 // Nearest neighbor in subtree to query point
 struct SubtreeResult
 {
