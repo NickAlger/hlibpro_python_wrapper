@@ -266,7 +266,7 @@ public:
         {
             for ( size_t  ii = 0; ii < nrow; ++ii )
             {
-                matrix[ jj*nrow + ii ] = eval_integral_kernel(row_coords[ii], col_coords[jj]);
+                matrix[ jj*nrow + ii ] = eval_integral_kernel(row_coords[rowidxs[ii]], col_coords[colidxs[jj]]);
 //                matrix[ jj*nrow + ii ] = block_values(ii, jj);
             }// for
         }// for
@@ -276,28 +276,6 @@ public:
 
     virtual matform_t  matrix_format  () const { return MATFORM_NONSYM; }
 
-    std::shared_ptr<HLIB::TMatrix> build_hmatrix( std::shared_ptr<HLIB::TBlockClusterTree> bct_ptr, double tol )
-    {
-        const HLIB::TClusterTree * row_ct_ptr = bct_ptr.get()->row_ct();
-        const HLIB::TClusterTree * col_ct_ptr = bct_ptr.get()->col_ct();
-        cout << "━━ building H-matrix ( tol = " << tol << " )" << endl;
-        TTimer                    timer( WALL_TIME );
-        TConsoleProgressBar       progress;
-        TTruncAcc                 acc( tol, 0.0 );
-        TPermCoeffFn< real_t >    permuted_coefffn( this, row_ct_ptr->perm_i2e(), col_ct_ptr->perm_i2e() );
-        TACAPlus< real_t >        aca( & permuted_coefffn );
-        TDenseMBuilder< real_t >  h_builder( & permuted_coefffn, & aca );
-        h_builder.set_coarsening( false );
-
-        timer.start();
-
-        std::unique_ptr<HLIB::TMatrix>  A = h_builder.build( bct_ptr.get(), acc, & progress );
-
-        timer.pause();
-        std::cout << "    done in " << timer << std::endl;
-        std::cout << "    size of H-matrix = " << Mem::to_string( A->byte_size() ) << std::endl;
-        return std::move(A);
-    }
 };
 
 
