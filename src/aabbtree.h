@@ -170,7 +170,7 @@ public:
         int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
     }
 
-    VectorXi point_collisions( const Matrix<double, K, 1> & query )
+    VectorXi point_collisions( const Matrix<double, K, 1> & query ) const
     {
         vector<int> nodes_under_consideration;
         nodes_under_consideration.reserve(100);
@@ -184,8 +184,8 @@ public:
             int current_node_ind = nodes_under_consideration.back();
             nodes_under_consideration.pop_back();
 
-            AABBNode<K> & current_node = nodes[current_node_ind];
-            Box<K> & B = current_node.box;
+            const AABBNode<K> & current_node = nodes[current_node_ind];
+            const Box<K> & B = current_node.box;
 
             // Determine if query point is in current box
             bool query_is_in_box = true;
@@ -220,7 +220,7 @@ public:
         return collision_leafs_eigen;
     }
 
-    VectorXi ball_collisions( const Matrix<double, K, 1> & center, double radius )
+    VectorXi ball_collisions( const Matrix<double, K, 1> & center, double radius ) const
     {
         double radius_squared = radius*radius;
 
@@ -236,8 +236,8 @@ public:
             int current_node_ind = nodes_under_consideration.back();
             nodes_under_consideration.pop_back();
 
-            AABBNode<K> & current_node = nodes[current_node_ind];
-            Box<K> & B = current_node.box;
+            const AABBNode<K> & current_node = nodes[current_node_ind];
+            const Box<K> & B = current_node.box;
 
             // Construct point on box that is closest to ball center
             Matrix<double, K, 1> closest_point;
@@ -282,7 +282,7 @@ public:
         return collision_leafs_eigen;
     }
 
-    vector<VectorXi> point_collisions_vectorized( const Matrix<double, K, Dynamic> & query_points)
+    vector<VectorXi> point_collisions_vectorized( const Matrix<double, K, Dynamic> & query_points) const
     {
         int num_points = query_points.cols();
         vector<VectorXi> all_collisions(num_points);
@@ -294,7 +294,7 @@ public:
     }
 
     vector<VectorXi> ball_collisions_vectorized( const Ref<const Matrix<double, K, Dynamic>> centers,
-                                                 const Ref<const VectorXd>                   radii )
+                                                 const Ref<const VectorXd>                   radii ) const
     {
         int num_balls = centers.cols();
         vector<VectorXi> all_collisions(num_balls);

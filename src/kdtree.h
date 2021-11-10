@@ -74,7 +74,7 @@ private:
     // finds nearest neighbor of query in subtree
     SubtreeResult nn_subtree( const Matrix<double,K,1> & query,
                               int                        root_index,
-                              int                        depth) {
+                              int                        depth) const {
         KDNode<K> root = nodes[root_index];
 
         Matrix<double,K,1> delta = query - root.point;
@@ -117,7 +117,7 @@ private:
                           priority_queue<SubtreeResult, vector<SubtreeResult>> &    nn,
                           int                                                       cur_index,
                           int                                                       depth,
-                          int                                                       num_neighbors )
+                          int                                                       num_neighbors ) const
     {
         KDNode<K> cur = nodes[cur_index];
 
@@ -205,13 +205,13 @@ public:
         int zero = make_subtree(0, num_pts, 0, points, counter);
     }
 
-    pair<int, double> nearest_neighbor( const Matrix<double,K,1> & point )
+    pair<int, double> nearest_neighbor( const Matrix<double,K,1> & point ) const
     {
         SubtreeResult nn_result = nn_subtree( point, 0, 0 );
         return make_pair(perm_i2e[nn_result.index], nn_result.distance_squared);
     }
 
-    pair<VectorXi, VectorXd> nearest_neighbors( const Matrix<double,K,1> & point, int num_neighbors )
+    pair<VectorXi, VectorXd> nearest_neighbors( const Matrix<double,K,1> & point, int num_neighbors ) const
     {
         vector<SubtreeResult> nn_container;
         nn_container.reserve(2*num_neighbors);

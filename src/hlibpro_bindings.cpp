@@ -786,27 +786,16 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
 //    m.def("woodbury_update", &woodbury_update);
 
-    py::class_<ProductConvolutionKernelRBF<2>>(m, "ProductConvolutionKernelRBF")
-        .def(py::init< const vector<BatchData<2>>                       &, // all_batches_data_FWD,
-                       const Ref<const Matrix<double, 2,   Dynamic>> &, // mesh_vertices_FWD,
-                       const Ref<const Matrix<int   , 3, Dynamic>> &, // mesh_cells_FWD,
-                       int,                                             // num_neighbors_FWD,
-                       double,                                          // tau_FWD,
 
-                       const vector<BatchData<2>>                       &, // all_batches_data_ADJ,
-                       const Ref<const Matrix<double, 2,   Dynamic>> &, // mesh_vertices_ADJ,
-                       const Ref<const Matrix<int   , 3, Dynamic>> &, // mesh_cells_ADJ,
-                       int,                                             // num_neighbors_ADJ,
-                       double                                           // tau_ADJ
+    py::class_<ProductConvolutionKernelRBF<2>, HLIB::TCoeffFn<real_t>>(m, "ProductConvolutionKernelRBF")
+        .def(py::init< shared_ptr<ImpulseResponseBatches<2>>, // IRO_FWD,
+                       shared_ptr<ImpulseResponseBatches<2>>, // IRO_ADJ,
+                       vector<Matrix<double, 2, 1>>,          // row_coords,
+                       vector<Matrix<double, 2, 1>>           // col_coords
                        >())
-        .def("set_tau_FWD", &ProductConvolutionKernelRBF<2>::set_tau_FWD)
-        .def("set_tau_ADJ", &ProductConvolutionKernelRBF<2>::set_tau_ADJ)
-        .def("set_num_neighbors_FWD", &ProductConvolutionKernelRBF<2>::set_num_neighbors_FWD)
-        .def("set_num_neighbors_ADJ", &ProductConvolutionKernelRBF<2>::set_num_neighbors_ADJ)
-        .def("add_batch_FWD", &ProductConvolutionKernelRBF<2>::add_batch_FWD)
-        .def("add_batch_ADJ", &ProductConvolutionKernelRBF<2>::add_batch_ADJ)
         .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel)
-        .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF<2>::eval_integral_kernel_block);
+        .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF<2>::eval_integral_kernel_block)
+        .def("build_hmatrix", &ProductConvolutionKernelRBF<2>::build_hmatrix);
 
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
     m.def("nearest_points_brute_force_vectorized", &nearest_points_brute_force_vectorized);
@@ -826,9 +815,12 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def_readonly("inv_Sigma", &ImpulseResponseBatches<2>::inv_Sigma)
         .def_readonly("psi_batches", &ImpulseResponseBatches<2>::psi_batches)
         .def_readonly("point2batch", &ImpulseResponseBatches<2>::point2batch)
+        .def_readonly("batch2point_start", &ImpulseResponseBatches<2>::batch2point_start)
+        .def_readonly("batch2point_stop", &ImpulseResponseBatches<2>::batch2point_stop)
         .def("num_pts", &ImpulseResponseBatches<2>::num_pts)
         .def("num_batches", &ImpulseResponseBatches<2>::num_batches)
         .def("add_batch", &ImpulseResponseBatches<2>::add_batch)
-        .def("build_kdtree", &ImpulseResponseBatches<2>::build_kdtree);
+        .def("build_kdtree", &ImpulseResponseBatches<2>::build_kdtree)
+        .def("interpolation_points_and_values", &ImpulseResponseBatches<2>::interpolation_points_and_values);
 }
 

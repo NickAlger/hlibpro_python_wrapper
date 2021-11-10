@@ -3,6 +3,7 @@
 #include <iostream>
 #include <math.h>
 #include <Eigen/Dense>
+#include <hlib.hh>
 
 #include "thread-pool-master/thread_pool.hpp"
 
@@ -12,6 +13,14 @@
 
 using namespace Eigen;
 using namespace std;
+
+using namespace HLIB;
+
+#if HLIB_SINGLE_PREC == 1
+using  real_t = float;
+#else
+using  real_t = double;
+#endif
 
 template <int K>
 using BatchData = tuple<vector<Matrix<double, K, 1>>, // sample points batch
@@ -31,6 +40,8 @@ public:
     vector<Matrix<double, K, K>> inv_Sigma;
     vector<VectorXd>             psi_batches;
     vector<int>                  point2batch;
+    vector<int>                  batch2point_start;
+    vector<int>                  batch2point_stop;
 
     double                 tau;
     int                    num_neighbors;
@@ -67,6 +78,7 @@ public:
 
         int num_new_pts = pts_batch.size();
 
+        batch2point_start.push_back(pts.size());
         int batch_ind = psi_batches.size();
         for ( int ii=0; ii<num_new_pts; ++ii )
         {
@@ -75,6 +87,7 @@ public:
             mu         .push_back( mu_batch[ii] );
             inv_Sigma  .push_back( Sigma_batch[ii].inverse() ); // Matrix is 2x2 or 3x3, so inverse is OK
         }
+        batch2point_stop.push_back(pts.size());
 
         psi_batches.push_back(impulse_response_batch);
 
@@ -85,7 +98,7 @@ public:
     }
 
     vector<pair<Matrix<double,K,1>, double>> interpolation_points_and_values(const Matrix<double, K, 1> & y,
-                                                                             const Matrix<double, K, 1> & x)
+                                                                             const Matrix<double, K, 1> & x) const
     {
         pair<VectorXi, VectorXd> nn_result = kdtree.nearest_neighbors( x, num_neighbors );
         VectorXi nearest_inds = nn_result.first;
@@ -116,7 +129,7 @@ public:
                 if ( dp.transpose() * (inv_Sigma[ind] * dp) < tau*tau )
                 {
                     int b = point2batch[ind];
-                    VectorXd & phi_j = psi_batches[b];
+                    const VectorXd & phi_j = psi_batches[b];
                     for ( int kk=0; kk<K+1; ++kk )
                     {
                         varphi_at_y_minus_x += IC.affine_coords(kk) * phi_j(mesh.cells(kk, IC.simplex_ind));
@@ -131,108 +144,35 @@ public:
 };
 
 template <int K>
-class ProductConvolutionKernelRBF
+class ProductConvolutionKernelRBF : public TCoeffFn< real_t >
 {
 private:
-    shared_ptr<ImpulseResponseBatches<K>> IRO_FWD;
-    shared_ptr<ImpulseResponseBatches<K>> IRO_ADJ;
+    shared_ptr<ImpulseResponseBatches<K>> col_batches;
+    shared_ptr<ImpulseResponseBatches<K>> row_batches;
 
 public:
+    vector<Matrix<double, K, 1>> row_coords;
+    vector<Matrix<double, K, 1>> col_coords;
+
     thread_pool pool;
 
-    ProductConvolutionKernelRBF( const vector<BatchData<K>>                    & all_batches_data_FWD,
-                                 const Ref<const Matrix<double, K,   Dynamic>> & mesh_vertices_FWD,
-                                 const Ref<const Matrix<int   , K+1, Dynamic>> & mesh_cells_FWD,
-                                 int                                             num_neighbors_FWD,
-                                 double                                          tau_FWD,
+    ProductConvolutionKernelRBF( shared_ptr<ImpulseResponseBatches<K>> col_batches,
+                                 shared_ptr<ImpulseResponseBatches<K>> row_batches,
+                                 vector<Matrix<double, K, 1>> col_coords,
+                                 vector<Matrix<double, K, 1>> row_coords )
+        : col_batches(col_batches),
+          row_batches(row_batches),
+          row_coords(row_coords),
+          col_coords(col_coords)
+    {}
 
-                                 const vector<BatchData<K>>                    & all_batches_data_ADJ,
-                                 const Ref<const Matrix<double, K,   Dynamic>> & mesh_vertices_ADJ,
-                                 const Ref<const Matrix<int   , K+1, Dynamic>> & mesh_cells_ADJ,
-                                 int                                             num_neighbors_ADJ,
-                                 double                                          tau_ADJ)
-//        : IRO_FWD(mesh_vertices_FWD,
-//                  mesh_cells_FWD,
-//                  num_neighbors_FWD,
-//                  tau_FWD),
-//          IRO_ADJ(mesh_vertices_ADJ,
-//                  mesh_cells_ADJ,
-//                  num_neighbors_ADJ,
-//                  tau_ADJ)
-    {
-        IRO_FWD = make_shared<ImpulseResponseBatches<K>> ( mesh_vertices_FWD,
-                                                           mesh_cells_FWD,
-                                                           num_neighbors_FWD,
-                                                           tau_FWD );
-
-        for ( BatchData<K> batch_data : all_batches_data_FWD )
-        {
-            IRO_FWD->add_batch(batch_data, false);
-        }
-        IRO_FWD->build_kdtree();
-
-
-        IRO_ADJ = make_shared<ImpulseResponseBatches<K>> ( mesh_vertices_ADJ,
-                                                           mesh_cells_ADJ,
-                                                           num_neighbors_ADJ,
-                                                           tau_ADJ );
-
-        for ( BatchData<K> batch_data : all_batches_data_ADJ )
-        {
-            IRO_ADJ->add_batch(batch_data, false);
-        }
-        IRO_ADJ->build_kdtree();
-    }
-
-    void set_tau_FWD(double new_tau)
-    {
-        IRO_FWD->tau = new_tau;
-    }
-
-    void set_tau_ADJ(double new_tau)
-    {
-        IRO_ADJ->tau = new_tau;
-    }
-
-    void set_tau(double new_tau)
-    {
-        set_tau_FWD(new_tau);
-        set_tau_ADJ(new_tau);
-    }
-
-    void set_num_neighbors_FWD(int new_num_neighbors)
-    {
-        IRO_FWD->num_neighbors = new_num_neighbors;
-    }
-
-    void set_num_neighbors_ADJ(int new_num_neighbors)
-    {
-        IRO_ADJ->num_neighbors = new_num_neighbors;
-    }
-
-    void set_num_neighbors(int new_num_neighbors)
-    {
-        set_num_neighbors_FWD(new_num_neighbors);
-        set_num_neighbors_ADJ(new_num_neighbors);
-    }
-
-    void add_batch_FWD( const BatchData<K> & batch_data, bool rebuild_kdtree )
-    {
-        IRO_FWD->add_batch(batch_data, rebuild_kdtree);
-    }
-
-    void add_batch_ADJ( const BatchData<K> & batch_data, bool rebuild_kdtree )
-    {
-        IRO_ADJ->add_batch(batch_data, rebuild_kdtree);
-    }
-
-    double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x)
+    double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x) const
     {
         vector<pair<Matrix<double,K,1>, double>> points_and_values_FWD
-            = IRO_FWD->interpolation_points_and_values(y, x); // forward
+            = col_batches->interpolation_points_and_values(y, x); // forward
 
         vector<pair<Matrix<double,K,1>, double>> points_and_values_ADJ
-            = IRO_ADJ->interpolation_points_and_values(x, y); // adjoint (swap x, y)
+            = row_batches->interpolation_points_and_values(x, y); // adjoint (swap x, y)
 
         // Add non-duplicates. Inefficient implementation but whatever.
         // Asymptotic complexity not affected because we already have to do O(k^2) matrix operation later anyways
@@ -298,8 +238,65 @@ public:
         };
 
         pool.parallelize_loop(0, nx * ny, loop);
+//        loop(0, nx*ny);
 
         return block;
+    }
+
+    void eval  ( const std::vector< idx_t > &  rowidxs,
+                         const std::vector< idx_t > &  colidxs,
+                         real_t *                      matrix ) const
+    {
+        int nrow = rowidxs.size();
+//        MatrixXd yy(K, nrow);
+//        for ( int ii=0; ii<nrow; ++ii )
+//        {
+//            yy.col(ii) = row_coords[ii];
+//        }
+
+        int ncol = colidxs.size();
+//        MatrixXd xx(K, ncol);
+//        for ( int jj=0; jj<ncol; ++jj )
+//        {
+//            xx.col(jj) = col_coords[jj];
+//        }
+
+//        MatrixXd block_values = eval_integral_kernel_block(yy, xx);
+        for ( size_t  jj = 0; jj < ncol; ++jj )
+        {
+            for ( size_t  ii = 0; ii < nrow; ++ii )
+            {
+                matrix[ jj*nrow + ii ] = eval_integral_kernel(row_coords[ii], col_coords[jj]);
+//                matrix[ jj*nrow + ii ] = block_values(ii, jj);
+            }// for
+        }// for
+    }
+
+    using TCoeffFn< real_t >::eval;
+
+    virtual matform_t  matrix_format  () const { return MATFORM_NONSYM; }
+
+    std::shared_ptr<HLIB::TMatrix> build_hmatrix( std::shared_ptr<HLIB::TBlockClusterTree> bct_ptr, double tol )
+    {
+        const HLIB::TClusterTree * row_ct_ptr = bct_ptr.get()->row_ct();
+        const HLIB::TClusterTree * col_ct_ptr = bct_ptr.get()->col_ct();
+        cout << "━━ building H-matrix ( tol = " << tol << " )" << endl;
+        TTimer                    timer( WALL_TIME );
+        TConsoleProgressBar       progress;
+        TTruncAcc                 acc( tol, 0.0 );
+        TPermCoeffFn< real_t >    permuted_coefffn( this, row_ct_ptr->perm_i2e(), col_ct_ptr->perm_i2e() );
+        TACAPlus< real_t >        aca( & permuted_coefffn );
+        TDenseMBuilder< real_t >  h_builder( & permuted_coefffn, & aca );
+        h_builder.set_coarsening( false );
+
+        timer.start();
+
+        std::unique_ptr<HLIB::TMatrix>  A = h_builder.build( bct_ptr.get(), acc, & progress );
+
+        timer.pause();
+        std::cout << "    done in " << timer << std::endl;
+        std::cout << "    size of H-matrix = " << Mem::to_string( A->byte_size() ) << std::endl;
+        return std::move(A);
     }
 };
 

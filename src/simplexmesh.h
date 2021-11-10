@@ -576,12 +576,12 @@ public:
         }
     }
 
-    inline bool point_is_in_mesh( KDVector query )
+    inline bool point_is_in_mesh( KDVector query ) const
     {
         return (index_of_first_simplex_containing_point( query ) >= 0);
     }
 
-    Matrix<bool, Dynamic, 1> point_is_in_mesh_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_points )
+    Matrix<bool, Dynamic, 1> point_is_in_mesh_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_points ) const
     {
         int nquery = query_points.cols();
         Matrix<bool, Dynamic, 1> in_mesh;
@@ -593,7 +593,7 @@ public:
         return in_mesh;
     }
 
-    KDVector closest_point( const KDVector & query )
+    KDVector closest_point( const KDVector & query ) const
     {
         KDVector closest_point = vertices.col(0);
         if ( point_is_in_mesh( query ) )
@@ -612,7 +612,7 @@ public:
             entities.reserve(power_of_two(K));
             for ( int ii=0; ii<face_inds.size(); ++ii )
             {
-                VectorXi & subface_inds = face2subface[face_inds(ii)];
+                const VectorXi & subface_inds = face2subface[face_inds(ii)];
                 for ( int jj=0; jj<subface_inds.size(); ++jj )
                 {
                     entities.push_back(subface_inds(jj));
@@ -627,7 +627,7 @@ public:
             double dsq_best = (closest_point - query).squaredNorm();
             for ( int ee=0; ee<entities.size(); ++ee )
             {
-                Simplex & E = subface_simplices[entities[ee]];
+                const Simplex & E = subface_simplices[entities[ee]];
                 VectorXd projected_affine_coords = E.A * query + E.b;
                 if ( (projected_affine_coords.array() >= 0.0).all() ) // projection is in subface simplex
                 {
@@ -663,13 +663,13 @@ public:
         return closest_points;
     }
 
-    inline VectorXd simplex_coordinates( int simplex_ind, const KDVector query )
+    inline VectorXd simplex_coordinates( int simplex_ind, const KDVector query ) const
     {
-          Simplex & S = cell_simplices[simplex_ind];
+          const Simplex & S = cell_simplices[simplex_ind];
           return S.A * query + S.b;
     }
 
-    inline int index_of_first_simplex_containing_point( const KDVector query )
+    inline int index_of_first_simplex_containing_point( const KDVector query ) const
     {
         VectorXi candidate_inds =  cell_aabbtree.point_collisions( query );
         int num_candidates = candidate_inds.size();
@@ -688,7 +688,7 @@ public:
         return ind;
     }
 
-    void get_simplex_ind_and_affine_coordinates_of_point( const KDVector & point, ind_and_coords<K> & IC )
+    void get_simplex_ind_and_affine_coordinates_of_point( const KDVector & point, ind_and_coords<K> & IC ) const
     {
         IC.simplex_ind = -1;
 
@@ -698,7 +698,7 @@ public:
         for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
         {
             int candidate_simplex_ind = candidate_inds(jj);
-            Simplex & S = cell_simplices[candidate_simplex_ind];
+            const Simplex & S = cell_simplices[candidate_simplex_ind];
             IC.affine_coords = S.A * point + S.b;
             if ( (IC.affine_coords.array() >= 0.0).all() ) // point is in simplex
             {
