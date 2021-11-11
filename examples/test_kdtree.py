@@ -121,14 +121,9 @@ qq = np.random.randn(n_query, K)
 qq_T = np.array(qq.T, order='F')
 
 t = time()
-all_inds, all_dsqq = KDT.nearest_neighbor_vectorized(qq_T, num_neighbors)
-dt_query = time() - t
-print('n_query=', n_query, ', dt_query=', dt_query)
-
-t = time()
 KDT.nearest_neighbor_vectorized(qq_T)
-dt_query = time() - t
-print('n_query=', n_query, ', dt_query=', dt_query)
+dt_query_one = time() - t
+print('n_query=', n_query, ', dt_query_one=', dt_query_one)
 
 
 t = time()
@@ -138,8 +133,20 @@ print('dt_build_scipy=', dt_build_scipy)
 
 t = time()
 KDT_scipy.query(qq)
-dt_query_scipy = time() - t
-print('dt_query_scipy=', dt_query_scipy)
+dt_query_one_scipy = time() - t
+print('dt_query_one_scipy=', dt_query_one_scipy)
+
+#
+
+t = time()
+KDT.nearest_neighbor_vectorized(qq_T, num_neighbors)
+dt_query_many = time() - t
+print('n_query=', n_query, ', num_neighbors=', num_neighbors, ', dt_query_many=', dt_query_many)
+
+t = time()
+KDT_scipy.query(qq, num_neighbors)
+dt_query_many_scipy = time() - t
+print('dt_query_many_scipy=', dt_query_many_scipy)
 
 
 
