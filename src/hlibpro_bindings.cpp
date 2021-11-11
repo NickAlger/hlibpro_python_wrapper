@@ -735,11 +735,11 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
 
     py::class_<KDTree<2>>(m, "KDTree2D")
-        .def(py::init< const vector<array<double, 2>> & >())
-        .def("nearest_neighbor", py::overload_cast<const array<double,2> &>(&KDTree<2>::nearest_neighbor, py::const_), "one query, one neighbor")
-        .def("nearest_neighbor", py::overload_cast<const array<double,2> &, int>(&KDTree<2>::nearest_neighbor, py::const_), "one query, many neighbors")
-        .def("nearest_neighbor", py::overload_cast<const vector<array<double,2>> &>(&KDTree<2>::nearest_neighbor, py::const_), "many querys, one neighbor")
-        .def("nearest_neighbor", py::overload_cast<const vector<array<double,2>> &, int>(&KDTree<2>::nearest_neighbor, py::const_), "many querys, many neighbors");
+        .def(py::init< const vector<Matrix<double,2,1>> & >())
+        .def("nearest_neighbor", py::overload_cast< const Matrix<double,2,1> &                 >(&KDTree<2>::nearest_neighbor, py::const_), "one query, one neighbor")
+        .def("nearest_neighbor", py::overload_cast< const Matrix<double,2,1> &, int >(&KDTree<2>::nearest_neighbor, py::const_), "one query, many neighbors")
+        .def("nearest_neighbor_vectorized", py::overload_cast< const Ref<const Matrix<double,2,Dynamic>>      >(&KDTree<2>::nearest_neighbor_vectorized, py::const_), "many querys, one neighbor")
+        .def("nearest_neighbor_vectorized", py::overload_cast< const Ref<const Matrix<double,2,Dynamic>>, int >(&KDTree<2>::nearest_neighbor_vectorized, py::const_), "many querys, many neighbors");
 
 
     py::class_<AABBTree<2>>(m, "AABBTree2D")

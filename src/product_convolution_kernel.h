@@ -56,15 +56,7 @@ public:
 
     void build_kdtree()
     {
-        vector<array<double,K>> pts_array(pts.size());
-        for ( int ii=0; ii<pts.size(); ++ii )
-        {
-            for ( int kk=0; kk<K; ++kk )
-            {
-                pts_array[ii][kk] = pts[ii](kk);
-            }
-        }
-        kdtree = KDTree<K>(pts_array);
+        kdtree = KDTree<K>(pts);
     }
 
     int num_pts()
@@ -108,13 +100,8 @@ public:
     vector<pair<Matrix<double,K,1>, double>> interpolation_points_and_values(const Matrix<double, K, 1> & y,
                                                                              const Matrix<double, K, 1> & x) const
     {
-        array<double,K> x_arr;
-        for ( int kk=0; kk<K; ++kk )
-        {
-            x_arr[kk] = x(kk);
-        }
-        pair<vector<int>, vector<double>> nn_result = kdtree.nearest_neighbor( x_arr, num_neighbors );
-        vector<int> nearest_inds = nn_result.first;
+        pair<VectorXi, VectorXd> nn_result = kdtree.nearest_neighbor( x, num_neighbors );
+        VectorXi nearest_inds = nn_result.first;
 
         int N_nearest = nearest_inds.size();
 
@@ -122,7 +109,7 @@ public:
         vector<bool>              ind_is_good(N_nearest);
         for ( int jj=0; jj<N_nearest; ++jj )
         {
-            int ind = nearest_inds[jj];
+            int ind = nearest_inds(jj);
             Matrix<double, K, 1> z = y - x + pts[ind];
             mesh.get_simplex_ind_and_affine_coordinates_of_point( z, all_IC[jj] );
             ind_is_good[jj] = ( all_IC[jj].simplex_ind >= 0 ); // y-x+xi is in mesh => varphi_i(y-x) is defined

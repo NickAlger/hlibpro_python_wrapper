@@ -5,9 +5,9 @@
 #include <queue>
 
 #include <math.h>
-//#include <Eigen/Dense>
+#include <Eigen/Dense>
 
-//using namespace Eigen;
+using namespace Eigen;
 using namespace std;
 
 
@@ -23,39 +23,18 @@ struct SubtreeResult
     }
 };
 
+
 // Node in KD tree
 template <int K>
-struct KDNode { array<double,K> point;
-                int             left;       // index of left child
-                int             right; };   // index of right child
-
-template <int K>
-struct PointWithIndex { array<double,K> point;
-                        int             index; };
+struct KDNode { Matrix<double,K,1> point;
+                int                left;       // index of left child
+                int                right; };   // index of right child
 
 
 template <int K>
-inline array<double,K> difference( const array<double,K> & p,
-                                   const array<double,K> & q )
-{
-    array<double,K> p_minus_q;
-    for ( int ii=0; ii<K; ++ii )
-    {
-        p_minus_q[ii] = p[ii] - q[ii];
-    }
-    return p_minus_q;
-}
+struct PointWithIndex { Matrix<double,K,1> point;
+                        int                index; };
 
-template <int K>
-inline double squared_norm( const array<double,K> & p )
-{
-    double nsq = 0.0;
-    for ( int ii=0; ii<K; ++ii )
-    {
-        nsq += p[ii]*p[ii];
-    }
-    return nsq;
-}
 
 template <int K>
 class KDTree
@@ -80,7 +59,7 @@ private:
 
             int axis = depth % K;
             sort( points.begin() + start, points.begin() + stop,
-                  [axis](PointWithIndex<K> u, PointWithIndex<K> v) {return u.point[axis] > v.point[axis];} );
+                  [axis](PointWithIndex<K> u, PointWithIndex<K> v) {return u.point(axis) > v.point(axis);} );
 
             int mid = start + (num_pts_local / 2);
 
@@ -100,19 +79,19 @@ private:
     }
 
     // finds nearest neighbor of query in subtree
-    SubtreeResult nn_subtree( const array<double,K> & query,
-                              int                     cur_index,
-                              int                     depth      ) const
+    SubtreeResult nn_subtree( const Matrix<double,K,1> & query,
+                              int                        cur_index,
+                              int                        depth      ) const
     {
         const KDNode<K> & cur = nodes[cur_index];
 
-        array<double,K> delta = difference<K>(query, cur.point);
+        const Matrix<double,K,1> delta = query - cur.point;
 
         int best_index = cur_index;
-        double best_distance_squared = squared_norm<K>(delta);
+        double best_distance_squared = delta.squaredNorm();
 
         int axis = depth % K;
-        double displacement_to_splitting_plane = delta[axis];
+        double displacement_to_splitting_plane = delta(axis);
 
         int A;
         int B;
@@ -156,7 +135,7 @@ private:
     }
 
     // finds num_neighbors nearest neighbors of query in subtree
-    void nn_subtree_many( const array<double,K> &                                query,
+    void nn_subtree_many( const Matrix<double,K,1> &                             query,
                           priority_queue<SubtreeResult, vector<SubtreeResult>> & nn,
                           int                                                    cur_index,
                           int                                                    depth,
@@ -164,8 +143,8 @@ private:
     {
         KDNode<K> cur = nodes[cur_index];
 
-        const array<double,K> & delta = difference<K>(query, cur.point);
-        double dsq_cur = squared_norm<K>(delta);
+        const Matrix<double,K,1> delta = query - cur.point;
+        double dsq_cur = delta.squaredNorm();
         SubtreeResult cur_result = {cur_index, dsq_cur};
 
         if ( nn.size() < num_neighbors )
@@ -179,7 +158,7 @@ private:
         }
 
         int axis = depth % K;
-        double displacement_to_splitting_plane = delta[axis];
+        double displacement_to_splitting_plane = delta(axis);
 
         int A;
         int B;
@@ -212,7 +191,7 @@ private:
 public:
     KDTree( ) {}
 
-    KDTree( const vector<array<double, K>> & input_points )
+    KDTree( const vector<Matrix<double,K,1>> & input_points )
     {
         int num_pts = input_points.size();
 
@@ -231,15 +210,15 @@ public:
     }
 
     // one nearest neighbor to one point
-    pair<int, double> nearest_neighbor( const array<double,K> & point ) const
+    pair<int, double> nearest_neighbor( const Matrix<double,K,1> & point ) const
     {
         SubtreeResult nn_result = nn_subtree( point, 0, 0 );
         return make_pair(perm_i2e[nn_result.index], nn_result.distance_squared);
     }
 
     // many nearest neighbors to one point
-    pair<vector<int>, vector<double>> nearest_neighbor( const array<double,K> & point,
-                                                        int                     num_neighbors ) const
+    pair<VectorXi, VectorXd> nearest_neighbor( const Matrix<double,K,1> & point,
+                                               int                        num_neighbors ) const
     {
         vector<SubtreeResult> nn_container;
         nn_container.reserve(2*num_neighbors);
@@ -247,53 +226,53 @@ public:
 
         nn_subtree_many( point, nn, 0, 0, num_neighbors );
 
-        vector<int> nn_inds(num_neighbors);
-        vector<double> nn_dsq(num_neighbors);
+        VectorXi nn_inds(num_neighbors);
+        VectorXd nn_dsq(num_neighbors);
         for ( int ii=0; ii<num_neighbors; ++ii )
         {
             int jj = num_neighbors - ii - 1;
             SubtreeResult n_ii = nn.top();
             nn.pop();
-            nn_inds[jj] = perm_i2e[n_ii.index];
-            nn_dsq[jj] = n_ii.distance_squared;
+            nn_inds(jj) = perm_i2e[n_ii.index];
+            nn_dsq(jj) = n_ii.distance_squared;
         }
         return make_pair(nn_inds, nn_dsq);
     }
 
     // one nearest neighbor to many points
-    pair< vector<int>, vector<double> >
-        nearest_neighbor( const vector<array<double,K>> & querys ) const
+    pair< VectorXi, VectorXd >
+        nearest_neighbor_vectorized( const Ref<const Matrix<double,K,Dynamic>> querys ) const
     {
-        int num_querys = querys.size();
+        int num_querys = querys.cols();
 
-        vector<int> closest_points_inds(num_querys);
-        vector<double> squared_distances(num_querys);
+        VectorXi closest_points_inds(num_querys);
+        VectorXd squared_distances(num_querys);
 
         for ( int ii=0; ii<num_querys; ++ii )
         {
-            SubtreeResult nn_result = nn_subtree( querys[ii], 0, 0 );
-            closest_points_inds[ii] = perm_i2e[nn_result.index];
-            squared_distances[ii] = nn_result.distance_squared;
+            SubtreeResult nn_result = nn_subtree( querys.col(ii), 0, 0 );
+            closest_points_inds(ii) = perm_i2e[nn_result.index];
+            squared_distances(ii) = nn_result.distance_squared;
         }
 
         return make_pair(closest_points_inds, squared_distances);
     }
 
     // many nearest neighbors to many points
-    pair< vector<vector<int>>, vector<vector<double>> >
-        nearest_neighbor( const vector<array<double,K>> & querys,
-                          int                             num_neighbors ) const
+    pair< MatrixXi, MatrixXd >
+        nearest_neighbor_vectorized( const Ref<const Matrix<double,K,Dynamic>> querys,
+                                     int                                       num_neighbors ) const
     {
-        int num_querys = querys.size();
+        int num_querys = querys.cols();
 
-        vector<vector<int>> closest_point_inds(num_querys);
-        vector<vector<double>> squared_distances(num_querys);
+        MatrixXi closest_point_inds(num_neighbors, num_querys);
+        MatrixXd squared_distances(num_neighbors, num_querys);
 
         for ( int ii=0; ii<num_querys; ++ii )
         {
-            pair<vector<int>, vector<double>> result = nearest_neighbor( querys[ii], num_neighbors );
-            closest_point_inds[ii] = result.first;
-            squared_distances[ii] = result.second;
+            pair<VectorXi, VectorXd> result = nearest_neighbor( querys.col(ii), num_neighbors );
+            closest_point_inds.col(ii) = result.first;
+            squared_distances.col(ii) = result.second;
         }
         return make_pair(closest_point_inds, squared_distances);
     }

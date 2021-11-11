@@ -36,7 +36,7 @@ print('many querys, one neighbor:')
 num_querys = 63
 qq = np.random.randn(num_querys, K)
 
-inds, dsqq = KDT.nearest_neighbor(list(qq))
+inds, dsqq = KDT.nearest_neighbor_vectorized(np.array(qq.T, order='F'))
 
 nearest_points = pp[inds,:]
 
@@ -58,7 +58,7 @@ print('one querys, many neighbors:')
 num_neighbors = 5
 q = np.random.randn(K)
 
-inds, dsqq = KDT.nearest_neighbor(list(q), num_neighbors)
+inds, dsqq = KDT.nearest_neighbor(q, num_neighbors)
 
 nearest_points = pp[inds,:]
 
@@ -81,14 +81,14 @@ num_neighbors = 5
 num_querys = 13
 qq = np.random.randn(num_querys, K)
 
-all_inds, all_dsqq = KDT.nearest_neighbor(list(qq), num_neighbors)
+all_inds, all_dsqq = KDT.nearest_neighbor_vectorized(np.array(qq.T, order='F'), num_neighbors)
 
 err_nearest = 0.0
 err_dsqq = 0.0
 for ii in range(num_querys):
     q = qq[ii, :]
-    inds = all_inds[ii]
-    dsqq = all_dsqq[ii]
+    inds = all_inds[:,ii]
+    dsqq = all_dsqq[:,ii]
     nearest_points = pp[inds,:]
 
     nearest_inds = np.argsort(np.linalg.norm(pp - q[None,:], axis=1), axis=0)[:num_neighbors]
@@ -118,15 +118,15 @@ dt_build = time() - t
 print('n_pts=', n_pts, ', dt_build=', dt_build)
 
 qq = np.random.randn(n_query, K)
+qq_T = np.array(qq.T, order='F')
 
 t = time()
-all_inds, all_dsqq = KDT.nearest_neighbor(list(qq), num_neighbors)
+all_inds, all_dsqq = KDT.nearest_neighbor_vectorized(qq_T, num_neighbors)
 dt_query = time() - t
 print('n_query=', n_query, ', dt_query=', dt_query)
 
-qq = np.array(np.random.randn(K, n_query), order='F')
 t = time()
-KDT.nearest_neighbor_vectorized(qq)
+KDT.nearest_neighbor_vectorized(qq_T)
 dt_query = time() - t
 print('n_query=', n_query, ', dt_query=', dt_query)
 
