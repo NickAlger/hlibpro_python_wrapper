@@ -116,6 +116,7 @@ print('err_nearest_neighbors=', err_nearest_neighbors)
 
 #
 
+
 num_queries = 11
 qq = np.array(np.random.randn(K, num_queries), order='F')
 
