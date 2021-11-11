@@ -778,8 +778,10 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< shared_ptr<ImpulseResponseBatches<2>>, // IRO_FWD,
                        shared_ptr<ImpulseResponseBatches<2>>, // IRO_ADJ,
                        vector<Matrix<double, 2, 1>>,          // row_coords,
-                       vector<Matrix<double, 2, 1>>           // col_coords
+                       vector<Matrix<double, 2, 1>>,          //  col_coords
+                       double                                 // gamma
                        >())
+        .def_readwrite("gamma", &ProductConvolutionKernelRBF<2>::gamma)
         .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel)
         .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF<2>::eval_integral_kernel_block);
 

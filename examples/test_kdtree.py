@@ -148,7 +148,15 @@ KDT_scipy.query(qq, num_neighbors)
 dt_query_many_scipy = time() - t
 print('dt_query_many_scipy=', dt_query_many_scipy)
 
+# timing:
+# n_pts= 1000000 , dt_build= 2.382700204849243
+# n_query= 1000000 , dt_query_one= 1.0918996334075928
+# dt_build_scipy= 0.8152735233306885
+# dt_query_one_scipy= 2.2504096031188965
+# n_query= 1000000 , num_neighbors= 10 , dt_query_many= 3.2527642250061035
+# dt_query_many_scipy= 4.948030233383179
 
+####
 
 # std::tuple<double, double>
 # n_pts= 10000 , dt_build= 0.006009817123413086
@@ -162,84 +170,3 @@ print('dt_query_many_scipy=', dt_query_many_scipy)
 # dt_build_scipy= 0.0027768611907958984
 # dt_query_scipy= 6.6427671909332275
 
-
-# test multiple nearest neighbors
-
-num_neighbors = 6
-
-pp = np.array(np.random.randn(K,100), order='F')
-KDT = make_KDT(pp)
-
-q = np.random.randn(K)
-
-inds, dsqs = KDT.nearest_neighbors(q, num_neighbors)
-nearest_points = pp[:,inds]
-
-nearest_inds = np.argsort(np.linalg.norm(pp - q[:,None], axis=0))
-nearest_points_true = pp[:,nearest_inds[:num_neighbors]]
-dsqs_true = np.linalg.norm(nearest_points_true - q[:,None], axis=0)**2
-
-err_nearest_neighbors = np.linalg.norm(nearest_points - nearest_points_true) + np.linalg.norm(dsqs - dsqs_true)
-print('err_nearest_neighbors=', err_nearest_neighbors)
-
-#
-
-
-num_queries = 11
-qq = np.array(np.random.randn(K, num_queries), order='F')
-
-all_nearest_inds, all_dsqs = KDT.nearest_neighbors_vectorized(qq, num_neighbors)
-
-err_nearest_neighbors_vectorized = 0.0
-for ii in range(num_queries):
-    nearest_inds = all_nearest_inds[:,ii]
-    nearest_points = pp[:, nearest_inds]
-    dsqs = all_dsqs[:,ii]
-    q = qq[:,ii]
-
-    nearest_inds = np.argsort(np.linalg.norm(pp - q[:, None], axis=0))
-    nearest_points_true = pp[:, nearest_inds[:num_neighbors]]
-    dsqs_true = np.linalg.norm(nearest_points_true - q[:, None], axis=0) ** 2
-
-    err_nearest_neighbors = np.linalg.norm(nearest_points - nearest_points_true) + np.linalg.norm(dsqs - dsqs_true)
-    err_nearest_neighbors_vectorized += err_nearest_neighbors
-
-print('err_nearest_neighbors_vectorized=', err_nearest_neighbors_vectorized)
-
-# print('nearest_points=')
-# print(nearest_points)
-#
-# print('nearest_points_true=')
-# print(nearest_points_true)
-#
-# print('dsqs=')
-# print(dsqs)
-#
-# actual_dsqs = np.linalg.norm(nearest_points - q[:,None], axis=0)**2
-# print('actual_dsqs=')
-# print(actual_dsqs)
-
-# timing
-
-num_pts = int(1e5)
-num_queries = int(1e5)
-num_neighbors = 10
-
-pp = np.array(np.random.randn(K, num_pts), order='F')
-KDT = make_KDT(pp)
-
-qq = np.array(np.random.randn(K, num_queries), order='F')
-
-t = time()
-all_nearest_points, all_dsqs = KDT.nearest_neighbors_vectorized(qq, num_neighbors)
-dt_nearest_neighbors = time() - t
-print('num_pts=', num_pts, ', num_queries=', num_queries, ', num_neighbors=', num_neighbors, ', dt_nearest_neighbors=', dt_nearest_neighbors)
-
-KDT_scipy = KDTree(np.array(pp.T, order='C'))
-
-qqC = np.array(qq.T, order='C')
-
-t = time()
-KDT_scipy.query(qqC, k=num_neighbors)
-dt_nearest_neighbors_scipy = time() - t
-print('dt_nearest_neighbors_scipy=', dt_nearest_neighbors_scipy)

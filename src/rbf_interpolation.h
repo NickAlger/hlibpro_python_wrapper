@@ -88,3 +88,68 @@ VectorXd tps_interpolate_vectorized( const VectorXd & function_at_rbf_points,
     }
     return function_at_eval_points;
 }
+
+double tps_interpolate_least_squares( const VectorXd & function_at_rbf_points,
+                                      const MatrixXd & rbf_points,
+                                      const VectorXd & eval_point,
+                                      double           regularization_parameter )
+{
+    int N = rbf_points.cols();
+
+    double function_at_eval_point;
+    if ( N == 1 )
+    {
+        function_at_eval_point = function_at_rbf_points(0);
+    }
+    else
+    {
+        MatrixXd PHI(N, N);
+        for ( int jj=0; jj<N; ++jj )
+        {
+            for ( int ii=0; ii<N; ++ii )
+            {
+                if ( ii == jj )
+                {
+                    PHI(ii,jj) = 0.0;
+                }
+                else
+                {
+                    double r_squared = (rbf_points.col(ii) - rbf_points.col(jj)).squaredNorm();
+                    PHI(ii, jj) = 0.5 * r_squared * log(r_squared);
+                }
+            }
+        }
+
+        MatrixXd A(2*N, N);
+        A.block(0, 0, N, N) = PHI;
+        A.block(N, 0, N, N) = (regularization_parameter * PHI.norm()) * MatrixXd::Identity(N, N);
+
+        VectorXd b(2*N);
+        b.head(N) = function_at_rbf_points;
+        b.tail(N).setZero();
+
+        VectorXd weights = A.colPivHouseholderQr().solve(b);
+
+//        M += 1e-6 * MatrixXd::Identity(N, N);
+
+//        VectorXd weights = M.lu().solve(function_at_rbf_points);
+//        VectorXd weights = M.colPivHouseholderQr().solve(function_at_rbf_points);
+
+        VectorXd rbfs_at_eval_point(N);
+        for ( int ii=0; ii<N; ++ii )
+        {
+            double r_squared = (rbf_points.col(ii) - eval_point).squaredNorm();
+            if ( r_squared == 0.0 )
+            {
+                rbfs_at_eval_point(ii) = 0.0;
+            }
+            else
+            {
+                rbfs_at_eval_point(ii) = 0.5 * r_squared * log(r_squared);
+            }
+        }
+
+        function_at_eval_point = (weights.array() * rbfs_at_eval_point.array()).sum();
+    }
+    return function_at_eval_point;
+}

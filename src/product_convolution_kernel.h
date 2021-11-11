@@ -153,30 +153,43 @@ private:
 public:
     vector<Matrix<double, K, 1>> row_coords;
     vector<Matrix<double, K, 1>> col_coords;
+    double                       gamma;
 
     thread_pool pool;
 
     ProductConvolutionKernelRBF( shared_ptr<ImpulseResponseBatches<K>> col_batches,
                                  shared_ptr<ImpulseResponseBatches<K>> row_batches,
-                                 vector<Matrix<double, K, 1>> col_coords,
-                                 vector<Matrix<double, K, 1>> row_coords )
+                                 vector<Matrix<double, K, 1>>          col_coords,
+                                 vector<Matrix<double, K, 1>>          row_coords,
+                                 double                                gamma )
         : col_batches(col_batches),
           row_batches(row_batches),
           row_coords(row_coords),
-          col_coords(col_coords)
+          col_coords(col_coords),
+          gamma(gamma)
     {}
 
-    double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x) const
+    double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x ) const
     {
-        vector<pair<Matrix<double,K,1>, double>> points_and_values_FWD
-            = col_batches->interpolation_points_and_values(y, x); // forward
+        vector<pair<Matrix<double,K,1>, double>> points_and_values_FWD;
+        if ( col_batches->num_pts() > 0 )
+        {
+            points_and_values_FWD = col_batches->interpolation_points_and_values(y, x); // forward
+        }
 
-        vector<pair<Matrix<double,K,1>, double>> points_and_values_ADJ
-            = row_batches->interpolation_points_and_values(x, y); // adjoint (swap x, y)
+        vector<pair<Matrix<double,K,1>, double>> points_and_values_ADJ;
+        if ( row_batches->num_pts() > 0 )
+        {
+            points_and_values_ADJ = row_batches->interpolation_points_and_values(x, y); // adjoint (swap x, y)
+        }
+
+//        points_and_values_FWD.insert(points_and_values_FWD.begin(),
+//                                     points_and_values_ADJ.begin(),
+//                                     points_and_values_ADJ.end());
 
         // Add non-duplicates. Inefficient implementation but whatever.
         // Asymptotic complexity not affected because we already have to do O(k^2) matrix operation later anyways
-        double tol = 1e-8;
+        double tol = 1e-7;
         double tol_squared = tol*tol;
 
         int N_FWD = points_and_values_FWD.size();
@@ -215,13 +228,14 @@ public:
                 P.col(jj) = points_and_values_FWD[jj].first;
                 F(jj)     = points_and_values_FWD[jj].second;
             }
-            kernel_value = tps_interpolate( F, P, MatrixXd::Zero(K,1) );
+//            kernel_value = tps_interpolate( F, P, MatrixXd::Zero(K,1) );
+            kernel_value = tps_interpolate_least_squares( F, P, MatrixXd::Zero(K,1), gamma );
         }
         return kernel_value;
     }
 
     MatrixXd eval_integral_kernel_block(const Ref<const Matrix<double, K, Dynamic>> yy,
-                                        const Ref<const Matrix<double, K, Dynamic>> xx)
+                                        const Ref<const Matrix<double, K, Dynamic>> xx )
     {
         int nx = xx.cols();
         int ny = yy.cols();
@@ -238,7 +252,6 @@ public:
         };
 
         pool.parallelize_loop(0, nx * ny, loop);
-//        loop(0, nx*ny);
 
         return block;
     }
@@ -248,28 +261,15 @@ public:
                          real_t *                      matrix ) const
     {
         int nrow = rowidxs.size();
-//        MatrixXd yy(K, nrow);
-//        for ( int ii=0; ii<nrow; ++ii )
-//        {
-//            yy.col(ii) = row_coords[ii];
-//        }
-
         int ncol = colidxs.size();
-//        MatrixXd xx(K, ncol);
-//        for ( int jj=0; jj<ncol; ++jj )
-//        {
-//            xx.col(jj) = col_coords[jj];
-//        }
 
-//        MatrixXd block_values = eval_integral_kernel_block(yy, xx);
         for ( size_t  jj = 0; jj < ncol; ++jj )
         {
             for ( size_t  ii = 0; ii < nrow; ++ii )
             {
                 matrix[ jj*nrow + ii ] = eval_integral_kernel(row_coords[rowidxs[ii]], col_coords[colidxs[jj]]);
-//                matrix[ jj*nrow + ii ] = block_values(ii, jj);
-            }// for
-        }// for
+            }
+        }
     }
 
     using TCoeffFn< real_t >::eval;
