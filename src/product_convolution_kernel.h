@@ -56,7 +56,15 @@ public:
 
     void build_kdtree()
     {
-        kdtree = KDTree<K>(pts);
+        vector<array<double,K>> pts_array(pts.size());
+        for ( int ii=0; ii<pts.size(); ++ii )
+        {
+            for ( int kk=0; kk<K; ++kk )
+            {
+                pts_array[ii][kk] = pts[ii](kk);
+            }
+        }
+        kdtree = KDTree<K>(pts_array);
     }
 
     int num_pts()
@@ -100,8 +108,13 @@ public:
     vector<pair<Matrix<double,K,1>, double>> interpolation_points_and_values(const Matrix<double, K, 1> & y,
                                                                              const Matrix<double, K, 1> & x) const
     {
-        pair<VectorXi, VectorXd> nn_result = kdtree.nearest_neighbors( x, num_neighbors );
-        VectorXi nearest_inds = nn_result.first;
+        array<double,K> x_arr;
+        for ( int kk=0; kk<K; ++kk )
+        {
+            x_arr[kk] = x(kk);
+        }
+        pair<vector<int>, vector<double>> nn_result = kdtree.nearest_neighbor( x_arr, num_neighbors );
+        vector<int> nearest_inds = nn_result.first;
 
         int N_nearest = nearest_inds.size();
 

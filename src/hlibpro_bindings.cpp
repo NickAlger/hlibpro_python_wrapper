@@ -733,27 +733,14 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< Array<double, Dynamic, 2> >())
         .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
 
-//    py::class_<KDTree<1>>(m, "KDTree1D")
-//        .def(py::init< Array<double, Dynamic, 1> & >())
-//        .def("nearest_neighbor", &KDTree<1>::nearest_neighbor)
-//        .def("nearest_neighbor_vectorized", &KDTree<1>::nearest_neighbor_vectorized);
 
     py::class_<KDTree<2>>(m, "KDTree2D")
-        .def(py::init< const Ref<const Array<double, 2, Dynamic>> >())
-        .def("nearest_neighbor", &KDTree<2>::nearest_neighbor)
-        .def("nearest_neighbors", &KDTree<2>::nearest_neighbors)
-        .def("nearest_neighbors_vectorized", &KDTree<2>::nearest_neighbors_vectorized)
-        .def("nearest_neighbor_vectorized", &KDTree<2>::nearest_neighbor_vectorized);
+        .def(py::init< const vector<array<double, 2>> & >())
+        .def("nearest_neighbor", py::overload_cast<const array<double,2> &>(&KDTree<2>::nearest_neighbor, py::const_), "one query, one neighbor")
+        .def("nearest_neighbor", py::overload_cast<const array<double,2> &, int>(&KDTree<2>::nearest_neighbor, py::const_), "one query, many neighbors")
+        .def("nearest_neighbor", py::overload_cast<const vector<array<double,2>> &>(&KDTree<2>::nearest_neighbor, py::const_), "many querys, one neighbor")
+        .def("nearest_neighbor", py::overload_cast<const vector<array<double,2>> &, int>(&KDTree<2>::nearest_neighbor, py::const_), "many querys, many neighbors");
 
-//    py::class_<KDTree<3>>(m, "KDTree3D")
-//        .def(py::init< Array<double, Dynamic, 3> & >())
-//        .def("nearest_neighbor", &KDTree<3>::nearest_neighbor)
-//        .def("nearest_neighbor_vectorized", &KDTree<3>::nearest_neighbor_vectorized);
-//
-//    py::class_<KDTree<4>>(m, "KDTree4D")
-//        .def(py::init< Array<double, Dynamic, 4> & >())
-//        .def("nearest_neighbor", &KDTree<4>::nearest_neighbor)
-//        .def("nearest_neighbor_vectorized", &KDTree<4>::nearest_neighbor_vectorized);
 
     py::class_<AABBTree<2>>(m, "AABBTree2D")
         .def(py::init< const Ref<const Array<double, 2, Dynamic>>,
@@ -794,8 +781,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        vector<Matrix<double, 2, 1>>           // col_coords
                        >())
         .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel)
-        .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF<2>::eval_integral_kernel_block)
-        .def("build_hmatrix", &ProductConvolutionKernelRBF<2>::build_hmatrix);
+        .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF<2>::eval_integral_kernel_block);
 
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
     m.def("nearest_points_brute_force_vectorized", &nearest_points_brute_force_vectorized);

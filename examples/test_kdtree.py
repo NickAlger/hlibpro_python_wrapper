@@ -8,43 +8,41 @@ hcpp = hpro.hpro_cpp
 
 K = 2
 
-def make_KDT(pp):
-    dim = pp.shape[0]
-    if dim == 1:
-        KDT = hcpp.KDTree1D(pp)
-    elif dim == 2:
-        KDT = hcpp.KDTree2D(pp)
-    elif dim == 3:
-        KDT = hcpp.KDTree3D(pp)
-    elif dim == 4:
-        KDT = hcpp.KDTree4D(pp)
-    else:
-        raise RuntimeError('KDT only implemented for K<=4')
-    return KDT
+pp = np.random.randn(100,K)
+KDT = hcpp.KDTree2D(list(pp))
 
-pp = np.array(np.random.randn(K, 100), order='F')
-KDT = make_KDT(pp)
+#
 
+print('one query, one neighbor:')
 q = np.random.randn(K)
 
 ind, dsq = KDT.nearest_neighbor(q)
-nearest_point = pp[:,ind]
 
-nearest_ind = np.argmin(np.linalg.norm(pp - q[:,None], axis=0))
-nearest_point_true = pp[:,nearest_ind]
+nearest_point = pp[ind,:]
+
+nearest_ind = np.argmin(np.linalg.norm(pp - q[None,:], axis=1))
+nearest_point_true = pp[nearest_ind,:]
 dsq_true = np.linalg.norm(nearest_point_true - q)**2
 err_nearest_one_point = np.linalg.norm(nearest_point - nearest_point_true)
 err_dsq_one_point = np.abs(dsq - dsq_true)
 print('err_nearest_one_point=', err_nearest_one_point)
 print('err_dsq_one_point=', err_dsq_one_point)
 
-qq = np.array(np.random.randn(K, 77), order='F')
-inds, dsqq = KDT.nearest_neighbor_vectorized(qq)
-nearest_points = pp[:, inds]
+print('')
 
-nearest_inds = np.argmin(np.linalg.norm(pp[:,:,None] - qq[:,None,:], axis=0), axis=0)
-nearest_points_true = pp[:,nearest_inds]
-dsqq_true = np.linalg.norm(qq - nearest_points_true, axis=0)**2
+#
+
+print('many querys, one neighbor:')
+num_querys = 63
+qq = np.random.randn(num_querys, K)
+
+inds, dsqq = KDT.nearest_neighbor(list(qq))
+
+nearest_points = pp[inds,:]
+
+nearest_inds = np.argmin(np.linalg.norm(pp[:,None,:] - qq[None,:,:], axis=2), axis=0)
+nearest_points_true = pp[nearest_inds,:]
+dsqq_true = np.linalg.norm(qq - nearest_points_true, axis=1)**2
 
 err_nearest = np.linalg.norm(nearest_points - nearest_points_true)
 print('err_nearest=', err_nearest)
@@ -52,16 +50,79 @@ print('err_nearest=', err_nearest)
 err_dsqq = np.linalg.norm(dsqq - dsqq_true)
 print('err_dsqq=', err_dsqq)
 
+print('')
 
+#
 
+print('one querys, many neighbors:')
+num_neighbors = 5
+q = np.random.randn(K)
+
+inds, dsqq = KDT.nearest_neighbor(list(q), num_neighbors)
+
+nearest_points = pp[inds,:]
+
+nearest_inds = np.argsort(np.linalg.norm(pp - q[None,:], axis=1), axis=0)[:num_neighbors]
+nearest_points_true = pp[nearest_inds,:]
+dsqq_true = np.linalg.norm(q[None,:] - nearest_points_true, axis=1)**2
+
+err_nearest = np.linalg.norm(nearest_points - nearest_points_true)
+print('err_nearest=', err_nearest)
+
+err_dsqq = np.linalg.norm(dsqq - dsqq_true)
+print('err_dsqq=', err_dsqq)
+
+print('')
+
+#
+
+print('many querys, many neighbors:')
+num_neighbors = 5
+num_querys = 13
+qq = np.random.randn(num_querys, K)
+
+all_inds, all_dsqq = KDT.nearest_neighbor(list(qq), num_neighbors)
+
+err_nearest = 0.0
+err_dsqq = 0.0
+for ii in range(num_querys):
+    q = qq[ii, :]
+    inds = all_inds[ii]
+    dsqq = all_dsqq[ii]
+    nearest_points = pp[inds,:]
+
+    nearest_inds = np.argsort(np.linalg.norm(pp - q[None,:], axis=1), axis=0)[:num_neighbors]
+    nearest_points_true = pp[nearest_inds, :]
+    dsqq_true = np.linalg.norm(q[None, :] - nearest_points_true, axis=1) ** 2
+
+    err_nearest += np.linalg.norm(nearest_points - nearest_points_true)
+    err_dsqq += np.linalg.norm(dsqq - dsqq_true)
+
+print('err_nearest=', err_nearest)
+print('err_dsqq=', err_dsqq)
+
+print('')
+
+#
+
+print('timing:')
 n_pts = int(1e6)
 n_query = int(1e6)
+num_neighbors = 10
 
-pp = np.array(np.random.randn(K, n_pts), order='F')
+pp = np.random.randn(n_pts, K)
+
 t = time()
-KDT = make_KDT(pp)
+KDT = hcpp.KDTree2D(list(pp))
 dt_build = time() - t
 print('n_pts=', n_pts, ', dt_build=', dt_build)
+
+qq = np.random.randn(n_query, K)
+
+t = time()
+all_inds, all_dsqq = KDT.nearest_neighbor(list(qq), num_neighbors)
+dt_query = time() - t
+print('n_query=', n_query, ', dt_query=', dt_query)
 
 qq = np.array(np.random.randn(K, n_query), order='F')
 t = time()
@@ -71,12 +132,12 @@ print('n_query=', n_query, ', dt_query=', dt_query)
 
 
 t = time()
-KDT_scipy = KDTree(pp.T)
+KDT_scipy = KDTree(pp)
 dt_build_scipy = time() - t
 print('dt_build_scipy=', dt_build_scipy)
 
 t = time()
-KDT_scipy.query(qq.T)
+KDT_scipy.query(qq)
 dt_query_scipy = time() - t
 print('dt_query_scipy=', dt_query_scipy)
 
