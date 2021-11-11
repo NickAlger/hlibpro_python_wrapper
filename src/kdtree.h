@@ -258,6 +258,7 @@ public:
         return make_pair(closest_points_inds, squared_distances);
     }
 
+
     // many nearest neighbors to many points
     pair< MatrixXi, MatrixXd >
         nearest_neighbor_vectorized( const Ref<const Matrix<double,K,Dynamic>> querys,
