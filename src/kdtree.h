@@ -78,72 +78,16 @@ private:
         return current_node_ind;
     }
 
-    // finds nearest neighbor of query in subtree
-    SubtreeResult nn_subtree( const Matrix<double,K,1> & query,
-                              int                        cur_index,
-                              int                        depth      ) const
-    {
-        const KDNode<K> & cur = nodes[cur_index];
-
-        const Matrix<double,K,1> delta = query - cur.point;
-
-        int best_index = cur_index;
-        double best_distance_squared = delta.squaredNorm();
-
-        int axis = depth % K;
-        double displacement_to_splitting_plane = delta(axis);
-
-        int A;
-        int B;
-        if (displacement_to_splitting_plane >= 0)
-        {
-            A = cur.left;
-            B = cur.right;
-        }
-        else
-        {
-            A = cur.right;
-            B = cur.left;
-        }
-
-        if (A >= 0)
-        {
-            SubtreeResult nn_A = nn_subtree( query, A, depth + 1);
-            if (nn_A.distance_squared < best_distance_squared)
-            {
-                best_index = nn_A.index;
-                best_distance_squared = nn_A.distance_squared;
-            }
-        }
-
-        if (B >= 0)
-        {
-            bool nearest_neighbor_might_be_in_B_subtree =
-                displacement_to_splitting_plane*displacement_to_splitting_plane < best_distance_squared;
-            if ( nearest_neighbor_might_be_in_B_subtree )
-            {
-                SubtreeResult nn_B = nn_subtree( query, B, depth + 1);
-                if (nn_B.distance_squared < best_distance_squared)
-                {
-                    best_index = nn_B.index;
-                    best_distance_squared = nn_B.distance_squared;
-                }
-            }
-        }
-
-        return SubtreeResult { best_index, best_distance_squared };
-    }
-
     // finds num_neighbors nearest neighbors of query in subtree
-    void nn_subtree_many( const Matrix<double,K,1> &                             query,
-                          priority_queue<SubtreeResult, vector<SubtreeResult>> & nn,
-                          int                                                    cur_index,
-                          int                                                    depth,
-                          int                                                    num_neighbors ) const
+    void query_subtree( const Matrix<double,K,1> &                             query_point,
+                        priority_queue<SubtreeResult, vector<SubtreeResult>> & nn,
+                        int                                                    cur_index,
+                        int                                                    depth,
+                        int                                                    num_neighbors ) const
     {
         KDNode<K> cur = nodes[cur_index];
 
-        const Matrix<double,K,1> delta = query - cur.point;
+        const Matrix<double,K,1> delta = query_point - cur.point;
         double dsq_cur = delta.squaredNorm();
         SubtreeResult cur_result = {cur_index, dsq_cur};
 
@@ -175,7 +119,7 @@ private:
 
         if (A >= 0)
         {
-            nn_subtree_many( query, nn, A, depth+1, num_neighbors );
+            query_subtree( query_point, nn, A, depth+1, num_neighbors );
         }
 
         if (B >= 0)
@@ -183,7 +127,7 @@ private:
             if ( displacement_to_splitting_plane*displacement_to_splitting_plane
                  < nn.top().distance_squared )
             {
-                nn_subtree_many( query, nn, B, depth+1, num_neighbors );
+                query_subtree( query_point, nn, B, depth+1, num_neighbors );
             }
         }
     }
@@ -191,15 +135,15 @@ private:
 public:
     KDTree( ) {}
 
-    KDTree( const vector<Matrix<double,K,1>> & input_points )
+    KDTree( const Ref<const Matrix<double,K,Dynamic>> input_points )
     {
-        int num_pts = input_points.size();
+        int num_pts = input_points.cols();
 
         // Copy points into std::vector of tuples which will be re-ordered
         vector< PointWithIndex<K> > points(num_pts); // (coords, original_index)
         for ( int ii=0; ii<num_pts; ++ii)
         {
-            points[ii].point = input_points[ii];
+            points[ii].point = input_points.col(ii);
             points[ii].index = ii;
         }
 
@@ -209,73 +153,45 @@ public:
         int zero = make_subtree(0, num_pts, 0, points, counter);
     }
 
-    // one nearest neighbor to one point
-    pair<int, double> nearest_neighbor( const Matrix<double,K,1> & point ) const
+    // Many queries, many neighbors each
+    pair<MatrixXi, MatrixXd> query( const Ref<const Matrix<double,K,Dynamic>> query_points, int num_neighbors ) const
     {
-        SubtreeResult nn_result = nn_subtree( point, 0, 0 );
-        return make_pair(perm_i2e[nn_result.index], nn_result.distance_squared);
-    }
+        int num_queries = query_points.cols();
 
-    // many nearest neighbors to one point
-    pair<VectorXi, VectorXd> nearest_neighbor( const Matrix<double,K,1> & point,
-                                               int                        num_neighbors ) const
-    {
-        vector<SubtreeResult> nn_container;
-        nn_container.reserve(2*num_neighbors);
-        priority_queue<SubtreeResult, vector<SubtreeResult>> nn(less<SubtreeResult>(), move(nn_container));
+        MatrixXi closest_point_inds(num_neighbors, num_queries);
+        MatrixXd squared_distances(num_neighbors, num_queries);
 
-        nn_subtree_many( point, nn, 0, 0, num_neighbors );
-
-        VectorXi nn_inds(num_neighbors);
-        VectorXd nn_dsq(num_neighbors);
-        for ( int ii=0; ii<num_neighbors; ++ii )
+        for ( int ii=0; ii<num_queries; ++ii )
         {
-            int jj = num_neighbors - ii - 1;
-            SubtreeResult n_ii = nn.top();
-            nn.pop();
-            nn_inds(jj) = perm_i2e[n_ii.index];
-            nn_dsq(jj) = n_ii.distance_squared;
-        }
-        return make_pair(nn_inds, nn_dsq);
-    }
+            vector<SubtreeResult> nn_container;
+            nn_container.reserve(2*num_neighbors);
+            priority_queue<SubtreeResult, vector<SubtreeResult>> nn(less<SubtreeResult>(), move(nn_container));
 
-    // one nearest neighbor to many points
-    pair< VectorXi, VectorXd >
-        nearest_neighbor_vectorized( const Ref<const Matrix<double,K,Dynamic>> querys ) const
-    {
-        int num_querys = querys.cols();
+            query_subtree( query_points.col(ii), nn, 0, 0, num_neighbors );
 
-        VectorXi closest_points_inds(num_querys);
-        VectorXd squared_distances(num_querys);
-
-        for ( int ii=0; ii<num_querys; ++ii )
-        {
-            SubtreeResult nn_result = nn_subtree( querys.col(ii), 0, 0 );
-            closest_points_inds(ii) = perm_i2e[nn_result.index];
-            squared_distances(ii) = nn_result.distance_squared;
-        }
-
-        return make_pair(closest_points_inds, squared_distances);
-    }
-
-
-    // many nearest neighbors to many points
-    pair< MatrixXi, MatrixXd >
-        nearest_neighbor_vectorized( const Ref<const Matrix<double,K,Dynamic>> querys,
-                                     int                                       num_neighbors ) const
-    {
-        int num_querys = querys.cols();
-
-        MatrixXi closest_point_inds(num_neighbors, num_querys);
-        MatrixXd squared_distances(num_neighbors, num_querys);
-
-        for ( int ii=0; ii<num_querys; ++ii )
-        {
-            pair<VectorXi, VectorXd> result = nearest_neighbor( querys.col(ii), num_neighbors );
-            closest_point_inds.col(ii) = result.first;
-            squared_distances.col(ii) = result.second;
+            for ( int kk=0; kk<num_neighbors; ++kk )
+            {
+                int jj = num_neighbors - kk - 1;
+                const SubtreeResult n_kk = nn.top();
+                nn.pop();
+                closest_point_inds(jj,ii) = perm_i2e[n_kk.index];
+                squared_distances(jj,ii) = n_kk.distance_squared;
+            }
         }
         return make_pair(closest_point_inds, squared_distances);
+    }
+
+    // one query, one neighbor
+    pair<int, double> query( const Matrix<double,K,1> & query_point ) const
+    {
+        vector<SubtreeResult> nn_container;
+        nn_container.reserve(2);
+        priority_queue<SubtreeResult, vector<SubtreeResult>> nn(less<SubtreeResult>(), move(nn_container));
+
+        query_subtree( query_point, nn, 0, 0, 1 );
+
+        SubtreeResult n_ii = nn.top();
+        return make_pair(perm_i2e[n_ii.index], n_ii.distance_squared);
     }
 
 };

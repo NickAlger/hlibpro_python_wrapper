@@ -459,13 +459,13 @@ public:
         }
 
         int num_face_vertices = face_vertex_inds.size();
-        vector<Matrix<double,K,1>> face_vertices(num_face_vertices);
+        MatrixXd face_vertices(K,num_face_vertices);
         int vv=0;
         for ( auto it  = face_vertex_inds.begin();
                    it != face_vertex_inds.end();
                  ++it )
         {
-            face_vertices[vv] = vertices.col( *it );
+            face_vertices.col(vv) = vertices.col( *it );
             vv += 1;
         }
         face_kdtree = KDTree<K>( face_vertices );
@@ -603,7 +603,7 @@ public:
         else
         {
             // 1. Find a set of candidate boundary faces, one of which contains the closest point
-            pair<int, double> kd_result = face_kdtree.nearest_neighbor( query );
+            pair<int, double> kd_result = face_kdtree.query( query );
             double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
             VectorXi face_inds = face_aabbtree.ball_collisions( query, dist_estimate );
 
