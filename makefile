@@ -35,7 +35,7 @@ ALL_COMPILE_STUFF = $(CXXFLAGS) $(HLIBPRO_FLAGS) $(PYFLAGS) \
 HLIBPRO_BINDINGS_TARGET = hlibpro_bindings.so
 
 
-all: $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET)
+all: $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET) $(BUILD_DIR)/kdtree_example
 	@echo 'Finished building target: $@'
 	@echo ' '
 
