@@ -26,22 +26,22 @@ struct SubtreeResult
 
 struct KDNode
 {
-    int left;
-    int right;
     int axis;
     double coord_along_axis;
-}
+    int left;
+    int right;
+};
 
 
 class KDTree
 {
 private:
-    int                   num_pts;
-    int                   dim; // spatial dimension
-    int                   root;
-    MatrixXd              points; // points_array.col(ii) is ith point (in internal ordering)
-    Matrix<int,3,Dynamic> nodes; // nodes(0,ii) is split direction, nodes(1,ii) is "left" child of node ii, nodes(2,ii) is "right" child of node ii
-    VectorXi              perm_i2e; // permutation from internal ordering to external ordering
+    int            num_pts;
+    int            dim; // spatial dimension
+    int            root;
+    MatrixXd       points; // points_array.col(ii) is ith point (in internal ordering)
+    vector<KDNode> nodes;
+    VectorXi       perm_i2e; // permutation from internal ordering to external ordering
 
     // creates subtree and returns the index for root of subtree
     int make_subtree( int           start,
@@ -87,9 +87,16 @@ private:
 
             mid = start + (num_pts_local / 2);
 
-            nodes(0,mid) = axis;
-            nodes(1,mid) = make_subtree(start,  mid, depth+1, input_points, working_perm_i2e);
-            nodes(2,mid) = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
+            double coord_along_axis = input_points(axis,working_perm_i2e[mid]);
+
+            int left = make_subtree(start,  mid, depth+1, input_points, working_perm_i2e);
+            int right = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
+
+            nodes[mid] = KDNode { axis, coord_along_axis, left, right };
+
+//            nodes(0,mid) = axis;
+//            nodes(1,mid) = make_subtree(start,  mid, depth+1, input_points, working_perm_i2e);
+//            nodes(2,mid) = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
         }
         return mid;
     }
@@ -100,20 +107,22 @@ private:
                         int                                                    cur_index,
                         int                                                    num_neighbors ) const
     {
-        int axis = nodes(0,cur_index);
-        double displacement_to_splitting_plane = query_point(axis) - points(axis,cur_index);
+        const KDNode cur_node = nodes[cur_index];
+        double displacement_to_splitting_plane = query_point(cur_node.axis) - cur_node.coord_along_axis;
+//        int axis = nodes(0,cur_index);
+//        double displacement_to_splitting_plane = query_point(axis) - points(axis,cur_index);
 
         int A;
         int B;
         if (displacement_to_splitting_plane >= 0)
         {
-            A = nodes(1,cur_index);
-            B = nodes(2,cur_index);
+            A = cur_node.left;
+            B = cur_node.right;
         }
         else
         {
-            A = nodes(2,cur_index);
-            B = nodes(1,cur_index);
+            A = cur_node.right;
+            B = cur_node.left;
         }
 
         if (A >= 0)
@@ -156,7 +165,8 @@ public:
         dim = input_points.rows();
         num_pts = input_points.cols();
 
-        nodes.resize(3,num_pts);
+        nodes.resize(num_pts);
+//        nodes.resize(3,num_pts);
 
         vector<int> working_perm_i2e(num_pts);
         iota(working_perm_i2e.begin(), working_perm_i2e.end(), 0);
