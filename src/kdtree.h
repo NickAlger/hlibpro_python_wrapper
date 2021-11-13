@@ -32,7 +32,7 @@ private:
     int                   dim; // spatial dimension
     int                   root;
     MatrixXd              points; // points_array.col(ii) is ith point (in internal ordering)
-    Matrix<int,2,Dynamic> children; // children(0,ii) is "left" child of node ii, children(1,ii) is "right" child of node ii
+    Matrix<int,3,Dynamic> nodes; // nodes(0,ii) is split direction, nodes(1,ii) is "left" child of node ii, nodes(2,ii) is "right" child of node ii
     VectorXi              perm_i2e; // permutation from internal ordering to external ordering
 
     // creates subtree and returns the index for root of subtree
@@ -46,14 +46,42 @@ private:
         int mid = -1; // -1 indicates node does not exist
         if (num_pts_local >= 1)
         {
-            int axis = depth % dim;
+            VectorXd cluster_min = input_points.col(working_perm_i2e[start]);
+            VectorXd cluster_max = input_points.col(working_perm_i2e[start]);
+            for ( int ind=start+1; ind<stop; ++ind )
+            {
+                for ( int kk=0; kk<dim; ++kk )
+                {
+                    double x = input_points(kk, working_perm_i2e[ind]);
+                    if ( x < cluster_min(kk) )
+                    {
+                        cluster_min(kk) = x;
+                    }
+                    else if ( cluster_max(kk) < x )
+                    {
+                        cluster_max(kk) = x;
+                    }
+                }
+            }
+
+            int axis=0;
+            double biggest_width = cluster_max(0) - cluster_min(0);
+            for ( int kk=1; kk<dim; ++kk )
+            {
+                if ( biggest_width < cluster_max(kk) - cluster_min(kk) )
+                {
+                    axis = kk;
+                }
+            }
+
             sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
                   [&axis,&input_points](int ii, int jj) {return input_points(axis,ii) > input_points(axis,jj);} );
 
             mid = start + (num_pts_local / 2);
 
-            children(0,mid) = make_subtree(start,  mid, depth+1, input_points, working_perm_i2e);
-            children(1,mid) = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
+            nodes(0,mid) = axis;
+            nodes(1,mid) = make_subtree(start,  mid, depth+1, input_points, working_perm_i2e);
+            nodes(2,mid) = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
         }
         return mid;
     }
@@ -62,52 +90,54 @@ private:
     void query_subtree( const VectorXd &                                       query_point,
                         priority_queue<SubtreeResult, vector<SubtreeResult>> & nn,
                         int                                                    cur_index,
-                        int                                                    depth,
                         int                                                    num_neighbors ) const
     {
-        const VectorXd delta = query_point - points.col(cur_index);
-        double dsq_cur = delta.squaredNorm();
-        SubtreeResult cur_result = {cur_index, dsq_cur};
-
-        if ( nn.size() < num_neighbors )
-        {
-            nn.push( cur_result );
-        }
-        else if ( dsq_cur < nn.top().distance_squared )
-        {
-            nn.pop();
-            nn.push( cur_result );
-        }
-
-        int axis = depth % dim;
-        double displacement_to_splitting_plane = delta(axis);
+        int axis = nodes(0,cur_index);
+        double displacement_to_splitting_plane = query_point(axis) - points(axis,cur_index);
 
         int A;
         int B;
         if (displacement_to_splitting_plane >= 0)
         {
-            A = children(0,cur_index);
-            B = children(1,cur_index);
+            A = nodes(1,cur_index);
+            B = nodes(2,cur_index);
         }
         else
         {
-            A = children(1,cur_index);
-            B = children(0,cur_index);
+            A = nodes(2,cur_index);
+            B = nodes(1,cur_index);
         }
 
         if (A >= 0)
         {
-            query_subtree( query_point, nn, A, depth+1, num_neighbors );
+            query_subtree( query_point, nn, A, num_neighbors );
         }
 
-        if (B >= 0)
+        double dsq_splitting_plane = displacement_to_splitting_plane*displacement_to_splitting_plane;
+
+        if ( nn.size() < num_neighbors )
         {
-            if ( displacement_to_splitting_plane*displacement_to_splitting_plane
-                 < nn.top().distance_squared )
+            double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
+            nn.push( SubtreeResult {cur_index, dsq_cur} );
+        }
+        else if ( dsq_splitting_plane < nn.top().distance_squared )
+        {
+            double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
+            if ( dsq_cur < nn.top().distance_squared )
             {
-                query_subtree( query_point, nn, B, depth+1, num_neighbors );
+                nn.pop();
+                nn.push( SubtreeResult {cur_index, dsq_cur} );
             }
         }
+
+        if ( B >= 0 )
+        {
+            if ( dsq_splitting_plane < nn.top().distance_squared )
+            {
+                query_subtree( query_point, nn, B, num_neighbors );
+            }
+        }
+
     }
 
 public:
@@ -118,7 +148,7 @@ public:
         dim = input_points.rows();
         num_pts = input_points.cols();
 
-        children.resize(2,num_pts);
+        nodes.resize(3,num_pts);
 
         vector<int> working_perm_i2e(num_pts);
         iota(working_perm_i2e.begin(), working_perm_i2e.end(), 0);
@@ -148,7 +178,7 @@ public:
             nn_container.reserve(2*num_neighbors);
             priority_queue<SubtreeResult, vector<SubtreeResult>> nn(less<SubtreeResult>(), move(nn_container));
 
-            query_subtree( query_points.col(ii), nn, root, 0, num_neighbors );
+            query_subtree( query_points.col(ii), nn, root, num_neighbors );
 
             for ( int kk=0; kk<num_neighbors; ++kk )
             {
