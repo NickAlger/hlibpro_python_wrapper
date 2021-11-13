@@ -24,6 +24,14 @@ struct SubtreeResult
     }
 };
 
+struct KDNode
+{
+    int left;
+    int right;
+    int axis;
+    double coord_along_axis;
+}
+
 
 class KDTree
 {
