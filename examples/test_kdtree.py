@@ -6,7 +6,7 @@ from scipy.spatial import KDTree
 hcpp = hpro.hpro_cpp
 
 
-K = 5
+K = 2
 num_neighbors = 5
 num_querys = 13
 

@@ -105,7 +105,7 @@ private:
                         int                                                    cur_index,
                         int                                                    num_neighbors ) const
     {
-        const KDNode cur_node = nodes[cur_index];
+        const KDNode & cur_node = nodes[cur_index];
         double displacement_to_splitting_plane = query_point(cur_node.axis) - cur_node.coord_along_axis;
 
         int A;
@@ -175,6 +175,70 @@ public:
             perm_i2e(ii) = working_perm_i2e[ii];
             points.col(ii) = input_points.col(working_perm_i2e[ii]);
         }
+
+        reorder_depth_first();
+    }
+
+    void reorder_depth_first()
+    {
+        vector<int> order_inds;
+        vector<int> working_inds;
+        working_inds.push_back(root);
+        while ( !working_inds.empty() )
+        {
+            int cur = working_inds.back();
+            working_inds.pop_back();
+            order_inds.push_back(cur);
+
+            if ( nodes[cur].right >= 0 )
+            {
+                working_inds.push_back(nodes[cur].right);
+            }
+            if ( nodes[cur].left >= 0 )
+            {
+                working_inds.push_back(nodes[cur].left);
+            }
+        }
+
+        VectorXi oi(num_pts);
+        MatrixXd       points_old = points;
+        VectorXi       perm_i2e_old = perm_i2e;
+
+        VectorXi inverse_order_inds(num_pts);
+
+        for ( int ii=0; ii<num_pts; ++ii )
+        {
+            oi[ii] = order_inds[ii];
+
+            inverse_order_inds(order_inds[ii]) = ii;
+            points.col(ii) = points_old.col(order_inds[ii]);
+            perm_i2e(ii) = perm_i2e_old(order_inds[ii]);
+        }
+
+
+        vector<KDNode> nodes_old = nodes;
+        for ( int ii=0; ii<num_pts; ++ii )
+        {
+            KDNode old_node = nodes_old[order_inds[ii]];
+            int new_left = -1;
+            if ( old_node.left >= 0 )
+            {
+                new_left = inverse_order_inds(old_node.left);
+            }
+
+            int new_right = -1;
+            if ( old_node.right >= 0 )
+            {
+                new_right = inverse_order_inds(old_node.right);
+            }
+
+            nodes[ii] = KDNode { old_node.axis,
+                                 old_node.coord_along_axis,
+                                 new_left,
+                                 new_right };
+        }
+
+        root = 0;
     }
 
     // Many queries, many neighbors each
