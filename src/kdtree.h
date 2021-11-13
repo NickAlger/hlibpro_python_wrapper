@@ -12,17 +12,87 @@ using namespace Eigen;
 using namespace std;
 
 
-// Nearest neighbor in subtree to query point
-struct SubtreeResult
-{
-    int index; // index of nearest neighbor
-    double distance_squared; // distance squared to query point
+//// Nearest neighbor in subtree to query point
+//struct SubtreeResult
+//{
+//    int index; // index of nearest neighbor
+//    double distance_squared; // distance squared to query point
+//
+//    const bool operator < ( const SubtreeResult& other ) const
+//    {
+//        return ( distance_squared < other.distance_squared );
+//    }
+//};
+//
+//
+//class VisitedNodes
+//{
+//private:
+//
+//
+//public:
+//    vector<int>    inds;
+//    vector<double> squared_distances;
+//
+//    double get_squared_distance(unsigned short int k)
+//    {
+//        return squared_distances[k];
+//    }
+//
+//    unsigned short int size()
+//    {
+//        return inds.size();
+//    }
+//
+//    void reserve(unsigned short int N)
+//    {
+//        inds.reserve(N);
+//        squared_distances.reserve(N);
+//    }
+//
+//    void push_back(int ii, double dsq)
+//    {
+//        inds.push_back(ii);
+//        squared_distances.push_back(dsq);
+//    }
+//
+//    pair<VectorXi, VectorXd> top_k(unsigned short int k)
+//    {
+//        VectorXi top_inds(k);
+//        VectorXd top_dsqs(k);
+//        vector<int> sort_inds(squared_distances.size());
+//        iota(sort_inds.begin(), sort_inds.end(), 0);
+//        sort(sort_inds.begin(), sort_inds.end(),
+//             [&](unsigned short int ii, unsigned short int jj){return squared_distances[ii] < squared_distances[jj];});
+//
+//        for ( unsigned short int ii=0; ii<k; ++ii )
+//        {
+//            top_inds(ii) = inds[sort_inds[ii]];
+//            top_dsqs(ii) = squared_distances[sort_inds[ii]];
+//        }
+//        return make_pair(top_inds, top_dsqs);
+//    }
+//};
+//
+//
+//class VisitedCompare
+//{
+//private:
+//    VisitedNodes* visited_nodes;
+//
+//public:
+//    VisitedCompare( VisitedNodes* visited_nodes ) : visited_nodes(visited_nodes) {}
+//
+//    bool operator() (unsigned short int a, unsigned short int b)
+//    {
+////        cout << "a=" << a << ", b=" << b << ", visited_nodes.size()=" << visited_nodes->size() << ", visited_nodes.name=" << visited_nodes->name << endl;
+////        visited_nodes->name += 1;
+//        return visited_nodes->squared_distances[a] < visited_nodes->squared_distances[b];
+////        return true;
+//    }
+//};
 
-    const bool operator < ( const SubtreeResult& other ) const
-    {
-        return ( distance_squared < other.distance_squared );
-    }
-};
+
 
 struct KDNode
 {
@@ -100,10 +170,12 @@ private:
     }
 
     // finds num_neighbors nearest neighbors of query in subtree
-    void query_subtree( const VectorXd &                                       query_point,
-                        priority_queue<SubtreeResult, vector<SubtreeResult>> & nn,
-                        int                                                    cur_index,
-                        int                                                    num_neighbors ) const
+    void query_subtree( const VectorXd &                         query_point,
+                        vector<int> &                            visited_inds,
+                        vector<double> &                         visited_distances,
+                        priority_queue<double, vector<double>> & best_distances,
+                        int                                      cur_index,
+                        int                                      num_neighbors ) const
     {
         const KDNode & cur_node = nodes[cur_index];
         double displacement_to_splitting_plane = query_point(cur_node.axis) - cur_node.coord_along_axis;
@@ -123,31 +195,35 @@ private:
 
         if (A >= 0)
         {
-            query_subtree( query_point, nn, A, num_neighbors );
+            query_subtree( query_point, visited_inds, visited_distances, best_distances, A, num_neighbors );
         }
 
         double dsquared_splitting_plane = displacement_to_splitting_plane*displacement_to_splitting_plane;
 
-        if ( nn.size() < num_neighbors )
+        if ( best_distances.size() < num_neighbors )
         {
             double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
-            nn.push( SubtreeResult {cur_index, dsq_cur} );
+            visited_inds.push_back( cur_index );
+            visited_distances.push_back( dsq_cur );
+            best_distances.push( dsq_cur );
         }
-        else if ( dsquared_splitting_plane < nn.top().distance_squared )
+        else if ( dsquared_splitting_plane < best_distances.top() )
         {
             double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
-            if ( dsq_cur < nn.top().distance_squared )
+            if ( dsq_cur < best_distances.top() )
             {
-                nn.pop();
-                nn.push( SubtreeResult {cur_index, dsq_cur} );
+                visited_inds.push_back( cur_index );
+                visited_distances.push_back( dsq_cur );
+                best_distances.pop();
+                best_distances.push( dsq_cur );
             }
         }
 
         if ( B >= 0 )
         {
-            if ( dsquared_splitting_plane < nn.top().distance_squared )
+            if ( dsquared_splitting_plane < best_distances.top() )
             {
-                query_subtree( query_point, nn, B, num_neighbors );
+                query_subtree( query_point, visited_inds, visited_distances, best_distances, B, num_neighbors );
             }
         }
 
@@ -251,19 +327,27 @@ public:
 
         for ( int ii=0; ii<num_queries; ++ii )
         {
-            vector<SubtreeResult> nn_container;
-            nn_container.reserve(2*num_neighbors);
-            priority_queue<SubtreeResult, vector<SubtreeResult>> nn(less<SubtreeResult>(), move(nn_container));
+            vector<int> visited_inds;
+            visited_inds.reserve(10*num_neighbors);
 
-            query_subtree( query_points.col(ii), nn, root, num_neighbors );
+            vector<double> visited_distances;
+            visited_distances.reserve(10*num_neighbors);
 
-            for ( int kk=0; kk<num_neighbors; ++kk )
+            vector<double> container;
+            container.reserve(2*num_neighbors);
+            priority_queue<double, vector<double>> best_distances(less<double>(), move(container));
+
+            query_subtree( query_points.col(ii), visited_inds, visited_distances, best_distances, root, num_neighbors );
+
+            vector<int> sort_inds(visited_distances.size());
+            iota(sort_inds.begin(), sort_inds.end(), 0);
+            sort(sort_inds.begin(), sort_inds.end(),
+                 [&](int aa, int bb){return visited_distances[aa] < visited_distances[bb];});
+
+            for ( int jj=0; jj<num_neighbors; ++jj )
             {
-                int jj = num_neighbors - kk - 1;
-                const SubtreeResult n_kk = nn.top();
-                nn.pop();
-                closest_point_inds(jj,ii) = perm_i2e(n_kk.index);
-                squared_distances(jj,ii) = n_kk.distance_squared;
+                closest_point_inds(jj,ii) = perm_i2e(visited_inds[sort_inds[jj]]);
+                squared_distances(jj,ii) = visited_distances[sort_inds[jj]];
             }
         }
         return make_pair(closest_point_inds, squared_distances);
