@@ -54,33 +54,35 @@ private:
         int mid = -1; // -1 indicates node does not exist
         if (num_pts_local >= 1)
         {
-            VectorXd cluster_min = input_points.col(working_perm_i2e[start]);
-            VectorXd cluster_max = input_points.col(working_perm_i2e[start]);
-            for ( int ind=start+1; ind<stop; ++ind )
-            {
-                for ( int kk=0; kk<dim; ++kk )
-                {
-                    double x = input_points(kk, working_perm_i2e[ind]);
-                    if ( x < cluster_min(kk) )
-                    {
-                        cluster_min(kk) = x;
-                    }
-                    else if ( cluster_max(kk) < x )
-                    {
-                        cluster_max(kk) = x;
-                    }
-                }
-            }
+//            VectorXd cluster_min = input_points.col(working_perm_i2e[start]);
+//            VectorXd cluster_max = input_points.col(working_perm_i2e[start]);
+//            for ( int ind=start+1; ind<stop; ++ind )
+//            {
+//                for ( int kk=0; kk<dim; ++kk )
+//                {
+//                    double x = input_points(kk, working_perm_i2e[ind]);
+//                    if ( x < cluster_min(kk) )
+//                    {
+//                        cluster_min(kk) = x;
+//                    }
+//                    else if ( cluster_max(kk) < x )
+//                    {
+//                        cluster_max(kk) = x;
+//                    }
+//                }
+//            }
+//
+//            int axis=0;
+//            double biggest_width = cluster_max(0) - cluster_min(0);
+//            for ( int kk=1; kk<dim; ++kk )
+//            {
+//                if ( biggest_width < cluster_max(kk) - cluster_min(kk) )
+//                {
+//                    axis = kk;
+//                }
+//            }
 
-            int axis=0;
-            double biggest_width = cluster_max(0) - cluster_min(0);
-            for ( int kk=1; kk<dim; ++kk )
-            {
-                if ( biggest_width < cluster_max(kk) - cluster_min(kk) )
-                {
-                    axis = kk;
-                }
-            }
+            int axis = depth % dim;
 
             sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
                   [&axis,&input_points](int ii, int jj) {return input_points(axis,ii) > input_points(axis,jj);} );
@@ -93,10 +95,6 @@ private:
             int right = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
 
             nodes[mid] = KDNode { axis, coord_along_axis, left, right };
-
-//            nodes(0,mid) = axis;
-//            nodes(1,mid) = make_subtree(start,  mid, depth+1, input_points, working_perm_i2e);
-//            nodes(2,mid) = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
         }
         return mid;
     }
@@ -109,8 +107,6 @@ private:
     {
         const KDNode cur_node = nodes[cur_index];
         double displacement_to_splitting_plane = query_point(cur_node.axis) - cur_node.coord_along_axis;
-//        int axis = nodes(0,cur_index);
-//        double displacement_to_splitting_plane = query_point(axis) - points(axis,cur_index);
 
         int A;
         int B;
@@ -130,14 +126,14 @@ private:
             query_subtree( query_point, nn, A, num_neighbors );
         }
 
-        double dsq_splitting_plane = displacement_to_splitting_plane*displacement_to_splitting_plane;
+        double dsquared_splitting_plane = displacement_to_splitting_plane*displacement_to_splitting_plane;
 
         if ( nn.size() < num_neighbors )
         {
             double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
             nn.push( SubtreeResult {cur_index, dsq_cur} );
         }
-        else if ( dsq_splitting_plane < nn.top().distance_squared )
+        else if ( dsquared_splitting_plane < nn.top().distance_squared )
         {
             double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
             if ( dsq_cur < nn.top().distance_squared )
@@ -149,7 +145,7 @@ private:
 
         if ( B >= 0 )
         {
-            if ( dsq_splitting_plane < nn.top().distance_squared )
+            if ( dsquared_splitting_plane < nn.top().distance_squared )
             {
                 query_subtree( query_point, nn, B, num_neighbors );
             }
@@ -166,7 +162,6 @@ public:
         num_pts = input_points.cols();
 
         nodes.resize(num_pts);
-//        nodes.resize(3,num_pts);
 
         vector<int> working_perm_i2e(num_pts);
         iota(working_perm_i2e.begin(), working_perm_i2e.end(), 0);
