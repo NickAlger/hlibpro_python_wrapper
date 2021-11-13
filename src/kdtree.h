@@ -4,94 +4,13 @@
 #include <list>
 #include <queue>
 #include <vector>
+#include <set>
 
 #include <math.h>
 #include <Eigen/Dense>
 
 using namespace Eigen;
 using namespace std;
-
-
-//// Nearest neighbor in subtree to query point
-//struct SubtreeResult
-//{
-//    int index; // index of nearest neighbor
-//    double distance_squared; // distance squared to query point
-//
-//    const bool operator < ( const SubtreeResult& other ) const
-//    {
-//        return ( distance_squared < other.distance_squared );
-//    }
-//};
-//
-//
-//class VisitedNodes
-//{
-//private:
-//
-//
-//public:
-//    vector<int>    inds;
-//    vector<double> squared_distances;
-//
-//    double get_squared_distance(unsigned short int k)
-//    {
-//        return squared_distances[k];
-//    }
-//
-//    unsigned short int size()
-//    {
-//        return inds.size();
-//    }
-//
-//    void reserve(unsigned short int N)
-//    {
-//        inds.reserve(N);
-//        squared_distances.reserve(N);
-//    }
-//
-//    void push_back(int ii, double dsq)
-//    {
-//        inds.push_back(ii);
-//        squared_distances.push_back(dsq);
-//    }
-//
-//    pair<VectorXi, VectorXd> top_k(unsigned short int k)
-//    {
-//        VectorXi top_inds(k);
-//        VectorXd top_dsqs(k);
-//        vector<int> sort_inds(squared_distances.size());
-//        iota(sort_inds.begin(), sort_inds.end(), 0);
-//        sort(sort_inds.begin(), sort_inds.end(),
-//             [&](unsigned short int ii, unsigned short int jj){return squared_distances[ii] < squared_distances[jj];});
-//
-//        for ( unsigned short int ii=0; ii<k; ++ii )
-//        {
-//            top_inds(ii) = inds[sort_inds[ii]];
-//            top_dsqs(ii) = squared_distances[sort_inds[ii]];
-//        }
-//        return make_pair(top_inds, top_dsqs);
-//    }
-//};
-//
-//
-//class VisitedCompare
-//{
-//private:
-//    VisitedNodes* visited_nodes;
-//
-//public:
-//    VisitedCompare( VisitedNodes* visited_nodes ) : visited_nodes(visited_nodes) {}
-//
-//    bool operator() (unsigned short int a, unsigned short int b)
-//    {
-////        cout << "a=" << a << ", b=" << b << ", visited_nodes.size()=" << visited_nodes->size() << ", visited_nodes.name=" << visited_nodes->name << endl;
-////        visited_nodes->name += 1;
-//        return visited_nodes->squared_distances[a] < visited_nodes->squared_distances[b];
-////        return true;
-//    }
-//};
-
 
 
 struct KDNode

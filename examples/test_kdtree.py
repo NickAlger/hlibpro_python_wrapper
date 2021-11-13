@@ -6,9 +6,9 @@ from scipy.spatial import KDTree
 hcpp = hpro.hpro_cpp
 
 
-K = 5
-num_neighbors = 5
-num_querys = 13
+K = 2
+num_neighbors = 11
+num_querys = 133
 
 pp = np.random.randn(100,K)
 KDT = hcpp.KDTree(np.array(pp.T, order='F'))
