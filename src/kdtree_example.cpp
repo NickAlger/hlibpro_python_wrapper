@@ -18,12 +18,12 @@ g++ -o kdtree_example -I /home/nick/anaconda3/envs/fenics3/include/eigen3 -O3 sr
 int main()
 {
     constexpr int dim = 2; // spatial dimension
-    int num_points = 100;
+    int num_points = 10;
     int num_queries = 5;
     int num_neighbors = 3;
 
     MatrixXd points = MatrixXd::Random(dim, num_points);
-    KDTree<dim> kdtree(points); // <----------------------------------------------------- Build the kd-tree
+    KDTree kdtree(points); // <----------------------------------------------------- Build the kd-tree
 
     MatrixXd query_points = MatrixXd::Random(dim, num_queries);
     pair<MatrixXi, MatrixXd> result = kdtree.query(query_points, num_neighbors); // <---- find nearest neighbors
@@ -120,7 +120,7 @@ int main()
     MatrixXd points2 = MatrixXd::Random(dim2, num_points2);
 
     auto build_t1 = std::chrono::high_resolution_clock::now();
-    KDTree<dim2> kdtree2(points2); // <----------------------------------------------------- Build the kd-tree
+    KDTree kdtree2(points2); // <----------------------------------------------------- Build the kd-tree
     auto build_t2 = std::chrono::high_resolution_clock::now();
 
     cout << "build time=" << std::chrono::duration_cast<std::chrono::milliseconds>(build_t2-build_t1).count() << "ms" << endl;

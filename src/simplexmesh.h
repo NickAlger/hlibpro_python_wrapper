@@ -312,7 +312,7 @@ private:
 
     AABBTree<K> cell_aabbtree;
     AABBTree<K> face_aabbtree;
-    KDTree<K>   face_kdtree;
+    KDTree   face_kdtree;
 
     vector< Simplex > cell_simplices;
     vector< Simplex > subface_simplices;
@@ -468,7 +468,7 @@ public:
             face_vertices.col(vv) = vertices.col( *it );
             vv += 1;
         }
-        face_kdtree = KDTree<K>( face_vertices );
+        face_kdtree = KDTree( face_vertices );
 
 
         // Create face AABB tree
@@ -603,8 +603,8 @@ public:
         else
         {
             // 1. Find a set of candidate boundary faces, one of which contains the closest point
-            pair<int, double> kd_result = face_kdtree.query( query );
-            double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second);
+            pair<VectorXi, VectorXd> kd_result = face_kdtree.query( query, 1 );
+            double dist_estimate = (1.0 + 1e-14) * sqrt(kd_result.second(0));
             VectorXi face_inds = face_aabbtree.ball_collisions( query, dist_estimate );
 
             // 2. Determine unique set of boundary entities to visit

@@ -45,7 +45,7 @@ public:
 
     double                 tau;
     int                    num_neighbors;
-    KDTree<K>              kdtree;
+    KDTree              kdtree;
 
     ImpulseResponseBatches( const Ref<const Matrix<double, K,   Dynamic>> mesh_vertices,
                             const Ref<const Matrix<int   , K+1, Dynamic>> mesh_cells,
@@ -61,7 +61,7 @@ public:
         {
             pts_matrix.col(ii) = pts[ii];
         }
-        kdtree = KDTree<K>(pts_matrix);
+        kdtree = KDTree(pts_matrix);
     }
 
     int num_pts()

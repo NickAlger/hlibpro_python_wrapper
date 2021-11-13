@@ -7,36 +7,13 @@ hcpp = hpro.hpro_cpp
 
 
 K = 2
-
-pp = np.random.randn(100,K)
-KDT = hcpp.KDTree2D(np.array(pp.T, order='F'))
-
-#
-
-print('one query, one neighbor:')
-q = np.random.randn(K)
-
-ind, dsq = KDT.query(q)
-
-nearest_point = pp[ind,:]
-
-nearest_ind = np.argmin(np.linalg.norm(pp - q[None,:], axis=1))
-nearest_point_true = pp[nearest_ind,:]
-dsq_true = np.linalg.norm(nearest_point_true - q)**2
-err_nearest_one_point = np.linalg.norm(nearest_point - nearest_point_true)
-err_dsq_one_point = np.abs(dsq - dsq_true)
-print('err_nearest_one_point=', err_nearest_one_point)
-print('err_dsq_one_point=', err_dsq_one_point)
-
-print('')
-
-#
-
-print('many querys, many neighbors:')
 num_neighbors = 5
 num_querys = 13
-qq = np.random.randn(num_querys, K)
 
+pp = np.random.randn(100,K)
+KDT = hcpp.KDTree(np.array(pp.T, order='F'))
+
+qq = np.random.randn(num_querys, K)
 all_inds, all_dsqq = KDT.query(np.array(qq.T, order='F'), num_neighbors)
 
 err_nearest = 0.0
@@ -71,7 +48,7 @@ pp = np.random.randn(n_pts, K)
 pp_T = np.array(pp.T, order='F')
 
 t = time()
-KDT = hcpp.KDTree2D(pp_T)
+KDT = hcpp.KDTree(pp_T)
 dt_build = time() - t
 print('dt_build=', dt_build)
 
@@ -107,7 +84,20 @@ dt_query_many_scipy = time() - t
 print('dt_query_many_scipy=', dt_query_many_scipy)
 
 
-# Resulting output 11/9/21:
+# Resulting output 11/12/21, after making code N-dimensional, removing one query:
+# err_nearest= 0.0
+# err_dsqq= 6.068071412950251e-16
+#
+# timing:
+# n_pts= 1000000 , n_query= 1000000 , num_neighbors= 10
+# dt_build= 1.735537052154541
+# dt_query_one= 2.4149911403656006
+# dt_build_scipy= 0.593212366104126
+# dt_query_one_scipy= 1.8253419399261475
+# dt_query_many= 5.586395740509033
+# dt_query_many_scipy= 4.059949636459351
+
+# Resulting output 11/11/21:
 #
 # one query, one neighbor:
 # err_nearest_one_point= 0.0

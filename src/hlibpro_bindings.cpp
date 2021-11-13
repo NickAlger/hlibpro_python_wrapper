@@ -734,10 +734,9 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
 
 
-    py::class_<KDTree<2>>(m, "KDTree2D")
-        .def(py::init< const Ref<const Matrix<double,2,Dynamic>> >())
-        .def("query", py::overload_cast< const Matrix<double,2,1> &                     >(&KDTree<2>::query, py::const_), "one query, one neighbor")
-        .def("query", py::overload_cast< const Ref<const Matrix<double,2,Dynamic>>, int >(&KDTree<2>::query, py::const_), "many querys, one neighbor");
+    py::class_<KDTree>(m, "KDTree")
+        .def(py::init< const Ref<const MatrixXd> >())
+        .def("query", py::overload_cast< const Ref<const MatrixXd>, int >(&KDTree::query, py::const_), "many querys, many neighbor");
 
 
     py::class_<AABBTree<2>>(m, "AABBTree2D")
