@@ -6,7 +6,7 @@ from scipy.spatial import KDTree
 hcpp = hpro.hpro_cpp
 
 
-K = 2
+K = 5
 num_neighbors = 11
 num_querys = 133
 
@@ -39,10 +39,12 @@ print('')
 #
 
 print('timing:')
+K = 3
 n_pts = int(1e6)
 n_query = int(1e6)
 num_neighbors = 10
-print('n_pts=', n_pts, ', n_query=', n_query, ', num_neighbors=', num_neighbors)
+block_size = 32
+print('K=', K, 'n_pts=', n_pts, ', n_query=', n_query, ', num_neighbors=', num_neighbors)
 
 pp = np.random.randn(n_pts, K)
 pp_T = np.array(pp.T, order='F')
@@ -51,6 +53,8 @@ t = time()
 KDT = hcpp.KDTree(pp_T)
 dt_build = time() - t
 print('dt_build=', dt_build)
+
+KDT.block_size = block_size
 
 qq = np.random.randn(n_query, K)
 qq_T = np.array(qq.T, order='F')

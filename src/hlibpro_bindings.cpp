@@ -736,6 +736,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     py::class_<KDTree>(m, "KDTree")
         .def(py::init< const Ref<const MatrixXd> >())
+        .def_readwrite("block_size", &KDTree::block_size)
         .def("query", py::overload_cast< const Ref<const MatrixXd>, int >(&KDTree::query, py::const_), "many querys, many neighbor");
 
 

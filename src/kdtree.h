@@ -17,6 +17,8 @@ struct KDNode
 {
     int axis;
     double coord_along_axis;
+    int start;
+    int stop;
     int left;
     int right;
 };
@@ -83,7 +85,7 @@ private:
             int left = make_subtree(start,  mid, depth+1, input_points, working_perm_i2e);
             int right = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
 
-            nodes[mid] = KDNode { axis, coord_along_axis, left, right };
+            nodes[mid] = KDNode { axis, coord_along_axis, start, stop, left, right };
         }
         return mid;
     }
@@ -97,58 +99,88 @@ private:
                         int                                      num_neighbors ) const
     {
         const KDNode & cur_node = nodes[cur_index];
-        double displacement_to_splitting_plane = query_point(cur_node.axis) - cur_node.coord_along_axis;
-
-        int A;
-        int B;
-        if (displacement_to_splitting_plane >= 0)
+        int num_pts = cur_node.stop - cur_node.start;
+        if ( num_pts < block_size )
         {
-            A = cur_node.left;
-            B = cur_node.right;
+//            MatrixXd point_block = points.middleCols(cur_node.start, num_pts);
+            VectorXd dsqs = (points.middleCols(cur_node.start, num_pts).colwise() - query_point).colwise().squaredNorm();
+            for ( int ii=0; ii<dsqs.size(); ++ii )
+            {
+                int ind = cur_node.start + ii;
+                double dsq = dsqs(ii);
+                if ( best_distances.size() < num_neighbors )
+                {
+                    visited_inds.push_back( ind );
+                    visited_distances.push_back( dsq );
+                    best_distances.push( dsq );
+                }
+                else if ( dsq < best_distances.top() )
+                {
+                    visited_inds.push_back( ind );
+                    visited_distances.push_back( dsq );
+                    best_distances.pop();
+                    best_distances.push( dsq );
+                }
+            }
         }
         else
         {
-            A = cur_node.right;
-            B = cur_node.left;
-        }
+            double displacement_to_splitting_plane = query_point(cur_node.axis) - cur_node.coord_along_axis;
 
-        if (A >= 0)
-        {
-            query_subtree( query_point, visited_inds, visited_distances, best_distances, A, num_neighbors );
-        }
-
-        double dsquared_splitting_plane = displacement_to_splitting_plane*displacement_to_splitting_plane;
-
-        if ( best_distances.size() < num_neighbors )
-        {
-            double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
-            visited_inds.push_back( cur_index );
-            visited_distances.push_back( dsq_cur );
-            best_distances.push( dsq_cur );
-        }
-        else if ( dsquared_splitting_plane < best_distances.top() )
-        {
-            double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
-            if ( dsq_cur < best_distances.top() )
+            int A;
+            int B;
+            if (displacement_to_splitting_plane >= 0)
             {
+                A = cur_node.left;
+                B = cur_node.right;
+            }
+            else
+            {
+                A = cur_node.right;
+                B = cur_node.left;
+            }
+
+            if (A >= 0)
+            {
+                query_subtree( query_point, visited_inds, visited_distances, best_distances, A, num_neighbors );
+            }
+
+            double dsquared_splitting_plane = displacement_to_splitting_plane*displacement_to_splitting_plane;
+
+            if ( best_distances.size() < num_neighbors )
+            {
+                double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
                 visited_inds.push_back( cur_index );
                 visited_distances.push_back( dsq_cur );
-                best_distances.pop();
                 best_distances.push( dsq_cur );
+            }
+            else if ( dsquared_splitting_plane < best_distances.top() )
+            {
+                double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
+                if ( dsq_cur < best_distances.top() )
+                {
+                    visited_inds.push_back( cur_index );
+                    visited_distances.push_back( dsq_cur );
+                    best_distances.pop();
+                    best_distances.push( dsq_cur );
+                }
+            }
+
+            if ( B >= 0 )
+            {
+                if ( dsquared_splitting_plane < best_distances.top() )
+                {
+                    query_subtree( query_point, visited_inds, visited_distances, best_distances, B, num_neighbors );
+                }
             }
         }
 
-        if ( B >= 0 )
-        {
-            if ( dsquared_splitting_plane < best_distances.top() )
-            {
-                query_subtree( query_point, visited_inds, visited_distances, best_distances, B, num_neighbors );
-            }
-        }
 
     }
 
 public:
+    int            block_size = 32;
+
     KDTree( ) {}
 
     KDTree( const Ref<const MatrixXd> input_points )
@@ -171,7 +203,7 @@ public:
             points.col(ii) = input_points.col(working_perm_i2e[ii]);
         }
 
-        reorder_depth_first();
+//        reorder_depth_first();
     }
 
     void reorder_depth_first()
