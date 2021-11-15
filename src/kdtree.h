@@ -122,7 +122,7 @@ private:
     }
 
 public:
-    unsigned int block_size = 32;
+    int block_size = 32;
 
     KDTree( ) {}
 
