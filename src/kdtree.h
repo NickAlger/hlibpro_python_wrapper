@@ -4,7 +4,6 @@
 #include <list>
 #include <queue>
 #include <vector>
-#include <set>
 
 #include <math.h>
 #include <Eigen/Dense>
@@ -13,173 +12,117 @@ using namespace Eigen;
 using namespace std;
 
 
-struct KDNode
-{
-    int axis;
-    double coord_along_axis;
-    int start;
-    int stop;
-    int left;
-    int right;
-};
-
-
 class KDTree
 {
 private:
     int            num_pts;
     int            dim; // spatial dimension
-    int            root;
     MatrixXd       points; // points_array.col(ii) is ith point (in internal ordering)
-    vector<KDNode> nodes;
+    VectorXd       axis_coords; // coordinates of midpoints along chosen axes
     VectorXi       perm_i2e; // permutation from internal ordering to external ordering
 
     // creates subtree and returns the index for root of subtree
-    int make_subtree( int           start,
-                      int           stop,
-                      int           depth,
-                      const Ref<const MatrixXd> input_points,
-                      vector<int> &             working_perm_i2e )
+    void make_subtree( int           start,
+                       int           stop,
+                       int           depth,
+                       const Ref<const MatrixXd> input_points,
+                       vector<int> &             working_perm_i2e )
     {
         int num_pts_local = stop - start;
-        int mid = -1; // -1 indicates node does not exist
-        if (num_pts_local >= 1)
+        if ( num_pts_local > 0 )
         {
-//            VectorXd cluster_min = input_points.col(working_perm_i2e[start]);
-//            VectorXd cluster_max = input_points.col(working_perm_i2e[start]);
-//            for ( int ind=start+1; ind<stop; ++ind )
-//            {
-//                for ( int kk=0; kk<dim; ++kk )
-//                {
-//                    double x = input_points(kk, working_perm_i2e[ind]);
-//                    if ( x < cluster_min(kk) )
-//                    {
-//                        cluster_min(kk) = x;
-//                    }
-//                    else if ( cluster_max(kk) < x )
-//                    {
-//                        cluster_max(kk) = x;
-//                    }
-//                }
-//            }
-//
-//            int axis=0;
-//            double biggest_width = cluster_max(0) - cluster_min(0);
-//            for ( int kk=1; kk<dim; ++kk )
-//            {
-//                if ( biggest_width < cluster_max(kk) - cluster_min(kk) )
-//                {
-//                    axis = kk;
-//                }
-//            }
-
             int axis = depth % dim;
+            int mid = start + (num_pts_local / 2);
 
-            sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
-                  [&axis,&input_points](int ii, int jj) {return input_points(axis,ii) > input_points(axis,jj);} );
+            if ( num_pts_local > 1 )
+            {
+                sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
+                    [&axis,&input_points](int ii, int jj) {return input_points(axis,ii) > input_points(axis,jj);} );
 
-            mid = start + (num_pts_local / 2);
+                make_subtree(start,  mid,  depth+1, input_points, working_perm_i2e);
+                make_subtree(mid,    stop, depth+1, input_points, working_perm_i2e);
+            }
 
-            double coord_along_axis = input_points(axis,working_perm_i2e[mid]);
-
-            int left = make_subtree(start,  mid, depth+1, input_points, working_perm_i2e);
-            int right = make_subtree(mid+1, stop, depth+1, input_points, working_perm_i2e);
-
-            nodes[mid] = KDNode { axis, coord_along_axis, start, stop, left, right };
+            axis_coords(mid) = input_points(axis, working_perm_i2e[mid]);
         }
-        return mid;
     }
 
     // finds num_neighbors nearest neighbors of query in subtree
     void query_subtree( const VectorXd &                         query_point,
                         vector<int> &                            visited_inds,
                         vector<double> &                         visited_distances,
-                        priority_queue<double, vector<double>> & best_distances,
-                        int                                      cur_index,
+                        priority_queue<double, vector<double>> & best_squared_distances,
+                        int                                      start,
+                        int                                      stop,
+                        int                                      depth,
                         int                                      num_neighbors ) const
     {
-        const KDNode & cur_node = nodes[cur_index];
-        int num_pts = cur_node.stop - cur_node.start;
-        if ( num_pts < block_size )
+        int num_pts_local = stop - start;
+
+        if ( num_pts_local <= block_size )
         {
-//            MatrixXd point_block = points.middleCols(cur_node.start, num_pts);
-            VectorXd dsqs = (points.middleCols(cur_node.start, num_pts).colwise() - query_point).colwise().squaredNorm();
+            VectorXd dsqs = (points.middleCols(start, num_pts_local).colwise() - query_point).colwise().squaredNorm();
             for ( int ii=0; ii<dsqs.size(); ++ii )
             {
-                int ind = cur_node.start + ii;
+                int ind = start + ii;
                 double dsq = dsqs(ii);
-                if ( best_distances.size() < num_neighbors )
+                if ( best_squared_distances.size() < num_neighbors )
                 {
                     visited_inds.push_back( ind );
                     visited_distances.push_back( dsq );
-                    best_distances.push( dsq );
+                    best_squared_distances.push( dsq );
                 }
-                else if ( dsq < best_distances.top() )
+                else if ( dsq < best_squared_distances.top() )
                 {
                     visited_inds.push_back( ind );
                     visited_distances.push_back( dsq );
-                    best_distances.pop();
-                    best_distances.push( dsq );
+                    best_squared_distances.pop();
+                    best_squared_distances.push( dsq );
                 }
             }
         }
         else
         {
-            double displacement_to_splitting_plane = query_point(cur_node.axis) - cur_node.coord_along_axis;
+            int mid = start + (num_pts_local / 2);
+            int axis = depth % dim;
+            double d_splitting_plane = query_point(axis) - axis_coords(mid);
 
-            int A;
-            int B;
-            if (displacement_to_splitting_plane >= 0)
+            int A_start;
+            int A_stop;
+            int B_start;
+            int B_stop;
+            if (d_splitting_plane >= 0)
             {
-                A = cur_node.left;
-                B = cur_node.right;
+                A_start = start;
+                A_stop = mid;
+                B_start = mid;
+                B_stop = stop;
             }
             else
             {
-                A = cur_node.right;
-                B = cur_node.left;
+                B_start = start;
+                B_stop = mid;
+                A_start = mid;
+                A_stop = stop;
             }
 
-            if (A >= 0)
+            if (A_stop > A_start)
             {
-                query_subtree( query_point, visited_inds, visited_distances, best_distances, A, num_neighbors );
+                query_subtree( query_point, visited_inds, visited_distances, best_squared_distances, A_start, A_stop, depth+1, num_neighbors );
             }
 
-            double dsquared_splitting_plane = displacement_to_splitting_plane*displacement_to_splitting_plane;
-
-            if ( best_distances.size() < num_neighbors )
+            if ( B_stop > B_start )
             {
-                double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
-                visited_inds.push_back( cur_index );
-                visited_distances.push_back( dsq_cur );
-                best_distances.push( dsq_cur );
-            }
-            else if ( dsquared_splitting_plane < best_distances.top() )
-            {
-                double dsq_cur = (query_point - points.col(cur_index)).squaredNorm();
-                if ( dsq_cur < best_distances.top() )
+                if ( d_splitting_plane*d_splitting_plane <= best_squared_distances.top() )
                 {
-                    visited_inds.push_back( cur_index );
-                    visited_distances.push_back( dsq_cur );
-                    best_distances.pop();
-                    best_distances.push( dsq_cur );
-                }
-            }
-
-            if ( B >= 0 )
-            {
-                if ( dsquared_splitting_plane < best_distances.top() )
-                {
-                    query_subtree( query_point, visited_inds, visited_distances, best_distances, B, num_neighbors );
+                    query_subtree( query_point, visited_inds, visited_distances, best_squared_distances, B_start, B_stop, depth+1, num_neighbors );
                 }
             }
         }
-
-
     }
 
 public:
-    int            block_size = 32;
+    unsigned int block_size = 32;
 
     KDTree( ) {}
 
@@ -188,12 +131,12 @@ public:
         dim = input_points.rows();
         num_pts = input_points.cols();
 
-        nodes.resize(num_pts);
-
         vector<int> working_perm_i2e(num_pts);
         iota(working_perm_i2e.begin(), working_perm_i2e.end(), 0);
 
-        root = make_subtree(0, num_pts, 0, input_points, working_perm_i2e);
+        axis_coords.resize(num_pts);
+
+        make_subtree(0, num_pts, 0, input_points, working_perm_i2e);
 
         points.resize(dim, num_pts);
         perm_i2e.resize(num_pts);
@@ -202,73 +145,8 @@ public:
             perm_i2e(ii) = working_perm_i2e[ii];
             points.col(ii) = input_points.col(working_perm_i2e[ii]);
         }
-
-//        reorder_depth_first();
     }
 
-    void reorder_depth_first()
-    {
-        vector<int> order_inds;
-        vector<int> working_inds;
-        working_inds.push_back(root);
-        while ( !working_inds.empty() )
-        {
-            int cur = working_inds.back();
-            working_inds.pop_back();
-            order_inds.push_back(cur);
-
-            if ( nodes[cur].right >= 0 )
-            {
-                working_inds.push_back(nodes[cur].right);
-            }
-            if ( nodes[cur].left >= 0 )
-            {
-                working_inds.push_back(nodes[cur].left);
-            }
-        }
-
-        VectorXi oi(num_pts);
-        MatrixXd       points_old = points;
-        VectorXi       perm_i2e_old = perm_i2e;
-
-        VectorXi inverse_order_inds(num_pts);
-
-        for ( int ii=0; ii<num_pts; ++ii )
-        {
-            oi[ii] = order_inds[ii];
-
-            inverse_order_inds(order_inds[ii]) = ii;
-            points.col(ii) = points_old.col(order_inds[ii]);
-            perm_i2e(ii) = perm_i2e_old(order_inds[ii]);
-        }
-
-
-        vector<KDNode> nodes_old = nodes;
-        for ( int ii=0; ii<num_pts; ++ii )
-        {
-            KDNode old_node = nodes_old[order_inds[ii]];
-            int new_left = -1;
-            if ( old_node.left >= 0 )
-            {
-                new_left = inverse_order_inds(old_node.left);
-            }
-
-            int new_right = -1;
-            if ( old_node.right >= 0 )
-            {
-                new_right = inverse_order_inds(old_node.right);
-            }
-
-            nodes[ii] = KDNode { old_node.axis,
-                                 old_node.coord_along_axis,
-                                 new_left,
-                                 new_right };
-        }
-
-        root = 0;
-    }
-
-    // Many queries, many neighbors each
     pair<MatrixXi, MatrixXd> query( const Ref<const MatrixXd> query_points, int num_neighbors ) const
     {
         int num_queries = query_points.cols();
@@ -286,9 +164,9 @@ public:
 
             vector<double> container;
             container.reserve(2*num_neighbors);
-            priority_queue<double, vector<double>> best_distances(less<double>(), move(container));
+            priority_queue<double, vector<double>> best_squared_distances(less<double>(), move(container));
 
-            query_subtree( query_points.col(ii), visited_inds, visited_distances, best_distances, root, num_neighbors );
+            query_subtree( query_points.col(ii), visited_inds, visited_distances, best_squared_distances, 0, num_pts, 0, num_neighbors );
 
             vector<int> sort_inds(visited_distances.size());
             iota(sort_inds.begin(), sort_inds.end(), 0);
