@@ -39,11 +39,11 @@ print('')
 #
 
 print('timing:')
-K = 3
-n_pts = int(1e6)
+K = 2
+n_pts = int(1e3)
 n_query = int(1e6)
 num_neighbors = 10
-block_size = 32
+block_size = 5
 print('K=', K, 'n_pts=', n_pts, ', n_query=', n_query, ', num_neighbors=', num_neighbors, ', block_size=', block_size)
 
 pp = np.random.randn(n_pts, K)
