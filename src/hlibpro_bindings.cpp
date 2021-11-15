@@ -740,13 +740,13 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("query", py::overload_cast< const Ref<const MatrixXd>, int >(&KDTree::query, py::const_), "many querys, many neighbor");
 
 
-    py::class_<AABBTree<2>>(m, "AABBTree2D")
-        .def(py::init< const Ref<const Array<double, 2, Dynamic>>,
-                       const Ref<const Array<double, 2, Dynamic>> >())
-        .def("point_collisions", &AABBTree<2>::point_collisions)
-        .def("point_collisions_vectorized", &AABBTree<2>::point_collisions_vectorized)
-        .def("ball_collisions", &AABBTree<2>::ball_collisions)
-        .def("ball_collisions_vectorized", &AABBTree<2>::ball_collisions_vectorized);
+    py::class_<AABBTree>(m, "AABBTree")
+        .def(py::init< const Ref<const MatrixXd>,
+                       const Ref<const MatrixXd> >())
+        .def("point_collisions", &AABBTree::point_collisions)
+        .def("point_collisions_vectorized", &AABBTree::point_collisions_vectorized)
+        .def("ball_collisions", &AABBTree::ball_collisions)
+        .def("ball_collisions_vectorized", &AABBTree::ball_collisions_vectorized);
 
     py::class_<SimplexMesh<2>>(m, "SimplexMesh2D")
         .def(py::init< const Ref<const Array<double, 2, Dynamic>>,

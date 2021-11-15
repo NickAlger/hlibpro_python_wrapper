@@ -16,7 +16,7 @@ num_pts = 4987
 b_mins0 = np.array(np.random.randn(K, num_boxes), order='F')
 b_maxes0 = np.array(np.random.randn(K, num_boxes), order='F')
 
-AABB = hcpp.AABBTree2D(b_mins0, b_maxes0)
+AABB = hcpp.AABBTree(b_mins0, b_maxes0)
 
 q = np.random.randn(K)
 inds = AABB.point_collisions(q)
@@ -33,7 +33,7 @@ bb0 = np.array(np.random.randn(K, num_boxes, 2), order='F')
 b_mins = np.array(np.min(bb0, axis=2), order='F')
 b_maxes = np.array(np.max(bb0, axis=2), order='F')
 
-AABB = hcpp.AABBTree2D(b_mins, b_maxes)
+AABB = hcpp.AABBTree(b_mins, b_maxes)
 qq = 2.5 * np.array(np.random.randn(K, num_pts), order='F')
 all_box_inds = AABB.point_collisions_vectorized(qq)
 
@@ -79,7 +79,7 @@ b_maxes = np.array(box_centers + box_widths, order='F')
 
 qq = np.array(np.random.randn(K, num_pts), order='F')
 
-AABB = hcpp.AABBTree2D(b_mins, b_maxes)
+AABB = hcpp.AABBTree(b_mins, b_maxes)
 
 all_box_inds = AABB.point_collisions_vectorized(qq)
 all_points_are_in_their_boxes = True
@@ -127,7 +127,7 @@ b_maxes = np.array(box_centers + box_widths, order='F')
 qq = np.array(np.random.randn(K, num_pts), order='F')
 
 t = time()
-AABB = hcpp.AABBTree2D(b_mins, b_maxes)
+AABB = hcpp.AABBTree(b_mins, b_maxes)
 dt_build = time() - t
 print('dt_build=', dt_build)
 
@@ -163,9 +163,9 @@ box_widths = box_h * np.abs(np.random.randn(K, num_boxes))
 b_mins = np.array(box_centers - box_widths, order='F')
 b_maxes = np.array(box_centers + box_widths, order='F')
 
-AABB = hcpp.AABBTree2D(b_mins, b_maxes)
+AABB = hcpp.AABBTree(b_mins, b_maxes)
 
-c = np.random.randn(K)
+c = np.random.randn(K) / 4
 r = 8.0 * box_h * np.random.randn()
 
 intersections = AABB.ball_collisions(c, r)
@@ -200,7 +200,7 @@ box_widths = box_h * np.abs(np.random.randn(K, num_boxes))
 b_mins = np.array(box_centers - box_widths, order='F')
 b_maxes = np.array(box_centers + box_widths, order='F')
 
-AABB = hcpp.AABBTree2D(b_mins, b_maxes)
+AABB = hcpp.AABBTree(b_mins, b_maxes)
 
 ball_centers = np.array(np.random.randn(K, num_balls), order='F')
 ball_radii = np.array(8.0 * box_h * np.random.randn(num_balls), order='F')
@@ -209,6 +209,9 @@ t = time()
 all_collisions = AABB.ball_collisions_vectorized(ball_centers, ball_radii)
 dt_ball = time() - t
 print('num_boxes=', num_boxes, ', num_balls=', num_balls, ', dt_ball=', dt_ball)
+
+# BEFORE removing templated dimension 11/12/21
+# num_boxes= 100000 , num_balls= 1000000 , dt_ball= 4.182887315750122
 
 # std::vector<int> for intersections, radius
 # num_boxes= 1000000 , num_balls= 100000 , dt_ball= 0.7881059646606445

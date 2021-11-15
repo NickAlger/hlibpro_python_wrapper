@@ -310,8 +310,8 @@ private:
 
     vector<VectorXi> face2subface;
 
-    AABBTree<K> cell_aabbtree;
-    AABBTree<K> face_aabbtree;
+    AABBTree cell_aabbtree;
+    AABBTree face_aabbtree;
     KDTree   face_kdtree;
 
     vector< Simplex > cell_simplices;
@@ -392,7 +392,7 @@ public:
             cell_box_mins.col(ii) = BB.first;
             cell_box_maxes.col(ii) = BB.second;
         }
-        cell_aabbtree = AABBTree<K>( cell_box_mins, cell_box_maxes );
+        cell_aabbtree = AABBTree( cell_box_mins, cell_box_maxes );
 
 
         // ------------------------    FACES    ------------------------
@@ -485,7 +485,7 @@ public:
             face_box_mins.col(bb) = BB.first;
             face_box_maxes.col(bb) = BB.second;
         }
-        face_aabbtree = AABBTree<K>( face_box_mins, face_box_maxes );
+        face_aabbtree = AABBTree( face_box_mins, face_box_maxes );
 
 
         // ------------------------    SUBFACES    ------------------------
