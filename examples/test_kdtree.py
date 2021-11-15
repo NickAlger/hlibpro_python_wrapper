@@ -28,6 +28,10 @@ for ii in range(num_querys):
     nearest_points_true = pp[nearest_inds, :]
     dsqq_true = np.linalg.norm(q[None, :] - nearest_points_true, axis=1) ** 2
 
+    # err = np.linalg.norm(nearest_points - nearest_points_true)
+    # print('ii=', ii)
+    # print('inds - nearest_inds=', inds - nearest_inds)
+
     err_nearest += np.linalg.norm(nearest_points - nearest_points_true)
     err_dsqq += np.linalg.norm(dsqq - dsqq_true)
 
