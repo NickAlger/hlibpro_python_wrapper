@@ -12,6 +12,7 @@ num_querys = 133
 
 pp = np.random.randn(100,K)
 KDT = hcpp.KDTree(np.array(pp.T, order='F'))
+KDT.block_size = 1
 
 qq = np.random.randn(num_querys, K)
 all_inds, all_dsqq = KDT.query(np.array(qq.T, order='F'), num_neighbors)
@@ -43,7 +44,7 @@ print('')
 #
 
 print('timing:')
-K = 5
+K = 3
 n_pts = int(1e6)
 n_query = int(1e6)
 num_neighbors = 10

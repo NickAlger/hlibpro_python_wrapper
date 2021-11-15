@@ -37,15 +37,13 @@ private:
             sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
                 [&axis,&input_points](int ii, int jj) {return input_points(axis,ii) < input_points(axis,jj);} );
 
-//            splitting_coords(mid) = input_points(axis, working_perm_i2e[mid]);
+            splitting_coords(mid) = input_points(axis, working_perm_i2e[mid]);
 
             if ( num_pts_local > 1 )
             {
                 make_subtree(start,  mid,  depth+1, input_points, working_perm_i2e);
                 make_subtree(mid+1,  stop, depth+1, input_points, working_perm_i2e);
             }
-
-            splitting_coords(mid) = input_points(axis, working_perm_i2e[mid]);
 
         }
     }
@@ -58,15 +56,14 @@ private:
                         int                                      start,
                         int                                      stop,
                         int                                      depth,
-                        int                                      start0,
                         int                                      num_neighbors ) const
     {
         if ( stop - start <= block_size )
         {
-            VectorXd dsqs = (points.middleCols(start0, stop - start0).colwise() - query_point).colwise().squaredNorm();
+            VectorXd dsqs = (points.middleCols(start, stop - start).colwise() - query_point).colwise().squaredNorm();
             for ( int ii=0; ii<dsqs.size(); ++ii )
             {
-                int ind = start0 + ii;
+                int ind = start + ii;
                 double dsq = dsqs(ii);
                 if ( best_squared_distances.size() < num_neighbors )
                 {
@@ -89,44 +86,58 @@ private:
             int axis = depth % dim;
             double d_splitting_plane = query_point(axis) - splitting_coords(mid);
 
-            int A_start0;
             int A_start;
             int A_stop;
 
-            int B_start0;
             int B_start;
             int B_stop;
             if (d_splitting_plane <= 0)
             {
-                A_start0 = start0;
                 A_start = start;
                 A_stop = mid;
 
-                B_start0 = mid;
                 B_start = mid+1;
                 B_stop = stop;
             }
             else
             {
-                B_start0 = start0;
                 B_start = start;
                 B_stop = mid;
 
-                A_start0 = mid;
                 A_start = mid+1;
                 A_stop = stop;
             }
 
-            if (A_stop - A_start0 > 0)
+            if ( A_stop > A_start )
             {
-                query_subtree( query_point, visited_inds, visited_distances, best_squared_distances, A_start, A_stop, depth+1, A_start0, num_neighbors );
+                query_subtree( query_point, visited_inds, visited_distances, best_squared_distances, A_start, A_stop, depth+1, num_neighbors );
             }
 
-            if ( B_stop - B_start0 > 0 )
+            double dsquared_splitting_plane = d_splitting_plane*d_splitting_plane;
+
+            if ( (dsquared_splitting_plane <= best_squared_distances.top()) || (best_squared_distances.size() < num_neighbors) )
             {
-                if ( (d_splitting_plane*d_splitting_plane <= best_squared_distances.top()) || (best_squared_distances.size() < num_neighbors) )
+                double dsq = (points.col(mid) - query_point).squaredNorm();
+                if ( best_squared_distances.size() < num_neighbors )
                 {
-                    query_subtree( query_point, visited_inds, visited_distances, best_squared_distances, B_start, B_stop, depth+1, B_start0, num_neighbors );
+                    visited_inds.push_back( mid );
+                    visited_distances.push_back( dsq );
+                    best_squared_distances.push( dsq );
+                }
+                else if ( dsq < best_squared_distances.top() )
+                {
+                    visited_inds.push_back( mid );
+                    visited_distances.push_back( dsq );
+                    best_squared_distances.pop();
+                    best_squared_distances.push( dsq );
+                }
+            }
+
+            if ( B_stop > B_start )
+            {
+                if ( (dsquared_splitting_plane <= best_squared_distances.top()) || (best_squared_distances.size() < num_neighbors) )
+                {
+                    query_subtree( query_point, visited_inds, visited_distances, best_squared_distances, B_start, B_stop, depth+1, num_neighbors );
                 }
             }
         }
@@ -177,7 +188,7 @@ public:
             container.reserve(2*num_neighbors);
             priority_queue<double, vector<double>> best_squared_distances(less<double>(), move(container));
 
-            query_subtree( query_points.col(ii), visited_inds, visited_distances, best_squared_distances, 0, num_pts, 0, 0, num_neighbors );
+            query_subtree( query_points.col(ii), visited_inds, visited_distances, best_squared_distances, 0, num_pts, 0, num_neighbors );
 
             vector<int> sort_inds(visited_distances.size());
             iota(sort_inds.begin(), sort_inds.end(), 0);
