@@ -61,7 +61,7 @@ private:
                         int                                      start0,
                         int                                      num_neighbors ) const
     {
-        if ( stop - start0 <= block_size )
+        if ( stop - start <= block_size )
         {
             VectorXd dsqs = (points.middleCols(start0, stop - start0).colwise() - query_point).colwise().squaredNorm();
             for ( int ii=0; ii<dsqs.size(); ++ii )
