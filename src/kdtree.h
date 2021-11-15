@@ -34,16 +34,20 @@ private:
             int axis = depth % dim;
             int mid = start + (num_pts_local / 2);
 
-            if ( num_pts_local > 1 )
-            {
-                sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
-                    [&axis,&input_points](int ii, int jj) {return input_points(axis,ii) > input_points(axis,jj);} );
-
-                make_subtree(start,  mid,  depth+1, input_points, working_perm_i2e);
-                make_subtree(mid,    stop, depth+1, input_points, working_perm_i2e);
-            }
+            sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
+                [&axis,&input_points](int ii, int jj) {return input_points(axis,ii) < input_points(axis,jj);} );
 
             axis_coords(mid) = input_points(axis, working_perm_i2e[mid]);
+//            axis_coords(mid) = input_points(axis, working_perm_i2e[working_perm_i2e.begin() + mid]);
+//            axis_coords(mid) = input_points(axis, mid);
+
+            if ( num_pts_local > 1 )
+            {
+                make_subtree(start,  mid,  depth+1, input_points, working_perm_i2e);
+                make_subtree(mid,   stop,  depth+1, input_points, working_perm_i2e);
+            }
+
+//            axis_coords(mid) = input_points(axis, working_perm_i2e[mid]);
         }
     }
 
@@ -91,7 +95,7 @@ private:
             int A_stop;
             int B_start;
             int B_stop;
-            if (d_splitting_plane >= 0)
+            if (d_splitting_plane <= 0)
             {
                 A_start = start;
                 A_stop = mid;
@@ -113,7 +117,7 @@ private:
 
             if ( B_stop > B_start )
             {
-                if ( d_splitting_plane*d_splitting_plane <= best_squared_distances.top() )
+                if ( (d_splitting_plane*d_splitting_plane <= best_squared_distances.top()) || (best_squared_distances.size() < num_neighbors) )
                 {
                     query_subtree( query_point, visited_inds, visited_distances, best_squared_distances, B_start, B_stop, depth+1, num_neighbors );
                 }
