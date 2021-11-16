@@ -3,6 +3,7 @@
 #include <iostream>
 #include <list>
 #include <vector>
+#include <queue>
 
 #include <math.h>
 #include <Eigen/Dense>
@@ -28,14 +29,31 @@ double box_center( const Box & B, int axis )
 }
 
 
-int biggest_axis_of_box( const Box & B )
+//int biggest_axis_of_box( const Box & B )
+//{
+//    int axis = 0;
+//    int dim = B.max.size();
+//    double biggest_axis_size = B.max(0) - B.min(0);
+//    for ( int kk=1; kk<dim; ++kk)
+//    {
+//        double kth_axis_size = B.max(kk) - B.min(kk);
+//        if (kth_axis_size > biggest_axis_size)
+//        {
+//            axis = kk;
+//            biggest_axis_size = kth_axis_size;
+//        }
+//    }
+//    return axis;
+//}
+
+int biggest_axis_of_box( const VectorXd box_min, const VectorXd box_max )
 {
     int axis = 0;
-    int dim = B.max.size();
-    double biggest_axis_size = B.max(0) - B.min(0);
+    int dim = box_min.size();
+    double biggest_axis_size = box_max(0) - box_min(0);
     for ( int kk=1; kk<dim; ++kk)
     {
-        double kth_axis_size = B.max(kk) - B.min(kk);
+        double kth_axis_size = box_max(kk) - box_min(kk);
         if (kth_axis_size > biggest_axis_size)
         {
             axis = kk;
@@ -46,111 +64,105 @@ int biggest_axis_of_box( const Box & B )
 }
 
 
-void compute_bounding_box_of_many_boxes( int start, int stop,
-                                         const vector<Box> & boxes,
-                                         Box & bounding_box )
-{
-    int dim = boxes[start].max.size();
-    // compute limits of big box containing all boxes in this group
-    for ( int kk=0; kk<dim; ++kk )
-    {
-        double best_min_k = boxes[start].min(kk);
-        for ( int bb=start+1; bb<stop; ++bb)
-        {
-            double candidate_min_k = boxes[bb].min(kk);
-            if (candidate_min_k < best_min_k)
-            {
-                best_min_k = candidate_min_k;
-            }
-        }
-        bounding_box.min(kk) = best_min_k;
-    }
+//void compute_bounding_box_of_many_boxes( int start, int stop,
+//                                         const vector<Box> & boxes,
+//                                         Box & bounding_box )
+//{
+//    int dim = boxes[start].max.size();
+//    // compute limits of big box containing all boxes in this group
+//    for ( int kk=0; kk<dim; ++kk )
+//    {
+//        double best_min_k = boxes[start].min(kk);
+//        for ( int bb=start+1; bb<stop; ++bb)
+//        {
+//            double candidate_min_k = boxes[bb].min(kk);
+//            if (candidate_min_k < best_min_k)
+//            {
+//                best_min_k = candidate_min_k;
+//            }
+//        }
+//        bounding_box.min(kk) = best_min_k;
+//    }
+//
+//    for ( int kk=0; kk<dim; ++kk )
+//    {
+//        double best_max_k = boxes[start].max(kk);
+//        for ( int bb=start+1; bb<stop; ++bb)
+//        {
+//            double candidate_max_k = boxes[bb].max(kk);
+//            if ( candidate_max_k > best_max_k )
+//            {
+//                best_max_k = candidate_max_k;
+//            }
+//        }
+//        bounding_box.max(kk) = best_max_k;
+//    }
+//}
 
-    for ( int kk=0; kk<dim; ++kk )
+pair<VectorXd, VectorXd> bounding_box_of_boxes( const MatrixXd box_mins, const MatrixXd box_maxes )
+{
+    int dim = box_mins.rows();
+    int num_boxes = box_mins.cols();
+    VectorXd big_box_min = box_mins.col(0);
+    VectorXd big_box_max = box_maxes.col(0);
+    for ( int bb=1; bb<num_boxes; ++bb )
     {
-        double best_max_k = boxes[start].max(kk);
-        for ( int bb=start+1; bb<stop; ++bb)
+        for ( int kk=0; kk<dim; ++kk )
         {
-            double candidate_max_k = boxes[bb].max(kk);
-            if ( candidate_max_k > best_max_k )
+            double x_min = box_mins(kk, bb);
+            if ( x_min < big_box_min(kk) )
             {
-                best_max_k = candidate_max_k;
+                big_box_min(kk) = x_min;
+            }
+
+            double x_max = box_maxes(kk, bb);
+            if ( big_box_max(kk) < x_max )
+            {
+                big_box_max(kk) = x_max;
             }
         }
-        bounding_box.max(kk) = best_max_k;
     }
+    return make_pair(big_box_min, big_box_max);
 }
 
+inline unsigned int power_of_two_floor(unsigned int x)
+// based on https://stackoverflow.com/a/42595922/484944
+{
+  x |= x >> 1;
+  x |= x >> 2;
+  x |= x >> 4;
+  x |= x >> 8;
+  x |= x >> 16;
+  return x ^ (x >> 1);
+}
+
+inline unsigned int heap_left_size(unsigned int N)
+{
+    int N_full = power_of_two_floor(N);
+    int N_full_left = N_full / 2;
+    int N_extra = N - N_full;
+    int N_left_max = N_full;
+    int N_left;
+    if ( N_full_left + N_extra < N_left_max )
+    {
+        N_left = N_full_left + N_extra;
+    }
+    else
+    {
+        N_left = N_left_max;
+    }
+    return N_left;
+}
 
 class AABBTree {
 private:
     int                dim;
+    int                num_boxes;
+    int                num_leaf_boxes;
     VectorXi           i2e;
     MatrixXd           box_mins;
     MatrixXd           box_maxes;
     vector< AABBNode > nodes; // All nodes in the tree
-
-    // creates subtree and returns the index for root of subtree
-    int make_subtree( int start, int stop,
-                      vector<int> & working_i2e;
-                      MatrixXd & input_box_mins;
-                      MatrixXd & input_box_maxes;
-                      int & counter )
-    {
-        int num_boxes_local = stop - start;
-
-        int current_node_ind = counter;
-        counter = counter + 1;
-
-        if ( num_boxes_local == 1 )
-        {
-            nodes[current_node_ind] = AABBNode { leaf_boxes[start], -1, -1 };
-        }
-        else if (num_boxes_local > 1)
-        {
-            Box big_box; // bounding box for all leaf boxes in this group
-            big_box.index = -1; // -1 indicates internal node
-            compute_bounding_box_of_many_boxes( start, stop, leaf_boxes, big_box );
-
-            int axis = biggest_axis_of_box( big_box );
-
-            // Sort leaf boxes by centerpoint along biggest axis
-            sort( leaf_boxes.begin() + start,
-                  leaf_boxes.begin() + stop,
-                  [&](Box A, Box B) {return (box_center(A, axis) > box_center(B, axis));} );
-
-            // Find index of first leaf box with centerpoint in the "right" half of big box
-            double big_box_centerpoint = box_center(big_box, axis);
-            int mid = stop;
-            for ( int bb=start; bb<stop; ++bb )
-            {
-                if ( big_box_centerpoint < box_center( leaf_boxes[bb], axis) )
-                {
-                    mid = bb;
-                    break;
-                }
-            }
-
-            // If all boxes happen to be on one side, split them in equal numbers
-            // (theoretically possible, e.g., if all boxes have the same centerpoint)
-            if ( (mid == start) || (mid == stop) )
-            {
-                mid = start + (num_boxes_local / 2);
-            }
-
-            int left  = make_subtree(start,  mid, leaf_boxes, counter);
-            int right = make_subtree(mid,   stop, leaf_boxes, counter);
-
-            nodes[current_node_ind] = AABBNode { big_box, left, right };
-            }
-            else
-            {
-                cout << "BAD: trying to make subtree of leaf box!"
-                     << " start=" << start << " stop=" << stop << " counter=" << counter
-                     << endl;
-            }
-        return current_node_ind;
-    }
 
 public:
     AABBTree( ) {}
@@ -158,50 +170,72 @@ public:
     AABBTree( const Ref<const MatrixXd> input_box_mins,
               const Ref<const MatrixXd> input_box_maxes )
     {
-        dim = input_box_mins.rows();
-        int num_leaf_boxes = box_mins.cols();
+        dim            = input_box_mins.rows();
+        num_leaf_boxes = input_box_mins.cols();
 
-//        // Copy eigen matrix input into std::vector of Boxes which will be re-ordered
-//        vector< Box > leaf_boxes(num_leaf_boxes);
-//        for ( int ii=0; ii<num_leaf_boxes; ++ii)
-//        {
-//            leaf_boxes[ii] = Box { input_box_mins.col(ii), input_box_maxes.col(ii), ii };
-//        }
+        vector<int> working_i2e(num_leaf_boxes);
+        iota(working_i2e.begin(), working_i2e.end(), 0);
 
-//        vector<VectorXd> leaf_mins(num_leaf_boxes);
-//        vector<VectorXd> leaf_maxes(num_leaf_boxes);
-//        vector<int>      leaf_i2e(num_leaf_boxes);
-//        for ( int ii=0; ii<num_leaf_boxes; ++ii )
-//        {
-//            leaf_mins[ii] = input_box_mins.col(ii);
-//            leaf_maxes[ii] = input_box_maxes.col(ii);
-//            leaf_i2e[ii] = ii;
-//        }
+        num_boxes = 2*num_leaf_boxes - 1; // full binary tree with n leafs has 2n-1 nodes
+        i2e.resize(num_boxes);
+        i2e.setConstant(-1); // -1 for internal nodes. leaf nodes will be set with indices
 
-        vector<int> leaf_i2e(num_leaf_boxes);
-        iota(leaf_i2e.begin(), leaf_i2e.end(), 0);
+        box_mins.resize(dim, num_boxes);
+        box_maxes.resize(dim, num_boxes);
 
-
-        int num_boxes = 2*num_leaf_boxes - 1; // full binary tree with n leafs has 2n-1 nodes
-        nodes.reserve(num_boxes);
         int counter = 0;
-
-        vector<tuple<int,int,int>> start_stop_axis_candidates;
-        start_stop_axis_candidates.push_back(make_tuple(0,num_leaf_boxes,0));
-        while ( !candidate_starts_and_stops.empty() )
+        queue<pair<int,int>> start_stop_candidates;
+        start_stop_candidates.push(make_pair(0,num_leaf_boxes));
+        while ( !start_stop_candidates.empty() )
         {
-            tuple<int,int,int> candidate = candidate_starts_and_stops.back();
-            candidate_starts_and_stops.pop_back();
+            pair<int,int> candidate = start_stop_candidates.front();
+            start_stop_candidates.pop();
 
-            int start = get<0> candidate;
-            int stop = get<1> candidate;
-            int axis = get<2> candidate;
+            int start = candidate.first;
+            int stop = candidate.second;
 
-            input_box_mins.middleCols(leaf_i2e[start], stop - start).colwise()
+            MatrixXd local_box_mins(dim, stop-start);
+            MatrixXd local_box_maxes(dim, stop-start);
+            for ( int ii=0; ii<stop-start; ++ii )
+            {
+                local_box_mins.col(ii) = input_box_mins.col(working_i2e[start+ii]);
+                local_box_maxes.col(ii) = input_box_maxes.col(working_i2e[start+ii]);
+            }
+            pair<VectorXd, VectorXd> BB = bounding_box_of_boxes(local_box_mins, local_box_maxes);
+            VectorXd big_box_min = BB.first;
+            VectorXd big_box_max = BB.second;
+
+            box_mins.col(counter) = big_box_min;
+            box_maxes.col(counter) = big_box_max;
+
+            if ( stop - start == 1 )
+            {
+                i2e(counter) = working_i2e[start];
+            }
+            else if ( stop - start >= 2 )
+            {
+                int axis = biggest_axis_of_box( big_box_min, big_box_max );
+
+                sort( working_i2e.begin() + start,
+                      working_i2e.begin() + stop,
+                      [&](int aa, int bb) {return 0.5*(input_box_maxes(axis,aa)+input_box_mins(axis,aa))
+                                                > 0.5*(input_box_maxes(axis,bb)+input_box_mins(axis,bb));} );
+
+                int mid = start + heap_left_size( stop - start );
+                start_stop_candidates.push(make_pair(start, mid));
+                start_stop_candidates.push(make_pair(mid,   stop));
+            }
+
+            counter += 1;
         }
 
+        cout << "i2e:" << endl << i2e << endl;
 
-        int zero = make_subtree(0, num_leaf_boxes, leaf_boxes, counter);
+//        i2e.resize(num_leaf_boxes);
+//        for ( int ii=0; ii<num_leaf_boxes; ++ii )
+//        {
+//            i2e(ii) = working_i2e[ii];
+//        }
     }
 
     VectorXi point_collisions( const VectorXd & query ) const
@@ -215,17 +249,14 @@ public:
 
         while ( !nodes_under_consideration.empty() )
         {
-            int current_node_ind = nodes_under_consideration.back();
+            int cur = nodes_under_consideration.back();
             nodes_under_consideration.pop_back();
-
-            const AABBNode & current_node = nodes[current_node_ind];
-            const Box & B = current_node.box;
 
             // Determine if query point is in current box
             bool query_is_in_box = true;
             for ( int kk=0; kk<dim; ++kk)
             {
-                if ( (query(kk) < B.min(kk)) || (B.max(kk) < query(kk)) )
+                if ( (query(kk) < box_mins(kk,cur)) || (box_maxes(kk,cur) < query(kk)) )
                 {
                     query_is_in_box = false;
                     break;
@@ -234,24 +265,24 @@ public:
 
             if ( query_is_in_box )
             {
-                if ( B.index >= 0 ) // if current box is leaf
+                if ( 2*cur + 1 >= num_boxes ) // if current box is leaf
                 {
-                    collision_leafs.push_back(B.index);
+                    collision_leafs.push_back(cur);
                 }
                 else // current box is internal node
                 {
-                    nodes_under_consideration.push_back(current_node.right);
-                    nodes_under_consideration.push_back(current_node.left);
+                    nodes_under_consideration.push_back(2*cur + 1); // left child in heap
+                    nodes_under_consideration.push_back(2*cur + 2); // right child in heap
                 }
             }
         }
 
-        VectorXi collision_leafs_eigen(collision_leafs.size());
+        VectorXi collision_leafs_external_indexing(collision_leafs.size());
         for ( int ii=0; ii<collision_leafs.size(); ++ii )
         {
-            collision_leafs_eigen(ii) = collision_leafs[ii];
+            collision_leafs_external_indexing(ii) = i2e(collision_leafs[ii]);
         }
-        return collision_leafs_eigen;
+        return collision_leafs_external_indexing;
     }
 
     VectorXi ball_collisions( const VectorXd & center, double radius ) const

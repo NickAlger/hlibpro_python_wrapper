@@ -808,5 +808,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("add_batch", &ImpulseResponseBatches<2>::add_batch)
         .def("build_kdtree", &ImpulseResponseBatches<2>::build_kdtree)
         .def("interpolation_points_and_values", &ImpulseResponseBatches<2>::interpolation_points_and_values);
-}
 
+        m.def("power_of_two_floor", &power_of_two_floor);
+        m.def("heap_left_size", &heap_left_size);
+}

@@ -26,7 +26,7 @@ private:
                        int           stop,
                        int           depth,
                        const Ref<const MatrixXd> input_points,
-                       vector<int> &             working_perm_i2e )
+                       vector<int> & working_perm_i2e )
     {
         int num_pts_local = stop - start;
         if ( num_pts_local > 0 )
