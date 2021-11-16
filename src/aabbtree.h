@@ -228,53 +228,66 @@ public:
 
             counter += 1;
         }
-
-        cout << "i2e:" << endl << i2e << endl;
-
-//        i2e.resize(num_leaf_boxes);
-//        for ( int ii=0; ii<num_leaf_boxes; ++ii )
-//        {
-//            i2e(ii) = working_i2e[ii];
-//        }
     }
 
     VectorXi point_collisions( const VectorXd & query ) const
     {
-        vector<int> nodes_under_consideration;
-        nodes_under_consideration.reserve(100);
-        nodes_under_consideration.push_back(0);
+        vector<int> boxes_under_consideration;
+        boxes_under_consideration.reserve(100);
+        boxes_under_consideration.push_back(0);
 
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
-        while ( !nodes_under_consideration.empty() )
+        while ( !boxes_under_consideration.empty() )
         {
-            int cur = nodes_under_consideration.back();
-            nodes_under_consideration.pop_back();
+            int num_boxes_local = boxes_under_consideration.size();
 
-            // Determine if query point is in current box
-            bool query_is_in_box = true;
-            for ( int kk=0; kk<dim; ++kk)
+            // Determine which boxes under consideration contain the query point
+            Matrix<bool,Dynamic,1> query_is_in_box(num_boxes_local);
+            for ( int ii=0; ii<num_boxes_local; ++ii )
             {
-                if ( (query(kk) < box_mins(kk,cur)) || (box_maxes(kk,cur) < query(kk)) )
-                {
-                    query_is_in_box = false;
-                    break;
-                }
+                query_is_in_box(ii) = (box_mins .col(boxes_under_consideration[ii]).array() <= query.array()).all() &&
+                                      (box_maxes.col(boxes_under_consideration[ii]).array() >= query.array()).all();
             }
 
-            if ( query_is_in_box )
+            vector<int> good_boxes;
+            good_boxes.reserve(num_boxes_local);
+            for ( int ii=0; ii<num_boxes_local; ++ii )
             {
-                if ( 2*cur + 1 >= num_boxes ) // if current box is leaf
+                if ( query_is_in_box(ii) )
                 {
-                    collision_leafs.push_back(cur);
+                    good_boxes.push_back(boxes_under_consideration[ii]);
+                }
+            }
+            boxes_under_consideration.resize(0);
+
+            for ( int good_box : good_boxes )
+            {
+                if ( 2*good_box + 1 >= num_boxes ) // if current box is leaf
+                {
+                    collision_leafs.push_back(good_box);
                 }
                 else // current box is internal node
                 {
-                    nodes_under_consideration.push_back(2*cur + 1); // left child in heap
-                    nodes_under_consideration.push_back(2*cur + 2); // right child in heap
+                    boxes_under_consideration.push_back(2*good_box + 1); // left child in heap
+                    boxes_under_consideration.push_back(2*good_box + 2); // right child in heap
                 }
             }
+
+//            if ( query_is_in_box )
+//            {
+//                if ( 2*cur + 1 >= num_boxes ) // if current box is leaf
+////                if ( 2*(2*cur + 1)+1 >= num_boxes ) // if current box is one level away from leaf
+//                {
+//                    collision_leafs.push_back(cur);
+//                }
+//                else // current box is internal node
+//                {
+//                    nodes_under_consideration.push_back(2*cur + 1); // left child in heap
+//                    nodes_under_consideration.push_back(2*cur + 2); // right child in heap
+//                }
+//            }
         }
 
         VectorXi collision_leafs_external_indexing(collision_leafs.size());

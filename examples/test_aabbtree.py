@@ -112,7 +112,7 @@ print('bad_boxes_do_not_contain_points=', bad_boxes_do_not_contain_points)
 # More realistic setting, timing
 
 num_boxes = int(1e5)
-num_pts = int(1e6)
+num_pts = int(1e7)
 
 print('num_boxes=', num_boxes, ', num_pts=', num_pts)
 
@@ -150,6 +150,11 @@ print('dt_point_collisions_vectorized=', dt_point_collisions_vectorized)
 # num_boxes= 100000 , num_pts= 10000000
 # dt_build= 0.1232149600982666
 # dt_point_collisions_vectorized= 11.313974857330322
+
+# ALL collisions (not just first one) AFTER GOING TO HEAP, no blocking yet
+# num_boxes= 100000 , num_pts= 10000000
+# dt_build= 0.33385515213012695
+# dt_point_collisions_vectorized= 13.094181537628174
 
 # Ball query
 
