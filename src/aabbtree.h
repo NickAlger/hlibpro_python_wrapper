@@ -230,8 +230,32 @@ public:
         }
     }
 
+//    void point_collisions_helper( const int B, const VectorXd & query, vector<int> & collision_leafs ) const
+//    {
+//        bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
+//                               (box_maxes.col(B).array() >= query.array()).all();
+//
+//        if ( query_is_in_box )
+//        {
+//            if ( 2*B + 1 >= num_boxes ) // if current box is leaf
+//            {
+//                collision_leafs.push_back(B);
+//            }
+//            else // current box is internal node
+//            {
+//                point_collisions_helper(2*B + 1, query, collision_leafs);
+//                point_collisions_helper(2*B + 2, query, collision_leafs);
+//            }
+//        }
+//    }
+
     VectorXi point_collisions( const VectorXd & query ) const
     {
+//        vector<int> collision_leafs;
+//        collision_leafs.reserve(100);
+//
+//        point_collisions_helper( 0, query, collision_leafs );
+
         queue<int> boxes_under_consideration;
         boxes_under_consideration.push(0);
 
