@@ -251,6 +251,7 @@ public:
                                       (box_maxes.col(boxes_under_consideration[ii]).array() >= query.array()).all();
             }
 
+
             vector<int> good_boxes;
             good_boxes.reserve(num_boxes_local);
             for ( int ii=0; ii<num_boxes_local; ++ii )
