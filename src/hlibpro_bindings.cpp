@@ -743,6 +743,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     py::class_<AABBTree>(m, "AABBTree")
         .def(py::init< const Ref<const MatrixXd>,
                        const Ref<const MatrixXd> >())
+        .def_readwrite("block_size", &AABBTree::block_size)
         .def("point_collisions", &AABBTree::point_collisions)
         .def("point_collisions_vectorized", &AABBTree::point_collisions_vectorized)
         .def("ball_collisions", &AABBTree::ball_collisions)

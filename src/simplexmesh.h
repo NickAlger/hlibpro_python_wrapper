@@ -49,15 +49,15 @@ inline VectorXd projected_affine_coordinates( const VectorXd & query,  // shape=
 }
 
 
-int power_of_two( int k ) // x=2^k, with 2^0 = 1. Why does c++ not have this!?
-{
-    int x = 1;
-    for ( int ii=1; ii<=k; ++ii )
-    {
-        x = 2*x;
-    }
-    return x;
-}
+//int power_of_two( int k ) // x=2^k, with 2^0 = 1. Why does c++ not have this!?
+//{
+//    int x = 1;
+//    for ( int ii=1; ii<=k; ++ii )
+//    {
+//        x = 2*x;
+//    }
+//    return x;
+//}
 
 inline MatrixXd select_columns( const MatrixXd & A,    // shape=(N,M)
                                 const VectorXi & inds) // shape=(k,1)

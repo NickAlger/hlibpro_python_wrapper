@@ -66,6 +66,16 @@ inline unsigned int power_of_two_floor(unsigned int x)
   return x ^ (x >> 1);
 }
 
+int power_of_two( int k ) // x=2^k, with 2^0 = 1. Why does c++ not have this!?
+{
+    int x = 1;
+    for ( int ii=1; ii<=k; ++ii )
+    {
+        x = 2*x;
+    }
+    return x;
+}
+
 inline unsigned int heap_left_size(unsigned int N)
 {
     int N_full = power_of_two_floor(N);
@@ -94,6 +104,8 @@ private:
     MatrixXd           box_maxes;
 
 public:
+    int block_size = 32;
+
     AABBTree( ) {}
 
     AABBTree( const Ref<const MatrixXd> input_box_mins,
@@ -161,30 +173,104 @@ public:
 
     VectorXi point_collisions( const VectorXd & query ) const
     {
-        queue<int> boxes_under_consideration;
-        boxes_under_consideration.push(0);
+//        queue<int> boxes_under_consideration;
+//        boxes_under_consideration.push(0);
+        vector<int> boxes_under_consideration;
+        boxes_under_consideration.reserve(100);
+        boxes_under_consideration.push_back(0);
 
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
         while ( !boxes_under_consideration.empty() )
         {
-            int B = boxes_under_consideration.front();
-            boxes_under_consideration.pop();
+//            int B = boxes_under_consideration.front();
+//            boxes_under_consideration.pop();
+            int B = boxes_under_consideration.back();
+            boxes_under_consideration.pop_back();
 
-            bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
-                                   (box_maxes.col(B).array() >= query.array()).all();
+            int B_level = power_of_two_floor(B+1);
+            int last_level = power_of_two_floor(num_boxes);
 
-            if ( query_is_in_box )
+            int jump2 = (last_level) / (B_level);
+            int jump1 = jump2 / 2;
+
+            int start1 = (B+1)*jump1 - 1;
+            int stop1  = (B+1)*jump1 - 1 + jump1;
+
+            int start2 = (B+1)*jump2 - 1;
+            int stop2  = (B+1)*jump2 - 1 + jump2;
+
+            if ( stop2 <= num_boxes ) // All leaf descendends are on last level
             {
-                if ( 2*B + 1 >= num_boxes ) // if current box is leaf
+                start1 = stop1;
+            }
+            else if ( start2 >= num_boxes ) // All leaf descendends are on second to last level
+            {
+                start2 = stop2;
+            }
+            else
+            {
+                start1 = (num_boxes-1) / 2;
+                stop2 = num_boxes;
+            }
+
+            int num_leaf_descendents = (stop2-start2) + (stop1-start1);
+
+//            cout << "B=" << B << ", num_boxes=" << num_boxes << ", num_leaf_descendents=" << num_leaf_descendents << endl
+//                 << "B_level=" << B_level << ", last_level=" << last_level << endl
+//                 << "jump1=" << jump1 << ", jump2=" << jump2 << endl
+//                 << "start1=" << start1 << ", stop1=" << stop1 << endl
+//                 << "start2=" << start2 << ", stop2=" << stop2 << endl << endl;
+
+            if ( num_leaf_descendents <= block_size )
+            {
+                if ( stop1 > start1 )
                 {
-                    collision_leafs.push_back(B);
+                    Matrix<bool,Dynamic,1> queries_are_in_box =
+                        (box_mins .middleCols(start1, stop1-start1).array().colwise() - query.array() <= 0.0 ).colwise().all() &&
+                        (box_maxes.middleCols(start1, stop1-start1).array().colwise() - query.array() >= 0.0 ).colwise().all();
+                    for ( int ii=0; ii<stop1-start1; ++ii )
+                    {
+                        if ( queries_are_in_box(ii) )
+                        {
+                            collision_leafs.push_back(start1 + ii);
+                        }
+                    }
                 }
-                else // current box is internal node
+
+                if ( stop2 > start2 )
                 {
-                    boxes_under_consideration.push(2*B + 1);
-                    boxes_under_consideration.push(2*B + 2);
+                    Matrix<bool,Dynamic,1> queries_are_in_box =
+                        (box_mins .middleCols(start2, stop2-start2).array().colwise() - query.array() <= 0.0 ).colwise().all() &&
+                        (box_maxes.middleCols(start2, stop2-start2).array().colwise() - query.array() >= 0.0 ).colwise().all();
+                    for ( int ii=0; ii<stop2-start2; ++ii )
+                    {
+                        if ( queries_are_in_box(ii) )
+                        {
+                            collision_leafs.push_back(start2 + ii);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
+                                       (box_maxes.col(B).array() >= query.array()).all();
+
+                if ( query_is_in_box )
+                {
+                    if ( 2*B + 1 >= num_boxes ) // if current box is leaf
+                    {
+                        collision_leafs.push_back(B);
+                    }
+                    else // current box is internal node
+                    {
+                        boxes_under_consideration.push_back(2*B + 1);
+                        boxes_under_consideration.push_back(2*B + 2);
+//                        boxes_under_consideration.push(2*B + 1);
+//                        boxes_under_consideration.push(2*B + 2);
+                    }
                 }
             }
         }

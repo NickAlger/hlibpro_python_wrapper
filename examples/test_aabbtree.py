@@ -26,6 +26,7 @@ many_inds = AABB.point_collisions_vectorized(qq)
 
 # Real boxes
 
+K = 2
 num_boxes = 191
 num_pts = 549
 
@@ -112,7 +113,7 @@ print('bad_boxes_do_not_contain_points=', bad_boxes_do_not_contain_points)
 # More realistic setting, timing
 
 num_boxes = int(1e5)
-num_pts = int(1e6)
+num_pts = int(1e7)
 
 print('num_boxes=', num_boxes, ', num_pts=', num_pts)
 
@@ -130,6 +131,8 @@ t = time()
 AABB = hcpp.AABBTree(b_mins, b_maxes)
 dt_build = time() - t
 print('dt_build=', dt_build)
+
+AABB.block_size = 32
 
 t = time()
 all_box_inds = AABB.point_collisions_vectorized(qq)
@@ -155,6 +158,11 @@ print('dt_point_collisions_vectorized=', dt_point_collisions_vectorized)
 # num_boxes= 100000 , num_pts= 10000000
 # dt_build= 0.33385515213012695
 # dt_point_collisions_vectorized= 13.094181537628174
+
+# ALL collisions (not just first one) HEAP + BLOCKING
+# num_boxes= 100000 , num_pts= 10000000
+# dt_build= 0.3034336566925049
+# dt_point_collisions_vectorized= 17.75233292579651
 
 # Ball query
 
