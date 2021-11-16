@@ -194,6 +194,8 @@ plt.show()
 
 # Ball query timing
 
+K = 2
+
 num_boxes = int(1e5)
 num_balls = int(1e6)
 
@@ -214,6 +216,11 @@ t = time()
 all_collisions = AABB.ball_collisions_vectorized(ball_centers, ball_radii)
 dt_ball = time() - t
 print('num_boxes=', num_boxes, ', num_balls=', num_balls, ', dt_ball=', dt_ball)
+
+# np.mean([len(x) for x in all_collisions])
+
+# AFTER removing templated dimension, plus using FIFO queue instead of vector 11/12/21
+# num_boxes= 100000 , num_balls= 1000000 , dt_ball= 6.3552868366241455
 
 # AFTER removing templated dimension 11/12/21
 # num_boxes= 100000 , num_balls= 1000000 , dt_ball= 7.004610538482666
