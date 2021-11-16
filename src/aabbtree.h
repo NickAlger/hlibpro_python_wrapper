@@ -12,40 +12,6 @@ using namespace Eigen;
 using namespace std;
 
 
-struct Box { VectorXd min;
-             VectorXd max;
-             int                  index;}; // 0,...,N for leaf nodes, and -1 for internal node
-
-
-// Node in AABB tree
-struct AABBNode { Box box;
-                  int left;       // index of left child
-                  int right; };   // index of right child
-
-
-double box_center( const Box & B, int axis )
-{
-    return 0.5*(B.max(axis)+B.min(axis));
-}
-
-
-//int biggest_axis_of_box( const Box & B )
-//{
-//    int axis = 0;
-//    int dim = B.max.size();
-//    double biggest_axis_size = B.max(0) - B.min(0);
-//    for ( int kk=1; kk<dim; ++kk)
-//    {
-//        double kth_axis_size = B.max(kk) - B.min(kk);
-//        if (kth_axis_size > biggest_axis_size)
-//        {
-//            axis = kk;
-//            biggest_axis_size = kth_axis_size;
-//        }
-//    }
-//    return axis;
-//}
-
 int biggest_axis_of_box( const VectorXd box_min, const VectorXd box_max )
 {
     int axis = 0;
@@ -62,42 +28,6 @@ int biggest_axis_of_box( const VectorXd box_min, const VectorXd box_max )
     }
     return axis;
 }
-
-
-//void compute_bounding_box_of_many_boxes( int start, int stop,
-//                                         const vector<Box> & boxes,
-//                                         Box & bounding_box )
-//{
-//    int dim = boxes[start].max.size();
-//    // compute limits of big box containing all boxes in this group
-//    for ( int kk=0; kk<dim; ++kk )
-//    {
-//        double best_min_k = boxes[start].min(kk);
-//        for ( int bb=start+1; bb<stop; ++bb)
-//        {
-//            double candidate_min_k = boxes[bb].min(kk);
-//            if (candidate_min_k < best_min_k)
-//            {
-//                best_min_k = candidate_min_k;
-//            }
-//        }
-//        bounding_box.min(kk) = best_min_k;
-//    }
-//
-//    for ( int kk=0; kk<dim; ++kk )
-//    {
-//        double best_max_k = boxes[start].max(kk);
-//        for ( int bb=start+1; bb<stop; ++bb)
-//        {
-//            double candidate_max_k = boxes[bb].max(kk);
-//            if ( candidate_max_k > best_max_k )
-//            {
-//                best_max_k = candidate_max_k;
-//            }
-//        }
-//        bounding_box.max(kk) = best_max_k;
-//    }
-//}
 
 pair<VectorXd, VectorXd> bounding_box_of_boxes( const MatrixXd box_mins, const MatrixXd box_maxes )
 {
@@ -162,7 +92,6 @@ private:
     VectorXi           i2e;
     MatrixXd           box_mins;
     MatrixXd           box_maxes;
-    vector< AABBNode > nodes; // All nodes in the tree
 
 public:
     AABBTree( ) {}
