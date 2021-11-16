@@ -232,17 +232,16 @@ public:
 
     VectorXi point_collisions( const VectorXd & query ) const
     {
-        vector<int> boxes_under_consideration;
-        boxes_under_consideration.reserve(100);
-        boxes_under_consideration.push_back(0);
+        queue<int> boxes_under_consideration;
+        boxes_under_consideration.push(0);
 
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
         while ( !boxes_under_consideration.empty() )
         {
-            int B = boxes_under_consideration.back();
-            boxes_under_consideration.pop_back();
+            int B = boxes_under_consideration.front();
+            boxes_under_consideration.pop();
 
             bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
                                    (box_maxes.col(B).array() >= query.array()).all();
@@ -255,8 +254,8 @@ public:
                 }
                 else // current box is internal node
                 {
-                    boxes_under_consideration.push_back(2*B + 1);
-                    boxes_under_consideration.push_back(2*B + 2);
+                    boxes_under_consideration.push(2*B + 1);
+                    boxes_under_consideration.push(2*B + 2);
                 }
             }
         }
@@ -273,17 +272,16 @@ public:
     {
         double radius_squared = radius*radius;
 
-        vector<int> boxes_under_consideration;
-        boxes_under_consideration.reserve(100);
-        boxes_under_consideration.push_back(0);
+        queue<int> boxes_under_consideration;
+        boxes_under_consideration.push(0);
 
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
         while ( !boxes_under_consideration.empty() )
         {
-            int B = boxes_under_consideration.back();
-            boxes_under_consideration.pop_back();
+            int B = boxes_under_consideration.front();
+            boxes_under_consideration.pop();
 
             // Construct point on box that is closest to ball center
             VectorXd closest_point = center.cwiseMin(box_maxes.col(B)).cwiseMax(box_mins.col(B));
@@ -299,8 +297,8 @@ public:
                 }
                 else // current box is internal node
                 {
-                    boxes_under_consideration.push_back(2*B + 1);
-                    boxes_under_consideration.push_back(2*B + 2);
+                    boxes_under_consideration.push(2*B + 1);
+                    boxes_under_consideration.push(2*B + 2);
                 }
             }
         }
