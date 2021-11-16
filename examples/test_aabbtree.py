@@ -112,7 +112,7 @@ print('bad_boxes_do_not_contain_points=', bad_boxes_do_not_contain_points)
 # More realistic setting, timing
 
 num_boxes = int(1e5)
-num_pts = int(1e7)
+num_pts = int(1e6)
 
 print('num_boxes=', num_boxes, ', num_pts=', num_pts)
 
@@ -171,7 +171,7 @@ b_maxes = np.array(box_centers + box_widths, order='F')
 AABB = hcpp.AABBTree(b_mins, b_maxes)
 
 c = np.random.randn(K) / 4
-r = 8.0 * box_h * np.random.randn()
+r = 8.0 * box_h
 
 intersections = AABB.ball_collisions(c, r)
 
@@ -214,6 +214,9 @@ t = time()
 all_collisions = AABB.ball_collisions_vectorized(ball_centers, ball_radii)
 dt_ball = time() - t
 print('num_boxes=', num_boxes, ', num_balls=', num_balls, ', dt_ball=', dt_ball)
+
+# AFTER removing templated dimension 11/12/21
+# num_boxes= 100000 , num_balls= 1000000 , dt_ball= 7.004610538482666
 
 # BEFORE removing templated dimension 11/12/21
 # num_boxes= 100000 , num_balls= 1000000 , dt_ball= 4.182887315750122

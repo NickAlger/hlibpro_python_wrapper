@@ -230,42 +230,19 @@ public:
         }
     }
 
-//    void point_collisions_helper( const int B, const VectorXd & query, vector<int> & collision_leafs ) const
-//    {
-//        bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
-//                               (box_maxes.col(B).array() >= query.array()).all();
-//
-//        if ( query_is_in_box )
-//        {
-//            if ( 2*B + 1 >= num_boxes ) // if current box is leaf
-//            {
-//                collision_leafs.push_back(B);
-//            }
-//            else // current box is internal node
-//            {
-//                point_collisions_helper(2*B + 1, query, collision_leafs);
-//                point_collisions_helper(2*B + 2, query, collision_leafs);
-//            }
-//        }
-//    }
-
     VectorXi point_collisions( const VectorXd & query ) const
     {
-//        vector<int> collision_leafs;
-//        collision_leafs.reserve(100);
-//
-//        point_collisions_helper( 0, query, collision_leafs );
-
-        queue<int> boxes_under_consideration;
-        boxes_under_consideration.push(0);
+        vector<int> boxes_under_consideration;
+        boxes_under_consideration.reserve(100);
+        boxes_under_consideration.push_back(0);
 
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
         while ( !boxes_under_consideration.empty() )
         {
-            int B = boxes_under_consideration.front();
-            boxes_under_consideration.pop();
+            int B = boxes_under_consideration.back();
+            boxes_under_consideration.pop_back();
 
             bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
                                    (box_maxes.col(B).array() >= query.array()).all();
@@ -278,8 +255,8 @@ public:
                 }
                 else // current box is internal node
                 {
-                    boxes_under_consideration.push(2*B + 1);
-                    boxes_under_consideration.push(2*B + 2);
+                    boxes_under_consideration.push_back(2*B + 1);
+                    boxes_under_consideration.push_back(2*B + 2);
                 }
             }
         }
@@ -296,62 +273,44 @@ public:
     {
         double radius_squared = radius*radius;
 
-        vector<int> nodes_under_consideration;
-        nodes_under_consideration.reserve(100);
-        nodes_under_consideration.push_back(0);
+        vector<int> boxes_under_consideration;
+        boxes_under_consideration.reserve(100);
+        boxes_under_consideration.push_back(0);
 
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
-        while ( !nodes_under_consideration.empty() )
+        while ( !boxes_under_consideration.empty() )
         {
-            int current_node_ind = nodes_under_consideration.back();
-            nodes_under_consideration.pop_back();
-
-            const AABBNode & current_node = nodes[current_node_ind];
-            const Box & B = current_node.box;
+            int B = boxes_under_consideration.back();
+            boxes_under_consideration.pop_back();
 
             // Construct point on box that is closest to ball center
-            VectorXd closest_point;
-            for ( int kk=0; kk<dim; ++kk)
-            {
-                if ( center(kk) < B.min(kk) )
-                {
-                    closest_point(kk) = B.min(kk);
-                }
-                else if ( B.max(kk) < center(kk) )
-                {
-                    closest_point(kk) = B.max(kk);
-                }
-                else
-                {
-                    closest_point(kk) = center(kk);
-                }
-            }
+            VectorXd closest_point = center.cwiseMin(box_maxes.col(B)).cwiseMax(box_mins.col(B));
 
             double distance_to_box_squared = (closest_point - center).squaredNorm();
             bool ball_intersects_box = (distance_to_box_squared <= radius_squared);
 
             if ( ball_intersects_box )
             {
-                if ( B.index >= 0 ) // if current box is leaf
+                if ( 2*B + 1 >= num_boxes ) // if current box is leaf
                 {
-                    collision_leafs.push_back(B.index);
+                    collision_leafs.push_back(B);
                 }
                 else // current box is internal node
                 {
-                    nodes_under_consideration.push_back(current_node.right);
-                    nodes_under_consideration.push_back(current_node.left);
+                    boxes_under_consideration.push_back(2*B + 1);
+                    boxes_under_consideration.push_back(2*B + 2);
                 }
             }
         }
 
-        VectorXi collision_leafs_eigen(collision_leafs.size());
+        VectorXi collision_leafs_external_indexing(collision_leafs.size());
         for ( int ii=0; ii<collision_leafs.size(); ++ii )
         {
-            collision_leafs_eigen(ii) = collision_leafs[ii];
+            collision_leafs_external_indexing(ii) = i2e(collision_leafs[ii]);
         }
-        return collision_leafs_eigen;
+        return collision_leafs_external_indexing;
     }
 
     vector<VectorXi> point_collisions_vectorized( const MatrixXd & query_points) const
