@@ -36,7 +36,7 @@ class ImpulseResponseBatches
 private:
 
 public:
-    SimplexMesh<K>               mesh;
+    SimplexMesh                  mesh;
     vector<Matrix<double, K, 1>> pts;
     vector<Matrix<double, K, 1>> mu;
     vector<Matrix<double, K, K>> inv_Sigma;
@@ -113,7 +113,7 @@ public:
 
         int N_nearest = nearest_inds.size();
 
-        vector<ind_and_coords<K>> all_IC(N_nearest);
+        vector<ind_and_coords> all_IC(N_nearest);
         vector<bool>              ind_is_good(N_nearest);
         for ( int jj=0; jj<N_nearest; ++jj )
         {
@@ -131,7 +131,7 @@ public:
             {
                 int ind = nearest_inds[jj];
                 Matrix<double, K, 1> dp = y - x + pts[ind] - mu[ind];
-                ind_and_coords<K> & IC = all_IC[jj];
+                ind_and_coords & IC = all_IC[jj];
 
                 double varphi_at_y_minus_x = 0.0;
                 if ( dp.transpose() * (inv_Sigma[ind] * dp) < tau*tau )

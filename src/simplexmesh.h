@@ -26,77 +26,6 @@ using namespace KDT;
 using namespace AABB;
 
 
-inline VectorXd projected_affine_coordinates( const VectorXd & query,  // shape=(dim, 1)
-                                              const MatrixXd & points ) // shape=(dim, npts)
-{
-    int npts = points.cols();
-    VectorXd coords(npts);
-
-    if ( npts == 1 )
-    {
-        coords(0) = 1.0;
-    }
-    else if ( npts == 2 )
-    {
-        const VectorXd dv = points.col(1) - points.col(0);
-        coords(1) = dv.dot(query - points.col(0)) / dv.squaredNorm();
-        coords(0) = 1.0 - coords(1);
-    }
-    else
-    {
-        const MatrixXd dV = points.rightCols(npts-1).colwise() - points.col(0);
-//        double x = dV.colPivHouseholderQr();
-        coords.tail(npts-1) = dV.colPivHouseholderQr().solve(query - points.col(0)); // min_c ||dV*c - b||^2
-//        coords.tail(npts-1) = dV.householderQr().solve(query - points.col(0)); // min_c ||dV*c - b||^2
-        coords(0) = 1.0 - coords.tail(npts-1).sum();
-    }
-    return coords;
-}
-
-
-//int power_of_two( int k ) // x=2^k, with 2^0 = 1. Why does c++ not have this!?
-//{
-//    int x = 1;
-//    for ( int ii=1; ii<=k; ++ii )
-//    {
-//        x = 2*x;
-//    }
-//    return x;
-//}
-
-inline MatrixXd select_columns( const MatrixXd & A,    // shape=(N,M)
-                                const VectorXi & inds) // shape=(k,1)
-{
-    int N = A.rows();
-    int k = inds.size();
-    MatrixXd A_selected;
-    A_selected.resize(N, k);
-    for ( int ii=0; ii<k; ++ii)
-    {
-        A_selected.col(ii) = A.col(inds(ii));
-    }
-    return A_selected;
-}
-
-inline MatrixXd select_columns( const MatrixXd &                 A,           // shape=(N,M)
-                                const Matrix<bool, Dynamic, 1> & is_selected) // shape=(M,1)
-{
-    int N = A.rows();
-    int M = A.cols();
-    int K = is_selected.count();
-    MatrixXd A_selected;
-    A_selected.resize(N, K);
-    int kk = 0;
-    for ( int ii=0; ii<M; ++ii)
-    {
-        if ( is_selected(ii) )
-        {
-            A_selected.col(kk) = A.col(ii);
-            kk = kk + 1;
-        }
-    }
-    return A_selected;
-}
 
 
 vector<vector<int>> powerset(int N)
@@ -300,18 +229,15 @@ pair<VectorXd, VectorXd> compute_pointcloud_bounding_box( const MatrixXd & point
     return std::make_pair(box_min, box_max);
 }
 
-template <int K>
-struct ind_and_coords { int simplex_ind;
-                        Matrix<double, K+1, 1> affine_coords; };
+struct ind_and_coords { int      simplex_ind;
+                        VectorXd affine_coords; };
 
-template <int K>
+
 class SimplexMesh
 {
 private:
-    typedef Matrix<double, K, 1> KDVector;
-
-    Matrix<int,    K,   Dynamic> faces;    // boundary face simplices of dim K-1
-    vector<VectorXi>             subfaces; // sub-simplices of boundary faces of dim 0 through K-1 (includes boundary faces)
+    MatrixXi         faces;   // boundary face simplices of dimension dim-1. shape=(dim,num_faces)
+    vector<VectorXi> subfaces; // sub-simplices of boundary faces of dimension 0 through dim-1 (includes boundary faces)
 
     vector<VectorXi> face2subface;
 
@@ -322,8 +248,7 @@ private:
     vector< Simplex > cell_simplices;
     vector< Simplex > subface_simplices;
 
-    thread_pool pool;
-
+    int dim;
     int num_vertices;
     int num_cells;
     int num_faces;
@@ -333,15 +258,22 @@ private:
     int default_number_of_threads;
 
 public:
-    Matrix<double, K,   Dynamic> vertices;
-    Matrix<int,    K+1, Dynamic> cells;    // interior simplices of dim K
+    MatrixXd    vertices; // shape=(dim,num_vertices)
+    MatrixXi    cells;    // interior simplices of volumetric dimension. shape=(dim+1,num_cells)
+    thread_pool pool;
 
-    SimplexMesh( const Ref<const Matrix<double, K,   Dynamic>> input_vertices,
-                 const Ref<const Matrix<int   , K+1, Dynamic>> input_cells )
+    SimplexMesh( const Ref<const MatrixXd> input_vertices, // shape=(dim,num_vertices)
+                 const Ref<const MatrixXi> input_cells )   // shape=(dim+1,num_cells)
     {
         // ------------------------    Input checking and copying    ------------------------
+        dim = input_vertices.rows();
         num_vertices = input_vertices.cols();
         num_cells = input_cells.cols();
+
+        if ( input_cells.rows() != dim+1 )
+        {
+            throw std::invalid_argument( "simplices have wrong dimension." );
+        }
 
         if ( num_vertices < 1 )
         {
@@ -377,8 +309,8 @@ public:
         cell_simplices.resize(num_cells);
         for ( int ii=0; ii<num_cells; ++ii )
         {
-            Matrix<double, K, K+1> simplex_vertices;
-            for (int jj=0; jj<K+1; ++jj )
+            MatrixXd simplex_vertices(dim, dim+1);
+            for (int jj=0; jj<dim+1; ++jj )
             {
                 simplex_vertices.col(jj) = vertices.col(cells(jj, ii));
             }
@@ -389,27 +321,26 @@ public:
         }
 
         // Generate cell AABB tree
-        Matrix<double, K,   Dynamic> cell_box_mins(K, num_cells);
-        Matrix<double, K,   Dynamic> cell_box_maxes(K, num_cells);
+        MatrixXd cell_box_mins (dim, num_cells);
+        MatrixXd cell_box_maxes(dim, num_cells);
         for ( int ii=0; ii<num_cells; ++ii )
         {
             pair<VectorXd, VectorXd> BB = compute_pointcloud_bounding_box( cell_simplices[ii].V );
             cell_box_mins.col(ii) = BB.first;
             cell_box_maxes.col(ii) = BB.second;
         }
-//        cell_aabbtree = AABBTree( cell_box_mins, cell_box_maxes );
         cell_aabbtree.build_tree( cell_box_mins, cell_box_maxes );
 
 
         // ------------------------    FACES    ------------------------
-        // For all K-facets (K-1 dim simplex which has K vertices), compute how many cells they are part of.
-        map<vector<int>, int> Kfacet_counts; // Kfacet -> cell count
+        // For all faces (dim-1 dimensional simplex which has dim vertices), compute how many cells they are part of.
+        map<vector<int>, int> face_counts; // face -> cell count
         for ( int cc=0; cc<num_cells; ++cc )
         {
-            for ( int opposite_vertex_ind=0; opposite_vertex_ind<K+1; ++opposite_vertex_ind )
+            for ( int opposite_vertex_ind=0; opposite_vertex_ind<dim+1; ++opposite_vertex_ind )
             {
                 vector<int> face;
-                for ( int kk=0; kk<K+1; ++kk )
+                for ( int kk=0; kk<dim+1; ++kk )
                 {
                     if ( kk != opposite_vertex_ind )
                     {
@@ -418,24 +349,24 @@ public:
                 }
                 sort( face.begin(), face.end() ); // sort for comparison purposes
 
-                if ( Kfacet_counts.find(face) == Kfacet_counts.end() ) // if this face isnt in the map yet
+                if ( face_counts.find(face) == face_counts.end() ) // if this face isnt in the map yet
                 {
-                    Kfacet_counts[face] = 1;
+                    face_counts[face] = 1;
                 }
                 else
                 {
-                    Kfacet_counts[face] += 1;
+                    face_counts[face] += 1;
                 }
             }
         }
 
-        // Faces (K-facets on the boundary) are the K-facets that are part of only one K+1 dim cell
-        vector<Matrix<int, K, 1>> faces_vector;
-        for ( auto it = Kfacet_counts.begin(); it != Kfacet_counts.end(); ++it )
+        // Faces (faces on the boundary) are the faces that are part of only one cell
+        vector<VectorXi> faces_vector;
+        for ( auto it = face_counts.begin(); it != face_counts.end(); ++it )
         {
             vector<int> face = it->first;
-            Matrix<int, K, 1> F;
-            for ( int kk=0; kk<K; ++kk)
+            VectorXi F(dim);
+            for ( int kk=0; kk<dim; ++kk)
             {
                 F(kk) = face[kk];
             }
@@ -447,7 +378,7 @@ public:
         }
 
         num_faces = faces_vector.size();
-        faces.resize(K, num_faces);
+        faces.resize(dim, num_faces);
         for ( int ii=0; ii<num_faces; ++ii )
         {
             faces.col(ii) = faces_vector[ii];
@@ -458,14 +389,14 @@ public:
         set<int> face_vertex_inds;
         for ( int bb=0; bb<num_faces; ++bb )
         {
-            for ( int kk=0; kk<K; ++kk )
+            for ( int kk=0; kk<dim; ++kk )
             {
                 face_vertex_inds.insert(faces(kk, bb));
             }
         }
 
         int num_face_vertices = face_vertex_inds.size();
-        MatrixXd face_vertices(K,num_face_vertices);
+        MatrixXd face_vertices(dim,num_face_vertices);
         int vv=0;
         for ( auto it  = face_vertex_inds.begin();
                    it != face_vertex_inds.end();
@@ -474,17 +405,16 @@ public:
             face_vertices.col(vv) = vertices.col( *it );
             vv += 1;
         }
-//        face_kdtree = KDTree( face_vertices );
         face_kdtree.build_tree( face_vertices );
 
 
         // Create face AABB tree
-        Matrix<double, K,   Dynamic> face_box_mins(K, num_faces);
-        Matrix<double, K,   Dynamic> face_box_maxes(K, num_faces);
+        MatrixXd face_box_mins(dim, num_faces);
+        MatrixXd face_box_maxes(dim, num_faces);
         for ( int bb=0; bb<num_faces; ++bb )
         {
-            Matrix<double, K, K> face_vertices;
-            for (int jj=0; jj<K; ++jj )
+            MatrixXd face_vertices(dim,dim);
+            for (int jj=0; jj<dim; ++jj )
             {
                 face_vertices.col(jj) = vertices.col(faces(jj, bb));
             }
@@ -492,13 +422,12 @@ public:
             face_box_mins.col(bb) = BB.first;
             face_box_maxes.col(bb) = BB.second;
         }
-//        face_aabbtree = AABBTree( face_box_mins, face_box_maxes );
         face_aabbtree.build_tree( face_box_mins, face_box_maxes );
 
 
         // ------------------------    SUBFACES    ------------------------
         // Construct all boundary entities (faces-of-faces, etc)
-        vector<vector<int>> pset = powerset(K); // powerset(3) = [[], [0], [1], [0, 1], [2], [0, 2], [1, 2], [0, 1, 2]]
+        vector<vector<int>> pset = powerset(dim); // powerset(3) = [[], [0], [1], [0, 1], [2], [0, 2], [1, 2], [0, 1, 2]]
         map<vector<int>, vector<int>> subface2face_map;
         for ( int bb=0; bb<num_faces; ++bb )
         {
@@ -572,7 +501,7 @@ public:
         for ( int ee=0; ee<num_subfaces; ++ee )
         {
             int num_vertices_in_subface = subfaces[ee].size();
-            MatrixXd subface_vertices(K, num_vertices_in_subface);
+            MatrixXd subface_vertices(dim, num_vertices_in_subface);
             for (int vv=0; vv<num_vertices_in_subface; ++vv )
             {
                 subface_vertices.col(vv) = vertices.col(subfaces[ee](vv));
@@ -584,12 +513,12 @@ public:
         }
     }
 
-    inline bool point_is_in_mesh( KDVector query ) const
+    inline bool point_is_in_mesh( const VectorXd & query ) const
     {
         return (index_of_first_simplex_containing_point( query ) >= 0);
     }
 
-    Matrix<bool, Dynamic, 1> point_is_in_mesh_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_points ) const
+    Matrix<bool, Dynamic, 1> point_is_in_mesh_vectorized( const Ref<const MatrixXd> query_points ) const
     {
         int nquery = query_points.cols();
         Matrix<bool, Dynamic, 1> in_mesh;
@@ -601,9 +530,9 @@ public:
         return in_mesh;
     }
 
-    KDVector closest_point( const KDVector & query ) const
+    VectorXd closest_point( const VectorXd & query ) const
     {
-        KDVector closest_point = vertices.col(0);
+        VectorXd closest_point = vertices.col(0);
         if ( point_is_in_mesh( query ) )
         {
             closest_point = query;
@@ -617,7 +546,7 @@ public:
 
             // 2. Determine unique set of boundary entities to visit
             vector<int> entities;
-            entities.reserve(power_of_two(K));
+            entities.reserve(power_of_two(dim));
             for ( int ii=0; ii<face_inds.size(); ++ii )
             {
                 const VectorXi & subface_inds = face2subface[face_inds(ii)];
@@ -639,7 +568,7 @@ public:
                 VectorXd projected_affine_coords = E.A * query + E.b;
                 if ( (projected_affine_coords.array() >= 0.0).all() ) // projection is in subface simplex
                 {
-                    KDVector projected_query = E.V * projected_affine_coords;
+                    VectorXd projected_query = E.V * projected_affine_coords;
                     double dsq = (projected_query - query).squaredNorm();
                     if ( dsq < dsq_best )
                     {
@@ -652,11 +581,11 @@ public:
         return closest_point;
     }
 
-    Matrix<double, K, Dynamic> closest_point_vectorized( const Ref<const Matrix<double, K, Dynamic>> query_points )
+    MatrixXd closest_point_vectorized( const Ref<const MatrixXd> query_points )
     {
         int num_queries = query_points.cols();
-        Matrix<double, K, Dynamic> closest_points;
-        closest_points.resize(K, num_queries);
+        MatrixXd closest_points;
+        closest_points.resize(dim, num_queries);
 
         auto loop = [&](const int &a, const int &b)
         {
@@ -670,13 +599,13 @@ public:
         return closest_points;
     }
 
-    inline VectorXd simplex_coordinates( int simplex_ind, const KDVector query ) const
+    inline VectorXd simplex_coordinates( int simplex_ind, const VectorXd & query ) const
     {
           const Simplex & S = cell_simplices[simplex_ind];
           return S.A * query + S.b;
     }
 
-    inline int index_of_first_simplex_containing_point( const KDVector query ) const
+    inline int index_of_first_simplex_containing_point( const VectorXd & query ) const
     {
         VectorXi candidate_inds =  cell_aabbtree.point_collisions( query );
         int num_candidates = candidate_inds.size();
@@ -695,7 +624,7 @@ public:
         return ind;
     }
 
-    void get_simplex_ind_and_affine_coordinates_of_point( const KDVector & point, ind_and_coords<K> & IC ) const
+    void get_simplex_ind_and_affine_coordinates_of_point( const VectorXd & point, ind_and_coords & IC ) const
     {
         IC.simplex_ind = -1;
 
@@ -731,8 +660,8 @@ public:
     //   Points to evaluate finite element functions at:
     //      points = [[p1_x, p2_x, p3_x, ..., pM_x],
     //                [p1_y, p2_y, p3_y, ..., pM_y]]
-    //      - shape = (K, num_pts)
-    //      - K = spatial dimension
+    //      - shape = (dim, num_pts)
+    //      - dim = spatial dimension
     //      - pi = [pi_x, pi_y] is ith point
     //
     // OUTPUT:
@@ -742,7 +671,7 @@ public:
     //                            [h(p1), h(p2), ..., h(pM)]]
     //       - shape = (num_functions, num_pts)
     MatrixXd evaluate_functions_at_points( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
-                                           const Ref<const Matrix<double, K, Dynamic>> points ) // shape=(K, num_pts)
+                                           const Ref<const MatrixXd> points ) // shape=(dim, num_pts)
     {
         int num_functions = functions_at_vertices.rows();
         int num_pts = points.cols();
@@ -751,33 +680,15 @@ public:
         function_at_points.resize(num_functions, num_pts);
         function_at_points.setZero();
 
-//        Standard version (no multithreading)
-//        ind_and_coords IC;
-//        for ( int ii=0; ii<num_pts; ++ii )
-//        {
-//            get_simplex_ind_and_affine_coordinates_of_point( points.col(ii), IC );
-//            if ( IC.simplex_ind >= 0 ) // point is in mesh
-//            {
-//                for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
-//                {
-//                    int vv = cells(kk, IC.simplex_ind);
-//                    for ( int ll=0; ll<num_functions; ++ll ) // for each function
-//                    {
-//                        function_at_points(ll, ii) += IC.affine_coords(kk) * functions_at_vertices(ll, vv);
-//                    }
-//                }
-//            }
-//        }
-
         auto loop = [&](const int & start, const int & stop)
         {
-            ind_and_coords<K> IC;
+            ind_and_coords IC;
             for ( int ii=start; ii<stop; ++ii )
             {
                 get_simplex_ind_and_affine_coordinates_of_point( points.col(ii), IC );
                 if ( IC.simplex_ind >= 0 ) // point is in mesh
                 {
-                    for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+                    for ( int kk=0; kk<dim+1; ++kk ) // for simplex vertex
                     {
                         int vv = cells(kk, IC.simplex_ind);
                         for ( int ll=0; ll<num_functions; ++ll ) // for each function
@@ -790,13 +701,11 @@ public:
         };
 
         pool.parallelize_loop(0, num_pts, loop);
-//        cout << pool.get_thread_count() << endl;
-
         return function_at_points;
     }
 
     MatrixXd evaluate_functions_at_points_with_reflection( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
-                                                           const Ref<const Matrix<double, K, Dynamic>> points ) // shape=(K, num_pts)
+                                                           const Ref<const MatrixXd> points ) // shape=(dim, num_pts)
     {
         int num_functions = functions_at_vertices.rows();
         int num_pts = points.cols();
@@ -807,10 +716,10 @@ public:
 
         auto loop = [&](const int & start, const int & stop)
         {
-            ind_and_coords<K> IC;
+            ind_and_coords IC;
             for ( int ii=start; ii<stop; ++ii )
             {
-                KDVector point = points.col(ii);
+                VectorXd point = points.col(ii);
                 get_simplex_ind_and_affine_coordinates_of_point( point, IC );
 
                 if ( IC.simplex_ind < 0 ) // if point is outside mesh
@@ -821,7 +730,7 @@ public:
 
                 if ( IC.simplex_ind >= 0 ) // if point is inside mesh
                 {
-                    for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+                    for ( int kk=0; kk<dim+1; ++kk ) // for simplex vertex
                     {
                         int vv = cells(kk, IC.simplex_ind);
                         for ( int ll=0; ll<num_functions; ++ll ) // for each function
@@ -841,9 +750,9 @@ public:
 
     MatrixXd evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation(
         const Ref<const MatrixXd>                   functions_at_vertices,                 // shape=(num_functions, num_vertices)
-        const Ref<const Matrix<double, K, Dynamic>> points,                                // shape=(K, num_pts)
-        const vector<KDVector> &                    ellipsoid_means,                       // size=num_functions
-        const vector<Matrix<double, K, K>> &        ellipsoid_inverse_covariance_matrices, // size=num_functions
+        const Ref<const MatrixXd>                   points,                                // shape=(dim, num_pts)
+        const vector<VectorXd> &                    ellipsoid_means,                       // size=num_functions
+        const vector<MatrixXd> &        ellipsoid_inverse_covariance_matrices, // size=num_functions, each shape=(dim,dim)
         double                                      ellipsoid_tau )
     {
         int num_functions = functions_at_vertices.rows();
@@ -857,10 +766,10 @@ public:
 
         auto loop = [&](const int & start, const int & stop)
         {
-            ind_and_coords<K> IC;
+            ind_and_coords IC;
             for ( int ii=start; ii<stop; ++ii )
             {
-                KDVector point = points.col(ii);
+                VectorXd point = points.col(ii);
                 get_simplex_ind_and_affine_coordinates_of_point( point, IC );
 
                 if ( IC.simplex_ind < 0 ) // if point is outside mesh, reflect it across the boundary
@@ -875,9 +784,9 @@ public:
                     relevant_functions.reserve(num_functions);
                     for ( int ff=0; ff<num_functions; ++ff )
                     {
-                        const KDVector & mu = ellipsoid_means[ff];
-                        const Matrix<double, K, K> & M = ellipsoid_inverse_covariance_matrices[ff];
-                        KDVector z = point - mu;
+                        const VectorXd & mu = ellipsoid_means[ff];
+                        const MatrixXd & M  = ellipsoid_inverse_covariance_matrices[ff];
+                        VectorXd z = point - mu;
                         if ( z.transpose() * (M * z) < tau_squared )
                         {
                             relevant_functions.push_back(ff);
@@ -886,7 +795,7 @@ public:
 
                     if ( ! relevant_functions.empty() )
                     {
-                        for ( int kk=0; kk<K+1; ++kk ) // for simplex vertex
+                        for ( int kk=0; kk<dim+1; ++kk ) // for simplex vertex
                         {
                             int vv = cells(kk, IC.simplex_ind);
                             for ( int ff : relevant_functions )

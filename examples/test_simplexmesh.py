@@ -9,21 +9,21 @@ from nalger_helper_functions import circle_mesh, plot_ellipse
 
 hcpp = hpro.hpro_cpp
 
-npts = 3
-dim = 2
-
-points = np.random.randn(dim,npts)
-query = np.random.randn(dim)
-
-coords = hcpp.projected_affine_coordinates(query, points)
-
-print('coords=', coords)
-
-err_coords = np.linalg.norm(query - np.dot(points, coords))
-print('err_coords=', err_coords)
-
-err_affine_constraint = np.abs(1. - np.sum(coords))
-print('err_affine_constraint=', err_affine_constraint)
+# npts = 3
+# dim = 2
+#
+# points = np.random.randn(dim,npts)
+# query = np.random.randn(dim)
+#
+# coords = hcpp.projected_affine_coordinates(query, points)
+#
+# print('coords=', coords)
+#
+# err_coords = np.linalg.norm(query - np.dot(points, coords))
+# print('err_coords=', err_coords)
+#
+# err_affine_constraint = np.abs(1. - np.sum(coords))
+# print('err_affine_constraint=', err_affine_constraint)
 
 
 # CLOSEST POINT TO LINE SEGMENT
@@ -100,7 +100,7 @@ mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 0.25)
 vertices = np.array(mesh.coordinates().T, order='F')
 cells = np.array(mesh.cells().T, order='F')
 
-SM = hcpp.SimplexMesh2D(vertices, cells)
+SM = hcpp.SimplexMesh(vertices, cells)
 
 plt.figure()
 dl.plot(mesh)
@@ -121,7 +121,7 @@ nquery = 100
 mesh = circle_mesh(np.array([0.0, 0.0]), 1.0, 0.25)
 vertices = np.array(mesh.coordinates().T, order='F')
 cells = np.array(mesh.cells().T, order='F')
-SM = hcpp.SimplexMesh2D(vertices, cells)
+SM = hcpp.SimplexMesh(vertices, cells)
 
 plt.figure()
 dl.plot(mesh)
@@ -150,7 +150,7 @@ cells = np.array(mesh.cells().T, order='F')
 num_cells = cells.shape[1]
 
 t = time()
-SM = hcpp.SimplexMesh2D(vertices, cells)
+SM = hcpp.SimplexMesh(vertices, cells)
 dt_build_SM = time() - t
 print('num_cells=', num_cells, ', dt_build_SM=', dt_build_SM)
 
@@ -240,7 +240,7 @@ print('err_uu=', err_uu)
 
 vertices = np.array(mesh.coordinates().T, order='F')
 cells = np.array(mesh.cells().T, order='F')
-SM = hcpp.SimplexMesh2D(vertices, cells)
+SM = hcpp.SimplexMesh(vertices, cells)
 
 nquery = int(1e5)
 num_functions = 20
@@ -290,7 +290,7 @@ vertex2dof = dl.vertex_to_dof_map(V)
 
 vertices = np.array(mesh.coordinates().T, order='F')
 cells = np.array(mesh.cells().T, order='F')
-SM = hcpp.SimplexMesh2D(vertices, cells)
+SM = hcpp.SimplexMesh(vertices, cells)
 
 nx = 100
 ny = 100
@@ -363,7 +363,7 @@ vertex2dof = dl.vertex_to_dof_map(V)
 
 vertices = np.array(mesh.coordinates().T, order='F')
 cells = np.array(mesh.cells().T, order='F')
-SM = hcpp.SimplexMesh2D(vertices, cells)
+SM = hcpp.SimplexMesh(vertices, cells)
 
 nx = 100
 ny = 100
@@ -405,6 +405,19 @@ for ii in range(num_functions):
     plt.ylim(ymin, ymax)
     plt.gca().set_aspect('equal')
     plt.title('with reflection')
+
+# TIMING AFTER REMOVING TEMPLATED DIMENSION K
+# nquery= 100000 , dt_closest_point= 0.8269867897033691
+# asdf1
+# num_cells= 39478 , dt_build_SM= 0.24170398712158203
+# fraction_outside_mesh= 0.3627
+# nquery= 100000 , dt_closest_SM= 0.10088753700256348
+# err_uu= 1.808961479051732e-14
+# V.dim()= 20054 , nquery= 100000 , num_functions= 20 , dt_eval= 0.048201560974121094
+# V.dim()= 20054 , nquery= 100000 , num_functions= 20 , dt_eval= 0.048201560974121094 dt_eval_fenics= 24.346689701080322
+# err_eval_function= 9.178371715472322e-15
+# V.dim()= 20054 , nquery= 10000 , num_functions= 5 , dt_eval_reflection= 0.04037642478942871
+# V.dim()= 20054 , nquery= 10000 , num_functions= 2 , dt_eval_etrunc= 0.03749442100524902
 
 
 # TIMING BEFORE REMOVING TEMPLATED DIMENSION K

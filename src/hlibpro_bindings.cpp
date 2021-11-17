@@ -752,24 +752,23 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("ball_collisions", &AABBTree::ball_collisions)
         .def("ball_collisions_vectorized", &AABBTree::ball_collisions_vectorized);
 
-    py::class_<SimplexMesh<2>>(m, "SimplexMesh2D")
-        .def(py::init< const Ref<const Array<double, 2, Dynamic>>,
-                       const Ref<const Array<int, 3, Dynamic>> >())
-        .def("closest_point", &SimplexMesh<2>::closest_point)
-        .def("closest_point_vectorized", &SimplexMesh<2>::closest_point_vectorized)
-//        .def("closest_point_vectorized_multithreaded", &SimplexMesh<2>::closest_point_vectorized_multithreaded)
-        .def("point_is_in_mesh", &SimplexMesh<2>::point_is_in_mesh)
-        .def("point_is_in_mesh_vectorized", &SimplexMesh<2>::point_is_in_mesh_vectorized)
-        .def("index_of_first_simplex_containing_point", &SimplexMesh<2>::index_of_first_simplex_containing_point)
-        .def("evaluate_functions_at_points", &SimplexMesh<2>::evaluate_functions_at_points)
-        .def("set_sleep_duration", &SimplexMesh<2>::set_sleep_duration)
-        .def("reset_sleep_duration_to_default", &SimplexMesh<2>::reset_sleep_duration_to_default)
-        .def("set_thread_count", &SimplexMesh<2>::set_thread_count)
-        .def("reset_thread_count_to_default", &SimplexMesh<2>::reset_thread_count_to_default)
-        .def("evaluate_functions_at_points_with_reflection", &SimplexMesh<2>::evaluate_functions_at_points_with_reflection)
-        .def("evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation", &SimplexMesh<2>::evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation);
+    py::class_<SimplexMesh>(m, "SimplexMesh")
+        .def(py::init< const Ref<const MatrixXd>,
+                       const Ref<const MatrixXi> >())
+        .def("closest_point", &SimplexMesh::closest_point)
+        .def("closest_point_vectorized", &SimplexMesh::closest_point_vectorized)
+        .def("point_is_in_mesh", &SimplexMesh::point_is_in_mesh)
+        .def("point_is_in_mesh_vectorized", &SimplexMesh::point_is_in_mesh_vectorized)
+        .def("index_of_first_simplex_containing_point", &SimplexMesh::index_of_first_simplex_containing_point)
+        .def("evaluate_functions_at_points", &SimplexMesh::evaluate_functions_at_points)
+        .def("set_sleep_duration", &SimplexMesh::set_sleep_duration)
+        .def("reset_sleep_duration_to_default", &SimplexMesh::reset_sleep_duration_to_default)
+        .def("set_thread_count", &SimplexMesh::set_thread_count)
+        .def("reset_thread_count_to_default", &SimplexMesh::reset_thread_count_to_default)
+        .def("evaluate_functions_at_points_with_reflection", &SimplexMesh::evaluate_functions_at_points_with_reflection)
+        .def("evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation", &SimplexMesh::evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation);
 
-    m.def("projected_affine_coordinates", &projected_affine_coordinates);
+//    m.def("projected_affine_coordinates", &projected_affine_coordinates);
     m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);
     m.def("powerset", &powerset);
     m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
