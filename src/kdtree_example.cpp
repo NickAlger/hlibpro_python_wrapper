@@ -12,7 +12,7 @@ using namespace KDT;
 
 /*
 Compile and run commands for my computer (put your own eigen directory):
-g++ -o kdtree_example -I /home/nick/anaconda3/envs/fenics3/include/eigen3 -O3 src/kdtree_example.cpp
+g++ -std=c++17 -pthread -lpthread -o kdtree_example -I /home/nick/anaconda3/envs/fenics3/include/eigen3 -O3 src/kdtree_example.cpp
 ./kdtree_example
 */
 
@@ -129,7 +129,7 @@ int main()
     MatrixXd query_points2 = MatrixXd::Random(dim2, num_queries2);
 
     auto query_t1 = std::chrono::high_resolution_clock::now();
-    pair<MatrixXi, MatrixXd> result2 = kdtree2.query(query_points2, num_neighbors2); // <---- find nearest neighbors
+    pair<MatrixXi, MatrixXd> result2 = kdtree2.query_multithreaded(query_points2, num_neighbors2); // <---- find nearest neighbors
     auto query_t2 = std::chrono::high_resolution_clock::now();
 
     cout << "query time=" << std::chrono::duration_cast<std::chrono::milliseconds>(query_t2-query_t1).count() << "ms" << endl;
