@@ -173,87 +173,65 @@ public:
 
     VectorXi point_collisions( const VectorXd & query ) const
     {
-//        queue<int> boxes_under_consideration;
-//        boxes_under_consideration.push(0);
-        vector<int> boxes_under_consideration;
-        boxes_under_consideration.reserve(100);
-        boxes_under_consideration.push_back(0);
+        queue<int> boxes_under_consideration;
+        boxes_under_consideration.push(0);
 
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
+        int last_level = power_of_two_floor(num_boxes);
+        int parent_of_first_missing_node = (num_boxes-1) / 2;
+
         while ( !boxes_under_consideration.empty() )
         {
-//            int B = boxes_under_consideration.front();
-//            boxes_under_consideration.pop();
-            int B = boxes_under_consideration.back();
-            boxes_under_consideration.pop_back();
-
-            int B_level = power_of_two_floor(B+1);
-            int last_level = power_of_two_floor(num_boxes);
-
-            int jump2 = (last_level) / (B_level);
-            int jump1 = jump2 / 2;
-
-            int start1 = (B+1)*jump1 - 1;
-            int stop1  = (B+1)*jump1 - 1 + jump1;
-
-            int start2 = (B+1)*jump2 - 1;
-            int stop2  = (B+1)*jump2 - 1 + jump2;
-
-            if ( stop2 <= num_boxes ) // All leaf descendends are on last level
-            {
-                start1 = stop1;
-            }
-            else if ( start2 >= num_boxes ) // All leaf descendends are on second to last level
-            {
-                start2 = stop2;
-            }
-            else
-            {
-                start1 = (num_boxes-1) / 2;
-                stop2 = num_boxes;
-            }
-
-            int num_leaf_descendents = (stop2-start2) + (stop1-start1);
-
-//            cout << "B=" << B << ", num_boxes=" << num_boxes << ", num_leaf_descendents=" << num_leaf_descendents << endl
-//                 << "B_level=" << B_level << ", last_level=" << last_level << endl
-//                 << "jump1=" << jump1 << ", jump2=" << jump2 << endl
-//                 << "start1=" << start1 << ", stop1=" << stop1 << endl
-//                 << "start2=" << start2 << ", stop2=" << stop2 << endl << endl;
-
-            if ( num_leaf_descendents <= block_size )
-            {
-                if ( stop1 > start1 )
-                {
-                    Matrix<bool,Dynamic,1> queries_are_in_box =
-                        (box_mins .middleCols(start1, stop1-start1).array().colwise() - query.array() <= 0.0 ).colwise().all() &&
-                        (box_maxes.middleCols(start1, stop1-start1).array().colwise() - query.array() >= 0.0 ).colwise().all();
-                    for ( int ii=0; ii<stop1-start1; ++ii )
-                    {
-                        if ( queries_are_in_box(ii) )
-                        {
-                            collision_leafs.push_back(start1 + ii);
-                        }
-                    }
-                }
-
-                if ( stop2 > start2 )
-                {
-                    Matrix<bool,Dynamic,1> queries_are_in_box =
-                        (box_mins .middleCols(start2, stop2-start2).array().colwise() - query.array() <= 0.0 ).colwise().all() &&
-                        (box_maxes.middleCols(start2, stop2-start2).array().colwise() - query.array() >= 0.0 ).colwise().all();
-                    for ( int ii=0; ii<stop2-start2; ++ii )
-                    {
-                        if ( queries_are_in_box(ii) )
-                        {
-                            collision_leafs.push_back(start2 + ii);
-                        }
-                    }
-                }
-            }
-            else
+            int B = boxes_under_consideration.front();
+            boxes_under_consideration.pop();
+//
+//            int B_level = power_of_two_floor(B+1);
+//
+//            int jump2 = (last_level) / (B_level);
+//            int jump1 = jump2 / 2;
+//
+//            int candidate_start1 = (B+1)*jump1 - 1;
+//            int start1 = max(candidate_start1, parent_of_first_missing_node);
+//            int stop1  = candidate_start1 + jump1;
+//
+//            int start2 = (B+1)*jump2 - 1;
+//            int stop2  = min(start2 + jump2, num_boxes);
+//
+//            int num_leaf_descendents = max(0,stop2-start2) + max(0,stop1-start1);
+//
+//            if ( num_leaf_descendents <= block_size )
+//            {
+//                if ( stop1 > start1 )
+//                {
+//                    Matrix<bool,Dynamic,1> queries_are_in_box =
+//                        (box_mins .middleCols(start1, stop1-start1).array().colwise() - query.array() <= 0.0 ).colwise().all() &&
+//                        (box_maxes.middleCols(start1, stop1-start1).array().colwise() - query.array() >= 0.0 ).colwise().all();
+//                    for ( int ii=0; ii<stop1-start1; ++ii )
+//                    {
+//                        if ( queries_are_in_box(ii) )
+//                        {
+//                            collision_leafs.push_back(start1 + ii);
+//                        }
+//                    }
+//                }
+//
+//                if ( stop2 > start2 )
+//                {
+//                    Matrix<bool,Dynamic,1> queries_are_in_box =
+//                        (box_mins .middleCols(start2, stop2-start2).array().colwise() - query.array() <= 0.0 ).colwise().all() &&
+//                        (box_maxes.middleCols(start2, stop2-start2).array().colwise() - query.array() >= 0.0 ).colwise().all();
+//                    for ( int ii=0; ii<stop2-start2; ++ii )
+//                    {
+//                        if ( queries_are_in_box(ii) )
+//                        {
+//                            collision_leafs.push_back(start2 + ii);
+//                        }
+//                    }
+//                }
+//            }
+//            else
             {
                 bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
                                        (box_maxes.col(B).array() >= query.array()).all();
@@ -266,10 +244,8 @@ public:
                     }
                     else // current box is internal node
                     {
-                        boxes_under_consideration.push_back(2*B + 1);
-                        boxes_under_consideration.push_back(2*B + 2);
-//                        boxes_under_consideration.push(2*B + 1);
-//                        boxes_under_consideration.push(2*B + 2);
+                        boxes_under_consideration.push(2*B + 1);
+                        boxes_under_consideration.push(2*B + 2);
                     }
                 }
             }

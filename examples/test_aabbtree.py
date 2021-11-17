@@ -117,7 +117,7 @@ num_pts = int(1e7)
 
 print('num_boxes=', num_boxes, ', num_pts=', num_pts)
 
-box_area = 1. / num_boxes
+box_area = 1*(1. / num_boxes) # 30*(1. / num_boxes)
 box_h = np.power(box_area, 1./K)
 
 box_centers = np.random.randn(K, num_boxes)
