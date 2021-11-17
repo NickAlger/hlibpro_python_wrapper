@@ -738,7 +738,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< const Ref<const MatrixXd> >())
         .def_readwrite("block_size", &KDTree::block_size)
         .def("query", &KDTree::query, "many querys, many neighbor")
-        .def("query_vectorized", &KDTree::query_vectorized, "many querys, many neighbor");
+        .def("query_multithreaded", &KDTree::query_multithreaded, "many querys, many neighbor");
 
 
     py::class_<AABBTree>(m, "AABBTree")

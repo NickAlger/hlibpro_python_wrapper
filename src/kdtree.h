@@ -221,7 +221,7 @@ public:
         return make_pair(closest_point_inds, squared_distances);
     }
 
-    pair<MatrixXi, MatrixXd> query_vectorized( const Ref<const MatrixXd> query_points, int num_neighbors )
+    pair<MatrixXi, MatrixXd> query_multithreaded( const Ref<const MatrixXd> query_points, int num_neighbors )
     {
         int num_queries = query_points.cols();
 

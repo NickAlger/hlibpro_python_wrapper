@@ -69,6 +69,11 @@ KDT.query(qq_T, 1)
 dt_query_one = time() - t
 print('dt_query_one=', dt_query_one)
 
+t = time()
+KDT.query_multithreaded(qq_T, 1)
+dt_query_one_multithreaded = time() - t
+print('dt_query_one_multithreaded=', dt_query_one_multithreaded)
+
 
 t = time()
 KDT_scipy = KDTree(pp)
@@ -88,9 +93,9 @@ dt_query_many = time() - t
 print('dt_query_many=', dt_query_many)
 
 t = time()
-KDT.query_vectorized(qq_T, num_neighbors)
-dt_query_vectorized_many = time() - t
-print('dt_query_vectorized_many=', dt_query_vectorized_many)
+KDT.query_multithreaded(qq_T, num_neighbors)
+dt_query_multithreaded_many = time() - t
+print('dt_query_multithreaded_many=', dt_query_multithreaded_many)
 
 t = time()
 KDT_scipy.query(qq, num_neighbors)
@@ -98,13 +103,15 @@ dt_query_many_scipy = time() - t
 print('dt_query_many_scipy=', dt_query_many_scipy)
 
 # 11/16/21 AFTER THREAD POOLING
-# dt_build= 2.236119508743286
-# dt_query_one= 2.201246738433838
-# dt_build_scipy= 0.8691487312316895
-# dt_query_one_scipy= 3.302158832550049
-# dt_query_many= 6.396139860153198
-# dt_query_vectorized_many= 1.1097218990325928
-# dt_query_many_scipy= 8.90140175819397
+# K= 3 n_pts= 1000000 , n_query= 1000000 , num_neighbors= 10 , block_size= 32
+# dt_build= 2.2663416862487793
+# dt_query_one= 2.196108341217041
+# dt_query_one_multithreaded= 0.3906748294830322
+# dt_build_scipy= 0.8720104694366455
+# dt_query_one_scipy= 3.2524194717407227
+# dt_query_many= 6.171878337860107
+# dt_query_multithreaded_many= 1.152435541152954
+# dt_query_many_scipy= 8.431021451950073
 
 # 11/16/21 BEFORE THREAD POOLING
 # K= 3 n_pts= 1000000 , n_query= 1000000 , num_neighbors= 10 , block_size= 32

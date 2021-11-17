@@ -3,6 +3,7 @@ import hlibpro_python_wrapper as hpro
 from time import time
 import matplotlib.pyplot as plt
 from scipy.spatial import KDTree
+from tqdm.auto import tqdm
 
 from nalger_helper_functions import plot_ellipse, plot_rectangle
 
@@ -109,15 +110,59 @@ for kk in range(num_pts):
 
 print('bad_boxes_do_not_contain_points=', bad_boxes_do_not_contain_points)
 
+# Check correctness for many tree sizes
+
+num_pts = int(1e3)
+all_points_are_in_their_boxes = True
+bad_boxes_do_not_contain_points = True
+for num_boxes in tqdm(range(1,70)):
+    box_area = 1. / num_boxes
+    box_h = np.power(box_area, 1./K)
+
+    box_centers = np.random.randn(K, num_boxes)
+    box_widths = box_h * np.abs(np.random.randn(K, num_boxes))
+    b_mins = np.array(box_centers - box_widths, order='F')
+    b_maxes = np.array(box_centers + box_widths, order='F')
+
+    qq = np.array(np.random.randn(K, num_pts), order='F')
+
+    AABB = hcpp.AABBTree(b_mins, b_maxes)
+
+    all_box_inds = AABB.point_collisions_vectorized(qq)
+
+    for kk in range(num_pts):
+        qk = qq[:,kk]
+        box_inds = all_box_inds[kk]
+        qk_is_in_box = np.logical_and(np.all(b_mins[:, box_inds] <= qk[:, None]),
+                                      np.all(qk[:, None] <= b_maxes[:, box_inds]))
+        if not qk_is_in_box:
+            all_points_are_in_their_boxes = False
+            print('qk_is_in_box is false for kk=', kk, ', num_boxes=', num_boxes)
+
+    bad_boxes_do_not_contain_points = True
+    for kk in range(num_pts):
+        qk = qq[:,kk]
+        box_inds = all_box_inds[kk]
+        bad_box_inds = np.setdiff1d(np.arange(num_boxes, dtype=int), box_inds)
+        qk_is_in_bad_box = np.any(np.logical_and(np.all(b_mins[:, bad_box_inds] <= qk[:, None], axis=0),
+                                                 np.all(qk[:, None] <= b_maxes[:, bad_box_inds], axis=0)))
+        if qk_is_in_bad_box:
+            bad_boxes_do_not_contain_points = False
+            print('qk_is_in_bad_box for kk=', kk, ', num_boxes=', num_boxes)
+
+print('all_points_are_in_their_boxes=', all_points_are_in_their_boxes)
+print('bad_boxes_do_not_contain_points=', bad_boxes_do_not_contain_points)
+
 
 # More realistic setting, timing
 
+K=2
 num_boxes = int(1e5)
 num_pts = int(1e7)
 
 print('num_boxes=', num_boxes, ', num_pts=', num_pts)
 
-box_area = 1*(1. / num_boxes) # 30*(1. / num_boxes)
+box_area = 30*(1. / num_boxes) # 1*(1. / num_boxes)
 box_h = np.power(box_area, 1./K)
 
 box_centers = np.random.randn(K, num_boxes)
@@ -163,6 +208,7 @@ print('dt_point_collisions_vectorized=', dt_point_collisions_vectorized)
 # dt_point_collisions_vectorized= 17.75233292579651
 
 # ALL collisions (not just first one) HEAP + NO BLOCKING + THREAD POOL
+# box_area =  1*(1. / num_boxes)
 # num_boxes= 100000 , num_pts= 10000000
 # dt_build= 0.3343532085418701
 # dt_point_collisions_vectorized= 8.146560907363892
