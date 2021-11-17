@@ -9,6 +9,7 @@
 #include <Eigen/Dense>
 
 #include "thread-pool-master/thread_pool.hpp"
+#include "geometric_sort.h"
 
 
 namespace AABB {

@@ -6,7 +6,7 @@
 
 //#include <thread>
 //#include <execution>
-#include <chrono>
+//#include <chrono>
 
 #include "thread-pool-master/thread_pool.hpp"
 
@@ -15,7 +15,7 @@
 
 #include "kdtree.h"
 #include "aabbtree.h"
-#include "geometric_sort.h"
+//#include "geometric_sort.h"
 
 
 namespace SMESH {
