@@ -132,8 +132,6 @@ AABB = hcpp.AABBTree(b_mins, b_maxes)
 dt_build = time() - t
 print('dt_build=', dt_build)
 
-AABB.block_size = 32
-
 t = time()
 all_box_inds = AABB.point_collisions_vectorized(qq)
 dt_point_collisions_vectorized = time() - t
@@ -163,6 +161,11 @@ print('dt_point_collisions_vectorized=', dt_point_collisions_vectorized)
 # num_boxes= 100000 , num_pts= 10000000
 # dt_build= 0.3034336566925049
 # dt_point_collisions_vectorized= 17.75233292579651
+
+# ALL collisions (not just first one) HEAP + NO BLOCKING + THREAD POOL
+# num_boxes= 100000 , num_pts= 10000000
+# dt_build= 0.3343532085418701
+# dt_point_collisions_vectorized= 8.146560907363892
 
 # Ball query
 
@@ -226,6 +229,9 @@ dt_ball = time() - t
 print('num_boxes=', num_boxes, ', num_balls=', num_balls, ', dt_ball=', dt_ball)
 
 # np.mean([len(x) for x in all_collisions])
+
+# AFTER adding thread pooling 11/16/21
+# num_boxes= 100000 , num_balls= 1000000 , dt_ball= 1.9799399375915527
 
 # AFTER removing templated dimension, plus using FIFO queue instead of vector 11/12/21
 # num_boxes= 100000 , num_balls= 1000000 , dt_ball= 6.3552868366241455

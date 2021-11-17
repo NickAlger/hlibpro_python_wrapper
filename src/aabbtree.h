@@ -8,6 +8,8 @@
 #include <math.h>
 #include <Eigen/Dense>
 
+#include "thread-pool-master/thread_pool.hpp"
+
 using namespace Eigen;
 using namespace std;
 
@@ -104,10 +106,18 @@ private:
     MatrixXd           box_maxes;
 
 public:
+    thread_pool pool;
+
     AABBTree( ) {}
 
     AABBTree( const Ref<const MatrixXd> input_box_mins,
               const Ref<const MatrixXd> input_box_maxes )
+    {
+        build_tree(input_box_mins, input_box_maxes);
+    }
+
+    void build_tree( const Ref<const MatrixXd> input_box_mins,
+                     const Ref<const MatrixXd> input_box_maxes )
     {
         dim            = input_box_mins.rows();
         num_leaf_boxes = input_box_mins.cols();
@@ -249,28 +259,39 @@ public:
         return collision_leafs_external_indexing;
     }
 
-    vector<VectorXi> point_collisions_vectorized( const MatrixXd & query_points) const
+    vector<VectorXi> point_collisions_vectorized( const MatrixXd & query_points)
     {
         int num_points = query_points.cols();
         vector<VectorXi> all_collisions(num_points);
-        for ( int ii=0; ii<num_points; ++ii )
+
+        auto loop = [&](const int &a, const int &b)
         {
-            all_collisions[ii] = point_collisions( query_points.col(ii) );
-        }
+            for ( int ii=a; ii<b; ++ii )
+            {
+                all_collisions[ii] = point_collisions( query_points.col(ii) );
+            }
+        };
+
+        pool.parallelize_loop(0, num_points, loop);
         return all_collisions;
     }
 
     vector<VectorXi> ball_collisions_vectorized( const Ref<const MatrixXd> centers,
-                                                 const Ref<const VectorXd> radii ) const
+                                                 const Ref<const VectorXd> radii )
     {
         int num_balls = centers.cols();
         vector<VectorXi> all_collisions(num_balls);
-        for ( int ii=0; ii<num_balls; ++ii )
+
+        auto loop = [&](const int &a, const int &b)
         {
-            all_collisions[ii] = ball_collisions( centers.col(ii), radii(ii) );
-        }
+            for ( int ii=a; ii<b; ++ii )
+            {
+                all_collisions[ii] = ball_collisions( centers.col(ii), radii(ii) );
+            }
+        };
+
+        pool.parallelize_loop(0, num_balls, loop);
         return all_collisions;
     }
 
 };
-

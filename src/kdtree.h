@@ -8,6 +8,8 @@
 #include <math.h>
 #include <Eigen/Dense>
 
+#include "thread-pool-master/thread_pool.hpp"
+
 using namespace Eigen;
 using namespace std;
 
@@ -143,12 +145,48 @@ private:
         }
     }
 
+    void query_one( MatrixXi &                  closest_point_inds,
+                    MatrixXd &                  squared_distances,
+                    const Ref<const MatrixXd> & query_points,
+                    const int num_neighbors,
+                    const int ii ) const
+    {
+            vector<int> visited_inds;
+            visited_inds.reserve(10*num_neighbors);
+
+            vector<double> visited_distances;
+            visited_distances.reserve(10*num_neighbors);
+
+            vector<double> container;
+            container.reserve(2*num_neighbors);
+            priority_queue<double, vector<double>> best_squared_distances(less<double>(), move(container));
+
+            query_subtree( query_points.col(ii), visited_inds, visited_distances, best_squared_distances, 0, num_pts, 0, num_neighbors );
+
+            vector<int> sort_inds(visited_distances.size());
+            iota(sort_inds.begin(), sort_inds.end(), 0);
+            sort(sort_inds.begin(), sort_inds.end(),
+                 [&](int aa, int bb){return visited_distances[aa] < visited_distances[bb];});
+
+            for ( int jj=0; jj<num_neighbors; ++jj )
+            {
+                closest_point_inds(jj,ii) = perm_i2e(visited_inds[sort_inds[jj]]);
+                squared_distances(jj,ii) = visited_distances[sort_inds[jj]];
+            }
+    }
+
 public:
-    int block_size = 32;
+    int         block_size = 32;
+    thread_pool pool;
 
     KDTree( ) {}
 
     KDTree( const Ref<const MatrixXd> input_points )
+    {
+        build_tree(input_points);
+    }
+
+    void build_tree( const Ref<const MatrixXd> input_points )
     {
         dim = input_points.rows();
         num_pts = input_points.cols();
@@ -178,29 +216,27 @@ public:
 
         for ( int ii=0; ii<num_queries; ++ii )
         {
-            vector<int> visited_inds;
-            visited_inds.reserve(10*num_neighbors);
-
-            vector<double> visited_distances;
-            visited_distances.reserve(10*num_neighbors);
-
-            vector<double> container;
-            container.reserve(2*num_neighbors);
-            priority_queue<double, vector<double>> best_squared_distances(less<double>(), move(container));
-
-            query_subtree( query_points.col(ii), visited_inds, visited_distances, best_squared_distances, 0, num_pts, 0, num_neighbors );
-
-            vector<int> sort_inds(visited_distances.size());
-            iota(sort_inds.begin(), sort_inds.end(), 0);
-            sort(sort_inds.begin(), sort_inds.end(),
-                 [&](int aa, int bb){return visited_distances[aa] < visited_distances[bb];});
-
-            for ( int jj=0; jj<num_neighbors; ++jj )
-            {
-                closest_point_inds(jj,ii) = perm_i2e(visited_inds[sort_inds[jj]]);
-                squared_distances(jj,ii) = visited_distances[sort_inds[jj]];
-            }
+            query_one(closest_point_inds, squared_distances, query_points, num_neighbors, ii);
         }
+        return make_pair(closest_point_inds, squared_distances);
+    }
+
+    pair<MatrixXi, MatrixXd> query_vectorized( const Ref<const MatrixXd> query_points, int num_neighbors )
+    {
+        int num_queries = query_points.cols();
+
+        MatrixXi closest_point_inds(num_neighbors, num_queries);
+        MatrixXd squared_distances(num_neighbors, num_queries);
+
+        auto loop = [&](const int &a, const int &b)
+        {
+            for ( int ii=a; ii<b; ++ii )
+            {
+                query_one(closest_point_inds, squared_distances, query_points, num_neighbors, ii);
+            }
+        };
+
+        pool.parallelize_loop(0, num_queries, loop);
         return make_pair(closest_point_inds, squared_distances);
     }
 

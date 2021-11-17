@@ -88,10 +88,32 @@ dt_query_many = time() - t
 print('dt_query_many=', dt_query_many)
 
 t = time()
+KDT.query_vectorized(qq_T, num_neighbors)
+dt_query_vectorized_many = time() - t
+print('dt_query_vectorized_many=', dt_query_vectorized_many)
+
+t = time()
 KDT_scipy.query(qq, num_neighbors)
 dt_query_many_scipy = time() - t
 print('dt_query_many_scipy=', dt_query_many_scipy)
 
+# 11/16/21 AFTER THREAD POOLING
+# dt_build= 2.236119508743286
+# dt_query_one= 2.201246738433838
+# dt_build_scipy= 0.8691487312316895
+# dt_query_one_scipy= 3.302158832550049
+# dt_query_many= 6.396139860153198
+# dt_query_vectorized_many= 1.1097218990325928
+# dt_query_many_scipy= 8.90140175819397
+
+# 11/16/21 BEFORE THREAD POOLING
+# K= 3 n_pts= 1000000 , n_query= 1000000 , num_neighbors= 10 , block_size= 32
+# dt_build= 1.8702449798583984
+# dt_query_one= 2.0514936447143555
+# dt_build_scipy= 0.6923236846923828
+# dt_query_one_scipy= 3.2761380672454834
+# dt_query_many= 5.77819561958313
+# dt_query_many_scipy= 7.658422470092773
 
 # Resulting output 11/12/21, after making code N-dimensional, removing one query:
 # err_nearest= 0.0

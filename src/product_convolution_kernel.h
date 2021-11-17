@@ -61,7 +61,8 @@ public:
         {
             pts_matrix.col(ii) = pts[ii];
         }
-        kdtree = KDTree(pts_matrix);
+//        kdtree = KDTree(pts_matrix);
+        kdtree.build_tree(pts_matrix);
     }
 
     int num_pts()

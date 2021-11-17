@@ -392,7 +392,8 @@ public:
             cell_box_mins.col(ii) = BB.first;
             cell_box_maxes.col(ii) = BB.second;
         }
-        cell_aabbtree = AABBTree( cell_box_mins, cell_box_maxes );
+//        cell_aabbtree = AABBTree( cell_box_mins, cell_box_maxes );
+        cell_aabbtree.build_tree( cell_box_mins, cell_box_maxes );
 
 
         // ------------------------    FACES    ------------------------
@@ -468,7 +469,8 @@ public:
             face_vertices.col(vv) = vertices.col( *it );
             vv += 1;
         }
-        face_kdtree = KDTree( face_vertices );
+//        face_kdtree = KDTree( face_vertices );
+        face_kdtree.build_tree( face_vertices );
 
 
         // Create face AABB tree
@@ -485,7 +487,8 @@ public:
             face_box_mins.col(bb) = BB.first;
             face_box_maxes.col(bb) = BB.second;
         }
-        face_aabbtree = AABBTree( face_box_mins, face_box_maxes );
+//        face_aabbtree = AABBTree( face_box_mins, face_box_maxes );
+        face_aabbtree.build_tree( face_box_mins, face_box_maxes );
 
 
         // ------------------------    SUBFACES    ------------------------
@@ -659,7 +662,6 @@ public:
         };
 
         pool.parallelize_loop(0, num_queries, loop);
-
         return closest_points;
     }
 
