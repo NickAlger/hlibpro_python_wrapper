@@ -12,7 +12,7 @@ using namespace AABB;
 
 /*
 Compile and run commands for my computer (put your own eigen directory):
-g++ -std=c++17 -pthread -lpthread -o aabbtree_example -I /home/nick/anaconda3/envs/fenics3/include/eigen3 -O3 src/aabbtree_example.cpp
+g++ -std=c++17 -pthread -o aabbtree_example -I /home/nick/anaconda3/envs/fenics3/include/eigen3 -O3 src/aabbtree_example.cpp
 ./aabbtree_example
 */
 
