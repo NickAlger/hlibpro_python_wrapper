@@ -18,7 +18,7 @@ g++ -std=c++17 -pthread -lpthread -o kdtree_example -I /home/nick/anaconda3/envs
 
 int main()
 {
-    constexpr int dim = 2; // spatial dimension
+    int dim = 2; // spatial dimension
     int num_points = 10;
     int num_queries = 5;
     int num_neighbors = 3;
@@ -33,7 +33,7 @@ int main()
     MatrixXd squared_distances = result.second; // shape=(num_neighbors, num_queries)
 
 
-    //
+    // PRINT RESULTS
 
     cout << "indices of nearest " << num_neighbors << " points to " << num_queries << " query points:" << endl;
     cout << inds << endl;
@@ -128,10 +128,17 @@ int main()
 
     MatrixXd query_points2 = MatrixXd::Random(dim2, num_queries2);
 
+    // Single threaded version
     auto query_t1 = std::chrono::high_resolution_clock::now();
-    pair<MatrixXi, MatrixXd> result2 = kdtree2.query_multithreaded(query_points2, num_neighbors2); // <---- find nearest neighbors
+    pair<MatrixXi, MatrixXd> result2 = kdtree2.query(query_points2, num_neighbors2); // <---- find nearest neighbors
     auto query_t2 = std::chrono::high_resolution_clock::now();
 
     cout << "query time=" << std::chrono::duration_cast<std::chrono::milliseconds>(query_t2-query_t1).count() << "ms" << endl;
 
+    // Multithreaded version
+    query_t1 = std::chrono::high_resolution_clock::now();
+    result2 = kdtree2.query_multithreaded(query_points2, num_neighbors2); // <---- multithreaded version
+    query_t2 = std::chrono::high_resolution_clock::now();
+
+    cout << "multithreaded query time=" << std::chrono::duration_cast<std::chrono::milliseconds>(query_t2-query_t1).count() << "ms" << endl;
 }

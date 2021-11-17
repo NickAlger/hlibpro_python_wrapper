@@ -13,24 +13,23 @@
 
 namespace KDT {
 
-using namespace Eigen;
-using namespace std;
+//using namespace std;
 
 class KDTree
 {
 private:
-    int            num_pts;
-    int            dim; // spatial dimension
-    MatrixXd       points; // points_array.col(ii) is ith point (in internal ordering)
-    VectorXd       splitting_coords; // coordinates of midpoints along chosen axes
-    VectorXi       perm_i2e; // permutation from internal ordering to external ordering
+    int             num_pts;
+    int             dim; // spatial dimension
+    Eigen::MatrixXd points; // points_array.col(ii) is ith point (in internal ordering)
+    Eigen::VectorXd splitting_coords; // coordinates of midpoints along chosen axes
+    Eigen::VectorXi perm_i2e; // permutation from internal ordering to external ordering
 
     // creates subtree and returns the index for root of subtree
-    void make_subtree( int           start,
-                       int           stop,
-                       int           depth,
-                       const Ref<const MatrixXd> input_points,
-                       vector<int> & working_perm_i2e )
+    void make_subtree( int                                     start,
+                       int                                     stop,
+                       int                                     depth,
+                       const Eigen::Ref<const Eigen::MatrixXd> input_points,
+                       std::vector<int> &                      working_perm_i2e )
     {
         int num_pts_local = stop - start;
         if ( num_pts_local > 0 )
@@ -38,8 +37,9 @@ private:
             int axis = depth % dim;
             int mid = start + (num_pts_local / 2);
 
-            sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
-                [&axis,&input_points](int ii, int jj) {return input_points(axis,ii) < input_points(axis,jj);} );
+            std::sort( working_perm_i2e.begin() + start, working_perm_i2e.begin() + stop,
+                [&axis,&input_points](int ii, int jj)
+                    {return input_points(axis,ii) < input_points(axis,jj);} );
 
             splitting_coords(mid) = input_points(axis, working_perm_i2e[mid]);
 
@@ -53,18 +53,18 @@ private:
     }
 
     // finds num_neighbors nearest neighbors of query in subtree
-    void query_subtree( const VectorXd &                         query_point,
-                        vector<int> &                            visited_inds,
-                        vector<double> &                         visited_distances,
-                        priority_queue<double, vector<double>> & best_squared_distances,
-                        int                                      start,
-                        int                                      stop,
-                        int                                      depth,
-                        int                                      num_neighbors ) const
+    void query_subtree( const Eigen::VectorXd &                            query_point,
+                        std::vector<int> &                                 visited_inds,
+                        std::vector<double> &                              visited_distances,
+                        std::priority_queue<double, std::vector<double>> & best_squared_distances,
+                        int                                                start,
+                        int                                                stop,
+                        int                                                depth,
+                        int                                                num_neighbors ) const
     {
         if ( stop - start <= block_size )
         {
-            VectorXd dsqs = (points.middleCols(start, stop - start).colwise() - query_point).colwise().squaredNorm();
+            Eigen::VectorXd dsqs = (points.middleCols(start, stop - start).colwise() - query_point).colwise().squaredNorm();
             for ( int ii=0; ii<dsqs.size(); ++ii )
             {
                 int ind = start + ii;
@@ -147,28 +147,28 @@ private:
         }
     }
 
-    void query_one( MatrixXi &                  closest_point_inds,
-                    MatrixXd &                  squared_distances,
-                    const Ref<const MatrixXd> & query_points,
-                    const int num_neighbors,
-                    const int ii ) const
+    void query_one( Eigen::MatrixXi &                         closest_point_inds,
+                    Eigen::MatrixXd &                         squared_distances,
+                    const Eigen::Ref<const Eigen::MatrixXd> & query_points,
+                    const int                                 num_neighbors,
+                    const int                                 ii ) const
     {
-            vector<int> visited_inds;
+            std::vector<int> visited_inds;
             visited_inds.reserve(10*num_neighbors);
 
-            vector<double> visited_distances;
+            std::vector<double> visited_distances;
             visited_distances.reserve(10*num_neighbors);
 
-            vector<double> container;
+            std::vector<double> container;
             container.reserve(2*num_neighbors);
-            priority_queue<double, vector<double>> best_squared_distances(less<double>(), move(container));
+            std::priority_queue<double, std::vector<double>> best_squared_distances(std::less<double>(), std::move(container));
 
             query_subtree( query_points.col(ii), visited_inds, visited_distances, best_squared_distances, 0, num_pts, 0, num_neighbors );
 
-            vector<int> sort_inds(visited_distances.size());
-            iota(sort_inds.begin(), sort_inds.end(), 0);
-            sort(sort_inds.begin(), sort_inds.end(),
-                 [&](int aa, int bb){return visited_distances[aa] < visited_distances[bb];});
+            std::vector<int> sort_inds(visited_distances.size());
+            std::iota(sort_inds.begin(), sort_inds.end(), 0);
+            std::sort(sort_inds.begin(), sort_inds.end(),
+                [&](int aa, int bb){return visited_distances[aa] < visited_distances[bb];});
 
             for ( int jj=0; jj<num_neighbors; ++jj )
             {
@@ -183,18 +183,18 @@ public:
 
     KDTree( ) {}
 
-    KDTree( const Ref<const MatrixXd> input_points )
+    KDTree( const Eigen::Ref<const Eigen::MatrixXd> input_points )
     {
         build_tree(input_points);
     }
 
-    void build_tree( const Ref<const MatrixXd> input_points )
+    void build_tree( const Eigen::Ref<const Eigen::MatrixXd> input_points )
     {
         dim = input_points.rows();
         num_pts = input_points.cols();
 
-        vector<int> working_perm_i2e(num_pts);
-        iota(working_perm_i2e.begin(), working_perm_i2e.end(), 0);
+        std::vector<int> working_perm_i2e(num_pts);
+        std::iota(working_perm_i2e.begin(), working_perm_i2e.end(), 0);
 
         splitting_coords.resize(num_pts);
 
@@ -209,26 +209,28 @@ public:
         }
     }
 
-    pair<MatrixXi, MatrixXd> query( const Ref<const MatrixXd> query_points, int num_neighbors ) const
+    std::pair<Eigen::MatrixXi, Eigen::MatrixXd> query( const Eigen::Ref<const Eigen::MatrixXd> query_points,
+                                                       int                                     num_neighbors ) const
     {
         int num_queries = query_points.cols();
 
-        MatrixXi closest_point_inds(num_neighbors, num_queries);
-        MatrixXd squared_distances(num_neighbors, num_queries);
+        Eigen::MatrixXi closest_point_inds(num_neighbors, num_queries);
+        Eigen::MatrixXd squared_distances(num_neighbors, num_queries);
 
         for ( int ii=0; ii<num_queries; ++ii )
         {
             query_one(closest_point_inds, squared_distances, query_points, num_neighbors, ii);
         }
-        return make_pair(closest_point_inds, squared_distances);
+        return std::make_pair(closest_point_inds, squared_distances);
     }
 
-    pair<MatrixXi, MatrixXd> query_multithreaded( const Ref<const MatrixXd> query_points, int num_neighbors )
+    std::pair<Eigen::MatrixXi, Eigen::MatrixXd> query_multithreaded( const Eigen::Ref<const Eigen::MatrixXd> query_points,
+                                                                     int                                     num_neighbors )
     {
         int num_queries = query_points.cols();
 
-        MatrixXi closest_point_inds(num_neighbors, num_queries);
-        MatrixXd squared_distances(num_neighbors, num_queries);
+        Eigen::MatrixXi closest_point_inds(num_neighbors, num_queries);
+        Eigen::MatrixXd squared_distances(num_neighbors, num_queries);
 
         auto loop = [&](const int &a, const int &b)
         {
@@ -239,7 +241,7 @@ public:
         };
 
         pool.parallelize_loop(0, num_queries, loop);
-        return make_pair(closest_point_inds, squared_distances);
+        return std::make_pair(closest_point_inds, squared_distances);
     }
 
 };
