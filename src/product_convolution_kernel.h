@@ -15,6 +15,8 @@ using namespace Eigen;
 using namespace std;
 
 using namespace HLIB;
+using namespace SMESH;
+//using namespace KDT;
 
 #if HLIB_SINGLE_PREC == 1
 using  real_t = float;
@@ -45,7 +47,7 @@ public:
 
     double                 tau;
     int                    num_neighbors;
-    KDTree              kdtree;
+    KDTree                 kdtree;
 
     ImpulseResponseBatches( const Ref<const Matrix<double, K,   Dynamic>> mesh_vertices,
                             const Ref<const Matrix<int   , K+1, Dynamic>> mesh_cells,

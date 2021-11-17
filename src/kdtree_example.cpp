@@ -8,6 +8,7 @@
 
 using namespace Eigen;
 using namespace std;
+using namespace KDT;
 
 /*
 Compile and run commands for my computer (put your own eigen directory):
@@ -23,7 +24,7 @@ int main()
     int num_neighbors = 3;
 
     MatrixXd points = MatrixXd::Random(dim, num_points);
-    KDTree kdtree(points); // <----------------------------------------------------- Build the kd-tree
+    KDTree kdtree = KDTree(points); // <----------------------------------------------------- Build the kd-tree
 
     MatrixXd query_points = MatrixXd::Random(dim, num_queries);
     pair<MatrixXi, MatrixXd> result = kdtree.query(query_points, num_neighbors); // <---- find nearest neighbors
@@ -120,7 +121,7 @@ int main()
     MatrixXd points2 = MatrixXd::Random(dim2, num_points2);
 
     auto build_t1 = std::chrono::high_resolution_clock::now();
-    KDTree kdtree2(points2); // <----------------------------------------------------- Build the kd-tree
+    KDTree kdtree2 = KDTree(points2); // <----------------------------------------------------- Build the kd-tree
     auto build_t2 = std::chrono::high_resolution_clock::now();
 
     cout << "build time=" << std::chrono::duration_cast<std::chrono::milliseconds>(build_t2-build_t1).count() << "ms" << endl;

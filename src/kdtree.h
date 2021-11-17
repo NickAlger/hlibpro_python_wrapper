@@ -10,9 +10,10 @@
 
 #include "thread-pool-master/thread_pool.hpp"
 
+namespace KDT {
+
 using namespace Eigen;
 using namespace std;
-
 
 class KDTree
 {
@@ -242,3 +243,4 @@ public:
 
 };
 
+} // end namespace AABB

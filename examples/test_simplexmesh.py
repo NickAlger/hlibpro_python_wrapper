@@ -405,3 +405,20 @@ for ii in range(num_functions):
     plt.ylim(ymin, ymax)
     plt.gca().set_aspect('equal')
     plt.title('with reflection')
+
+
+# TIMING BEFORE REMOVING TEMPLATED DIMENSION K
+# coords= [-2.26117588  3.6123003  -0.35112442]
+# err_coords= 2.220446049250313e-16
+# err_affine_constraint= 2.220446049250313e-16
+# nquery= 100000 , dt_closest_point= 0.8168816566467285
+# asdf1
+# num_cells= 39478 , dt_build_SM= 0.24517488479614258
+# fraction_outside_mesh= 0.35912
+# nquery= 100000 , dt_closest_SM= 0.07282233238220215
+# err_uu= 1.808961479051732e-14
+# V.dim()= 20054 , nquery= 100000 , num_functions= 20 , dt_eval= 0.04496169090270996
+# V.dim()= 20054 , nquery= 100000 , num_functions= 20 , dt_eval= 0.04496169090270996 dt_eval_fenics= 23.492988348007202
+# err_eval_function= 9.253898163209867e-15
+# V.dim()= 20054 , nquery= 10000 , num_functions= 5 , dt_eval_reflection= 0.028449296951293945
+# V.dim()= 20054 , nquery= 10000 , num_functions= 2 , dt_eval_etrunc= 0.0235598087310791

@@ -10,9 +10,11 @@
 
 #include "thread-pool-master/thread_pool.hpp"
 
+
+namespace AABB {
+
 using namespace Eigen;
 using namespace std;
-
 
 int biggest_axis_of_box( const VectorXd box_min, const VectorXd box_max )
 {
@@ -295,3 +297,5 @@ public:
     }
 
 };
+
+} // end namespace AABB

@@ -32,6 +32,9 @@ namespace py = pybind11;
 
 using namespace std;
 using namespace HLIB;
+using namespace KDT;
+using namespace AABB;
+using namespace SMESH;
 
 #if HLIB_SINGLE_PREC == 1
 using  real_t = float;

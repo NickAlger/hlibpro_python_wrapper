@@ -17,8 +17,13 @@
 #include "aabbtree.h"
 #include "geometric_sort.h"
 
+
+namespace SMESH {
+
 using namespace Eigen;
 using namespace std;
+using namespace KDT;
+using namespace AABB;
 
 
 inline VectorXd projected_affine_coordinates( const VectorXd & query,  // shape=(dim, 1)
@@ -922,6 +927,6 @@ public:
 
 };
 
-
+} // end namespace SMESH
 
 
