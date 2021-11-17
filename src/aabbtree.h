@@ -104,8 +104,6 @@ private:
     MatrixXd           box_maxes;
 
 public:
-    int block_size = 32;
-
     AABBTree( ) {}
 
     AABBTree( const Ref<const MatrixXd> input_box_mins,
@@ -179,74 +177,23 @@ public:
         vector<int> collision_leafs;
         collision_leafs.reserve(100);
 
-        int last_level = power_of_two_floor(num_boxes);
-        int parent_of_first_missing_node = (num_boxes-1) / 2;
-
         while ( !boxes_under_consideration.empty() )
         {
             int B = boxes_under_consideration.front();
             boxes_under_consideration.pop();
-//
-//            int B_level = power_of_two_floor(B+1);
-//
-//            int jump2 = (last_level) / (B_level);
-//            int jump1 = jump2 / 2;
-//
-//            int candidate_start1 = (B+1)*jump1 - 1;
-//            int start1 = max(candidate_start1, parent_of_first_missing_node);
-//            int stop1  = candidate_start1 + jump1;
-//
-//            int start2 = (B+1)*jump2 - 1;
-//            int stop2  = min(start2 + jump2, num_boxes);
-//
-//            int num_leaf_descendents = max(0,stop2-start2) + max(0,stop1-start1);
-//
-//            if ( num_leaf_descendents <= block_size )
-//            {
-//                if ( stop1 > start1 )
-//                {
-//                    Matrix<bool,Dynamic,1> queries_are_in_box =
-//                        (box_mins .middleCols(start1, stop1-start1).array().colwise() - query.array() <= 0.0 ).colwise().all() &&
-//                        (box_maxes.middleCols(start1, stop1-start1).array().colwise() - query.array() >= 0.0 ).colwise().all();
-//                    for ( int ii=0; ii<stop1-start1; ++ii )
-//                    {
-//                        if ( queries_are_in_box(ii) )
-//                        {
-//                            collision_leafs.push_back(start1 + ii);
-//                        }
-//                    }
-//                }
-//
-//                if ( stop2 > start2 )
-//                {
-//                    Matrix<bool,Dynamic,1> queries_are_in_box =
-//                        (box_mins .middleCols(start2, stop2-start2).array().colwise() - query.array() <= 0.0 ).colwise().all() &&
-//                        (box_maxes.middleCols(start2, stop2-start2).array().colwise() - query.array() >= 0.0 ).colwise().all();
-//                    for ( int ii=0; ii<stop2-start2; ++ii )
-//                    {
-//                        if ( queries_are_in_box(ii) )
-//                        {
-//                            collision_leafs.push_back(start2 + ii);
-//                        }
-//                    }
-//                }
-//            }
-//            else
-            {
-                bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
-                                       (box_maxes.col(B).array() >= query.array()).all();
+            bool query_is_in_box = (box_mins .col(B).array() <= query.array()).all() &&
+                                   (box_maxes.col(B).array() >= query.array()).all();
 
-                if ( query_is_in_box )
+            if ( query_is_in_box )
+            {
+                if ( 2*B + 1 >= num_boxes ) // if current box is leaf
                 {
-                    if ( 2*B + 1 >= num_boxes ) // if current box is leaf
-                    {
-                        collision_leafs.push_back(B);
-                    }
-                    else // current box is internal node
-                    {
-                        boxes_under_consideration.push(2*B + 1);
-                        boxes_under_consideration.push(2*B + 2);
-                    }
+                    collision_leafs.push_back(B);
+                }
+                else // current box is internal node
+                {
+                    boxes_under_consideration.push(2*B + 1);
+                    boxes_under_consideration.push(2*B + 2);
                 }
             }
         }
@@ -314,7 +261,7 @@ public:
     }
 
     vector<VectorXi> ball_collisions_vectorized( const Ref<const MatrixXd> centers,
-                                                 const Ref<const VectorXd>                   radii ) const
+                                                 const Ref<const VectorXd> radii ) const
     {
         int num_balls = centers.cols();
         vector<VectorXi> all_collisions(num_balls);
