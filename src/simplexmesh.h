@@ -4,10 +4,6 @@
 #include <list>
 #include <stdexcept>
 
-//#include <thread>
-//#include <execution>
-//#include <chrono>
-
 #include "thread-pool-master/thread_pool.hpp"
 
 #include <math.h>
@@ -24,8 +20,6 @@ using namespace Eigen;
 using namespace std;
 using namespace KDT;
 using namespace AABB;
-
-
 
 
 vector<vector<int>> powerset(int N)
@@ -253,26 +247,6 @@ private:
 
     int default_sleep_duration;
     int default_number_of_threads;
-
-//    std::pair<int, VectorXd> first_point_collision_from_candidates(const VectorXi & candidate_inds, const VectorXd & point) const
-//    {
-//        int num_candidates = candidate_inds.size();
-//
-//        int simplex_ind = -1;
-//        Eigen::VectorXd affine_coords(dim+1);
-//        for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
-//        {
-//            int candidate_simplex_ind = candidate_inds(jj);
-//            const Simplex & S = cell_simplices[candidate_simplex_ind];
-//            affine_coords = S.A * point + S.b;
-//            if ( (affine_coords.array() >= 0.0).all() ) // point is in simplex
-//            {
-//                simplex_ind = candidate_simplex_ind;
-//                break;
-//            }
-//        }
-//        return std::make_pair(simplex_ind, affine_coords);
-//    }
 
     void eval_CG1_helper( MatrixXd &                  functions_at_points,
                           const vector<int> &         function_inds,
@@ -626,35 +600,14 @@ public:
         }
     }
 
-//    inline bool point_is_in_mesh( const VectorXd & query ) const
-//    {
-//        return (first_point_collision( query ).first >= 0);
-//    }
-
     Matrix<bool, Dynamic, 1> point_is_in_mesh( const Ref<const MatrixXd> query_points ) const
     {
         return (first_point_collision(query_points).first.array() >= 0);
-//        int nquery = query_points.cols();
-//        Matrix<bool, Dynamic, 1> in_mesh;
-//        in_mesh.resize(nquery, 1);
-//        for ( int ii=0; ii<nquery; ++ii )
-//        {
-//            in_mesh(ii) = point_is_in_mesh_one_query( query_points.col(ii) );
-//        }
-//        return in_mesh;
     }
 
     Matrix<bool, Dynamic, 1> point_is_in_mesh_multithreaded( const Ref<const MatrixXd> query_points )
     {
         return (first_point_collision_multithreaded(query_points).first.array() >= 0);
-//        int nquery = query_points.cols();
-//        Matrix<bool, Dynamic, 1> in_mesh;
-//        in_mesh.resize(nquery, 1);
-//        for ( int ii=0; ii<nquery; ++ii )
-//        {
-//            in_mesh(ii) = point_is_in_mesh_one_query( query_points.col(ii) );
-//        }
-//        return in_mesh;
     }
 
     MatrixXd closest_point( const Ref<const MatrixXd> query_points ) const
@@ -738,36 +691,6 @@ public:
         pool.parallelize_loop(0, num_pts, loop);
         return make_pair(all_simplex_inds, all_affine_coords);
     }
-
-//    std::pair<VectorXi,MatrixXd> first_point_collision_multithreaded( const Eigen::MatrixXd & points )
-//    {
-//        int num_pts = points.cols();
-//
-//        std::vector<Eigen::VectorXi> all_candidate_inds = cell_aabbtree.first_point_collisions_vectorized( points );
-//
-//        VectorXi all_simplex_inds(num_pts);
-//        MatrixXd all_affine_coords(dim+1, num_pts);
-//
-//        std::vector<int> shuffle_inds(num_pts); // randomize ordering to make work even among threads
-//        std::iota(shuffle_inds.begin(), shuffle_inds.end(), 0);
-//        std::random_shuffle(shuffle_inds.begin(), shuffle_inds.end());
-//
-//        auto loop = [&](const int &a, const int &b)
-//        {
-//            for ( int ii=a; ii<b; ++ii )
-//            {
-//                int ind = shuffle_inds[ii];
-//                std::pair<int,VectorXd> IC = first_point_collision_from_candidates(all_candidate_inds[ind],
-//                                                                         points        .col(ind));
-//                all_simplex_inds     [ind] = IC.first;
-//                all_affine_coords.col(ind) = IC.second;
-//            }
-//        };
-//
-//        pool.parallelize_loop(0, num_pts, loop);
-//        return make_pair(all_simplex_inds, all_affine_coords);
-//    }
-
 
     // ------------    SimplexMesh::eval_CG1()    --------------
     // INPUT:

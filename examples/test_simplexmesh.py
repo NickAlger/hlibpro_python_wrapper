@@ -316,7 +316,7 @@ num_functions = len(uu)
 UU = np.array([u.vector()[vertex2dof] for u in uu], order='F')
 
 t = time()
-Z = SM.evaluate_functions_at_points_with_reflection(UU, pp).reshape((num_functions, nx, ny))
+Z = SM.eval_CG1_multithreaded(UU, pp, True).reshape((num_functions, nx, ny))
 dt_eval_reflection = time() - t
 print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval_reflection=', dt_eval_reflection)
 
