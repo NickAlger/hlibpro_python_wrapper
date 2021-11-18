@@ -756,17 +756,19 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def(py::init< const Ref<const MatrixXd>,
                        const Ref<const MatrixXi> >())
         .def("closest_point", &SimplexMesh::closest_point)
-        .def("closest_point_vectorized", &SimplexMesh::closest_point_vectorized)
+        .def("closest_point_multithreaded", &SimplexMesh::closest_point_multithreaded)
         .def("point_is_in_mesh", &SimplexMesh::point_is_in_mesh)
-        .def("point_is_in_mesh_vectorized", &SimplexMesh::point_is_in_mesh_vectorized)
-        .def("point_query", &SimplexMesh::point_query)
+        .def("point_is_in_mesh_multithreaded", &SimplexMesh::point_is_in_mesh_multithreaded)
+        .def("first_point_collision", &SimplexMesh::first_point_collision)
+        .def("first_point_collision_multithreaded", &SimplexMesh::first_point_collision_multithreaded)
         .def("eval_CG1", &SimplexMesh::eval_CG1)
+        .def("eval_CG1_multithreaded", &SimplexMesh::eval_CG1_multithreaded)
         .def("set_sleep_duration", &SimplexMesh::set_sleep_duration)
         .def("reset_sleep_duration_to_default", &SimplexMesh::reset_sleep_duration_to_default)
         .def("set_thread_count", &SimplexMesh::set_thread_count)
-        .def("reset_thread_count_to_default", &SimplexMesh::reset_thread_count_to_default)
+        .def("reset_thread_count_to_default", &SimplexMesh::reset_thread_count_to_default);
 //        .def("evaluate_functions_at_points_with_reflection", &SimplexMesh::evaluate_functions_at_points_with_reflection)
-        .def("evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation", &SimplexMesh::evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation);
+//        .def("evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation", &SimplexMesh::evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation);
 
 //    m.def("projected_affine_coordinates", &projected_affine_coordinates);
     m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);

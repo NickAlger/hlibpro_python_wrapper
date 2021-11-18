@@ -120,9 +120,9 @@ public:
         {
             int ind = nearest_inds(jj);
             Matrix<double, K, 1> z = y - x + pts[ind];
-            std::pair<int,VectorXd> IC = mesh.point_query( z );
-            all_simplex_inds[jj]  = IC.first;
-            all_affine_coords[jj] = IC.second;
+            std::pair<VectorXi,MatrixXd> IC = mesh.first_point_collision( z );
+            all_simplex_inds[jj]  = IC.first(0);
+            all_affine_coords[jj] = IC.second.col(0);
             ind_is_good[jj] = ( all_simplex_inds[jj] >= 0 ); // y-x+xi is in mesh => varphi_i(y-x) is defined
         }
 

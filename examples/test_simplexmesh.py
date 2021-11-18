@@ -106,7 +106,7 @@ plt.figure()
 dl.plot(mesh)
 
 qq = np.array(np.random.randn(2, nquery), order='F')
-in_mesh = SM.point_is_in_mesh_vectorized(qq)
+in_mesh = SM.point_is_in_mesh_multithreaded(qq)
 not_in_mesh = np.logical_not(in_mesh)
 
 plt.plot(qq[0,in_mesh], qq[1,in_mesh], '.r')
@@ -127,7 +127,7 @@ plt.figure()
 dl.plot(mesh)
 
 qq = np.array(np.random.randn(2, nquery), order='F')
-pp = SM.closest_point_vectorized(qq)
+pp = SM.closest_point_multithreaded(qq)
 
 for k in range(nquery):
     query = qq[:,k]
@@ -163,7 +163,8 @@ SM.set_thread_count(8)
 sleep(1) # Wait for change to take effect
 
 t = time()
-pp = SM.closest_point_vectorized(qq)
+pp = SM.closest_point_multithreaded(qq)
+# pp = SM.closest_point(qq)
 dt_closest_SM = time() - t
 print('nquery=', nquery, ', dt_closest_SM=', dt_closest_SM)
 
@@ -254,7 +255,8 @@ for u in uu:
 UU = np.array([u.vector()[vertex2dof] for u in uu], order='F')
 
 t = time()
-upp = SM.eval_CG1(UU, pp, False)
+# upp = SM.eval_CG1(UU, pp, False)
+upp = SM.eval_CG1_multithreaded(UU, pp, False)
 dt_eval = time() - t
 print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval=', dt_eval)
 
