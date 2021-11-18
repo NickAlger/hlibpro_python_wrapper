@@ -113,14 +113,17 @@ public:
 
         int N_nearest = nearest_inds.size();
 
-        vector<ind_and_coords> all_IC(N_nearest);
-        vector<bool>              ind_is_good(N_nearest);
+        vector<int>      all_simplex_inds (N_nearest);
+        vector<VectorXd> all_affine_coords(N_nearest);
+        vector<bool>     ind_is_good      (N_nearest);
         for ( int jj=0; jj<N_nearest; ++jj )
         {
             int ind = nearest_inds(jj);
             Matrix<double, K, 1> z = y - x + pts[ind];
-            mesh.get_simplex_ind_and_affine_coordinates_of_point( z, all_IC[jj] );
-            ind_is_good[jj] = ( all_IC[jj].simplex_ind >= 0 ); // y-x+xi is in mesh => varphi_i(y-x) is defined
+            std::pair<int,VectorXd> IC = mesh.point_query( z );
+            all_simplex_inds[jj]  = IC.first;
+            all_affine_coords[jj] = IC.second;
+            ind_is_good[jj] = ( all_simplex_inds[jj] >= 0 ); // y-x+xi is in mesh => varphi_i(y-x) is defined
         }
 
         vector<pair<Matrix<double,K,1>, double>> good_points_and_values;
@@ -131,7 +134,6 @@ public:
             {
                 int ind = nearest_inds[jj];
                 Matrix<double, K, 1> dp = y - x + pts[ind] - mu[ind];
-                ind_and_coords & IC = all_IC[jj];
 
                 double varphi_at_y_minus_x = 0.0;
                 if ( dp.transpose() * (inv_Sigma[ind] * dp) < tau*tau )
@@ -140,7 +142,7 @@ public:
                     const VectorXd & phi_j = psi_batches[b];
                     for ( int kk=0; kk<K+1; ++kk )
                     {
-                        varphi_at_y_minus_x += IC.affine_coords(kk) * phi_j(mesh.cells(kk, IC.simplex_ind));
+                        varphi_at_y_minus_x += all_affine_coords[jj](kk) * phi_j(mesh.cells(kk, all_simplex_inds[jj]));
                     }
                 }
                 good_points_and_values.push_back(make_pair(pts[ind] - x, varphi_at_y_minus_x));

@@ -15,7 +15,7 @@
 
 #include "kdtree.h"
 #include "aabbtree.h"
-//#include "geometric_sort.h"
+#include "geometric_sort.h"
 
 
 namespace SMESH {
@@ -229,9 +229,6 @@ pair<VectorXd, VectorXd> compute_pointcloud_bounding_box( const MatrixXd & point
     return std::make_pair(box_min, box_max);
 }
 
-struct ind_and_coords { int      simplex_ind;
-                        VectorXd affine_coords; };
-
 
 class SimplexMesh
 {
@@ -256,6 +253,49 @@ private:
 
     int default_sleep_duration;
     int default_number_of_threads;
+
+    std::pair<int, VectorXd> point_query_from_candidates(const VectorXi & candidate_inds, const VectorXd & point) const
+    {
+        int num_candidates = candidate_inds.size();
+
+        int simplex_ind = -1;
+        Eigen::VectorXd affine_coords(dim+1);
+        for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
+        {
+            int candidate_simplex_ind = candidate_inds(jj);
+            const Simplex & S = cell_simplices[candidate_simplex_ind];
+            affine_coords = S.A * point + S.b;
+            if ( (affine_coords.array() >= 0.0).all() ) // point is in simplex
+            {
+                simplex_ind = candidate_simplex_ind;
+                break;
+            }
+        }
+        return std::make_pair(simplex_ind, affine_coords);
+    }
+
+    void eval_CG1_helper( MatrixXd &                  functions_at_points,
+                          const vector<int> &         function_inds,
+                          const vector<int> &         point_inds,
+                          const VectorXi &            all_simplex_inds,
+                          const MatrixXd &            all_affine_coords,
+                          const Ref<const MatrixXd> & functions_at_vertices ) const
+    {
+        for ( int point_ind : point_inds )
+        {
+            int      simplex_ind   = all_simplex_inds(point_ind);
+            VectorXd affine_coords = all_affine_coords.col(point_ind);
+
+            for ( int kk=0; kk<dim+1; ++kk ) // for simplex vertex
+            {
+                int vv = cells(kk, simplex_ind);
+                for ( int ll : function_inds ) // for each function
+                {
+                    functions_at_points(ll, point_ind) += affine_coords(kk) * functions_at_vertices(ll, vv);
+                }
+            }
+        }
+    }
 
 public:
     MatrixXd    vertices; // shape=(dim,num_vertices)
@@ -515,7 +555,7 @@ public:
 
     inline bool point_is_in_mesh( const VectorXd & query ) const
     {
-        return (index_of_first_simplex_containing_point( query ) >= 0);
+        return (point_query( query ).first >= 0);
     }
 
     Matrix<bool, Dynamic, 1> point_is_in_mesh_vectorized( const Ref<const MatrixXd> query_points ) const
@@ -532,10 +572,10 @@ public:
 
     VectorXd closest_point( const VectorXd & query ) const
     {
-        VectorXd closest_point = vertices.col(0);
+        VectorXd point = vertices.col(0);
         if ( point_is_in_mesh( query ) )
         {
-            closest_point = query;
+            point = query;
         }
         else
         {
@@ -561,7 +601,7 @@ public:
             // 3. Project query onto the affine subspaces associated with each subface.
             // 4. Discard "bad" projections that to not land in their subface.
             // 5. Return closest "good" projection.
-            double dsq_best = (closest_point - query).squaredNorm();
+            double dsq_best = (point - query).squaredNorm();
             for ( int ee=0; ee<entities.size(); ++ee )
             {
                 const Simplex & E = subface_simplices[entities[ee]];
@@ -572,13 +612,13 @@ public:
                     double dsq = (projected_query - query).squaredNorm();
                     if ( dsq < dsq_best )
                     {
-                        closest_point = projected_query;
+                        point = projected_query;
                         dsq_best = dsq;
                     }
                 }
             }
         }
-        return closest_point;
+        return point;
     }
 
     MatrixXd closest_point_vectorized( const Ref<const MatrixXd> query_points )
@@ -587,11 +627,15 @@ public:
         MatrixXd closest_points;
         closest_points.resize(dim, num_queries);
 
+        std::vector<int> shuffle_inds(num_queries); // randomize ordering to make work even among threads
+        std::iota(shuffle_inds.begin(), shuffle_inds.end(), 0);
+        std::random_shuffle(shuffle_inds.begin(), shuffle_inds.end());
+
         auto loop = [&](const int &a, const int &b)
         {
             for ( int ii=a; ii<b; ++ii )
             {
-                closest_points.col(ii) = closest_point( query_points.col(ii) );
+                closest_points.col(shuffle_inds[ii]) = closest_point( query_points.col(shuffle_inds[ii]) );
             }
         };
 
@@ -599,53 +643,43 @@ public:
         return closest_points;
     }
 
-    inline VectorXd simplex_coordinates( int simplex_ind, const VectorXd & query ) const
+    std::pair<int,VectorXd> point_query( const Eigen::VectorXd & point ) const
     {
-          const Simplex & S = cell_simplices[simplex_ind];
-          return S.A * query + S.b;
-    }
-
-    inline int index_of_first_simplex_containing_point( const VectorXd & query ) const
-    {
-        VectorXi candidate_inds =  cell_aabbtree.point_collisions( query );
-        int num_candidates = candidate_inds.size();
-        int ind = -1;
-        for ( int ii=0; ii<num_candidates; ++ii )
-        {
-            int candidate_ind = candidate_inds(ii);
-            VectorXd affine_coords = simplex_coordinates( candidate_ind, query );
-            bool point_is_in_simplex = (affine_coords.array() >= 0.0).all();
-            if ( point_is_in_simplex )
-            {
-                ind = candidate_ind;
-                break;
-            }
-        }
-        return ind;
-    }
-
-    void get_simplex_ind_and_affine_coordinates_of_point( const VectorXd & point, ind_and_coords & IC ) const
-    {
-        IC.simplex_ind = -1;
-
         VectorXi candidate_inds =  cell_aabbtree.point_collisions( point );
-        int num_candidates = candidate_inds.size();
+        return point_query_from_candidates(candidate_inds, point);
+    }
 
-        for ( int jj=0; jj<num_candidates; ++jj ) // for each candidate simplex that the point might be in
+    std::pair<VectorXi,MatrixXd> point_query_vectorized( const Eigen::MatrixXd & points )
+    {
+        int num_pts = points.cols();
+
+        std::vector<Eigen::VectorXi> all_candidate_inds = cell_aabbtree.point_collisions_vectorized( points );
+
+        VectorXi all_simplex_inds(num_pts);
+        MatrixXd all_affine_coords(dim+1, num_pts);
+
+        std::vector<int> shuffle_inds(num_pts); // randomize ordering to make work even among threads
+        std::iota(shuffle_inds.begin(), shuffle_inds.end(), 0);
+        std::random_shuffle(shuffle_inds.begin(), shuffle_inds.end());
+
+        auto loop = [&](const int &a, const int &b)
         {
-            int candidate_simplex_ind = candidate_inds(jj);
-            const Simplex & S = cell_simplices[candidate_simplex_ind];
-            IC.affine_coords = S.A * point + S.b;
-            if ( (IC.affine_coords.array() >= 0.0).all() ) // point is in simplex
+            for ( int ii=a; ii<b; ++ii )
             {
-                IC.simplex_ind = candidate_simplex_ind;
-                break;
+                int ind = shuffle_inds[ii];
+                std::pair<int,VectorXd> IC = point_query_from_candidates(all_candidate_inds[ind],
+                                                                         points        .col(ind));
+                all_simplex_inds     [ind] = IC.first;
+                all_affine_coords.col(ind) = IC.second;
             }
-        }
+        };
+
+        pool.parallelize_loop(0, num_pts, loop);
+        return make_pair(all_simplex_inds, all_affine_coords);
     }
 
 
-    // ------------    SimplexMesh::evaluate_functions_at_points()    --------------
+    // ------------    SimplexMesh::evaluate_CG1_functions_at_points()    --------------
     // INPUT:
     //   Finite element function nodal values:
     //      functions_at_vertices = [[f_1, f_2, f_3, f_4, ..., f_N],
@@ -670,82 +704,95 @@ public:
     //                            [g(p1), g(p2), ..., g(pM)],
     //                            [h(p1), h(p2), ..., h(pM)]]
     //       - shape = (num_functions, num_pts)
-    MatrixXd evaluate_functions_at_points( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
-                                           const Ref<const MatrixXd> points ) // shape=(dim, num_pts)
+    MatrixXd evaluate_CG1_functions_at_points( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
+                                               const Ref<const MatrixXd> points ) // shape=(dim, num_pts)
     {
         int num_functions = functions_at_vertices.rows();
         int num_pts = points.cols();
 
-        MatrixXd function_at_points;
-        function_at_points.resize(num_functions, num_pts);
-        function_at_points.setZero();
+        MatrixXd functions_at_points(num_functions, num_pts);
+        functions_at_points.setZero();
+
+//        std::pair<VectorXi,MatrixXd> ICS = point_query_vectorized( points );
+        VectorXi all_simplex_inds(num_pts);
+        MatrixXd all_affine_coords(dim+1, num_pts);
+
+        std::vector<int> function_inds(num_functions);
+        std::iota(function_inds.begin(), function_inds.end(), 0);
 
         auto loop = [&](const int & start, const int & stop)
         {
-            ind_and_coords IC;
+            vector<int> point_inds;
+            point_inds.reserve(stop-start);
+
             for ( int ii=start; ii<stop; ++ii )
             {
-                get_simplex_ind_and_affine_coordinates_of_point( points.col(ii), IC );
-                if ( IC.simplex_ind >= 0 ) // point is in mesh
+                std::pair<int,VectorXd> IC = point_query( points.col(ii) );
+                all_simplex_inds[ii] = IC.first;
+                all_affine_coords.col(ii) = IC.second;
+                if ( IC.first >= 0 ) // if point is inside mesh
                 {
-                    for ( int kk=0; kk<dim+1; ++kk ) // for simplex vertex
-                    {
-                        int vv = cells(kk, IC.simplex_ind);
-                        for ( int ll=0; ll<num_functions; ++ll ) // for each function
-                        {
-                            function_at_points(ll, ii) += IC.affine_coords(kk) * functions_at_vertices(ll, vv);
-                        }
-                    }
+                    point_inds.push_back(ii);
                 }
             }
+
+            eval_CG1_helper( functions_at_points,
+                             function_inds,
+                             point_inds,
+                             all_simplex_inds,
+                             all_affine_coords,
+                             functions_at_vertices );
         };
 
         pool.parallelize_loop(0, num_pts, loop);
-        return function_at_points;
+        return functions_at_points;
     }
 
-    MatrixXd evaluate_functions_at_points_with_reflection( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
-                                                           const Ref<const MatrixXd> points ) // shape=(dim, num_pts)
-    {
-        int num_functions = functions_at_vertices.rows();
-        int num_pts = points.cols();
-
-        MatrixXd function_at_points;
-        function_at_points.resize(num_functions, num_pts);
-        function_at_points.setZero();
-
-        auto loop = [&](const int & start, const int & stop)
-        {
-            ind_and_coords IC;
-            for ( int ii=start; ii<stop; ++ii )
-            {
-                VectorXd point = points.col(ii);
-                get_simplex_ind_and_affine_coordinates_of_point( point, IC );
-
-                if ( IC.simplex_ind < 0 ) // if point is outside mesh
-                {
-                    point = 2.0 * closest_point( point ) - point; // reflect point across boundary
-                    get_simplex_ind_and_affine_coordinates_of_point( point, IC );
-                }
-
-                if ( IC.simplex_ind >= 0 ) // if point is inside mesh
-                {
-                    for ( int kk=0; kk<dim+1; ++kk ) // for simplex vertex
-                    {
-                        int vv = cells(kk, IC.simplex_ind);
-                        for ( int ll=0; ll<num_functions; ++ll ) // for each function
-                        {
-                            function_at_points(ll, ii) += IC.affine_coords(kk) * functions_at_vertices(ll, vv);
-                        }
-                    }
-                }
-            }
-        };
-
-        pool.parallelize_loop(0, num_pts, loop);
-
-        return function_at_points; // shape=(num_functions, num_points)
-    }
+//    MatrixXd evaluate_functions_at_points_with_reflection( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
+//                                                           const Ref<const MatrixXd> points ) // shape=(dim, num_pts)
+//    {
+//        int num_functions = functions_at_vertices.rows();
+//        int num_pts = points.cols();
+//
+//        MatrixXd functions_at_points(num_functions, num_pts);
+//        functions_at_points.setZero();
+//
+//        auto loop = [&](const int & start, const int & stop)
+//        {
+//            vector<int>      all_point_inds;    all_point_inds   .reserve(stop-start);
+//            vector<int>      all_simplex_inds;  all_simplex_inds .reserve(stop-start);
+//            vector<VectorXd> all_affine_coords; all_affine_coords.reserve(stop-start);
+//            for ( int ii=start; ii<stop; ++ii )
+//            {
+//                VectorXd point = points.col(ii);
+//                std::pair<int,VectorXd> IC = point_query( point );
+//                if ( IC.first < 0 ) // if point is outside mesh
+//                {
+//                    point = 2.0 * closest_point( point ) - point; // reflect point across boundary
+//                    IC = point_query( point );
+//                }
+//                if ( IC.first >= 0 ) // if point is inside mesh
+//                {
+//                    all_point_inds.   push_back(ii);
+//                    all_simplex_inds. push_back(IC.first);
+//                    all_affine_coords.push_back(IC.second);
+//                }
+//            }
+//
+//            std::vector<int> function_inds(num_functions);
+//            std::iota(function_inds.begin(), function_inds.end(), 0);
+//
+//            eval_CG1_helper( functions_at_points,
+//                             function_inds,
+//                             all_point_inds,
+//                             all_simplex_inds,
+//                             all_affine_coords,
+//                             functions_at_vertices );
+//        };
+//
+//        pool.parallelize_loop(0, num_pts, loop);
+//        return functions_at_points; // shape=(num_functions, num_points)
+//    }
 
 
     MatrixXd evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation(
@@ -766,19 +813,18 @@ public:
 
         auto loop = [&](const int & start, const int & stop)
         {
-            ind_and_coords IC;
             for ( int ii=start; ii<stop; ++ii )
             {
                 VectorXd point = points.col(ii);
-                get_simplex_ind_and_affine_coordinates_of_point( point, IC );
+                std::pair<int,VectorXd> IC = point_query( point );
 
-                if ( IC.simplex_ind < 0 ) // if point is outside mesh, reflect it across the boundary
+                if ( IC.first < 0 ) // if point is outside mesh, reflect it across the boundary
                 {
                     point = 2.0 * closest_point( point ) - point; // reflection of point across boundary
-                    get_simplex_ind_and_affine_coordinates_of_point( point, IC );
+                    IC = point_query( point );
                 }
 
-                if ( IC.simplex_ind >= 0 ) // if point (whether original or reflected) is inside mesh
+                if ( IC.first >= 0 ) // if point (whether original or reflected) is inside mesh
                 {
                     vector<int> relevant_functions;
                     relevant_functions.reserve(num_functions);
@@ -797,10 +843,10 @@ public:
                     {
                         for ( int kk=0; kk<dim+1; ++kk ) // for simplex vertex
                         {
-                            int vv = cells(kk, IC.simplex_ind);
+                            int vv = cells(kk, IC.first);
                             for ( int ff : relevant_functions )
                             {
-                                function_at_points(ff, ii) += IC.affine_coords(kk) * functions_at_vertices(ff, vv);
+                                function_at_points(ff, ii) += IC.second(kk) * functions_at_vertices(ff, vv);
                             }
                         }
                     }

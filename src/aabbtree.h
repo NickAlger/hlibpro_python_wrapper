@@ -266,11 +266,15 @@ public:
         int num_points = query_points.cols();
         std::vector<Eigen::VectorXi> all_collisions(num_points);
 
+        std::vector<int> shuffle_inds(num_points); // randomize ordering to make work even among threads
+        std::iota(shuffle_inds.begin(), shuffle_inds.end(), 0);
+        std::random_shuffle(shuffle_inds.begin(), shuffle_inds.end());
+
         auto loop = [&](const int &a, const int &b)
         {
             for ( int ii=a; ii<b; ++ii )
             {
-                all_collisions[ii] = point_collisions( query_points.col(ii) );
+                all_collisions[shuffle_inds[ii]] = point_collisions( query_points.col(shuffle_inds[ii]) );
             }
         };
 
@@ -284,11 +288,15 @@ public:
         int num_balls = centers.cols();
         std::vector<Eigen::VectorXi> all_collisions(num_balls);
 
+        std::vector<int> shuffle_inds(num_balls); // randomize ordering to make work even among threads
+        std::iota(shuffle_inds.begin(), shuffle_inds.end(), 0);
+        std::random_shuffle(shuffle_inds.begin(), shuffle_inds.end());
+
         auto loop = [&](const int &a, const int &b)
         {
             for ( int ii=a; ii<b; ++ii )
             {
-                all_collisions[ii] = ball_collisions( centers.col(ii), radii(ii) );
+                all_collisions[shuffle_inds[ii]] = ball_collisions( centers.col(shuffle_inds[ii]), radii(shuffle_inds[ii]) );
             }
         };
 
