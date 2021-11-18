@@ -254,7 +254,7 @@ for u in uu:
 UU = np.array([u.vector()[vertex2dof] for u in uu], order='F')
 
 t = time()
-upp = SM.evaluate_CG1_functions_at_points(UU, pp)
+upp = SM.eval_CG1(UU, pp, False)
 dt_eval = time() - t
 print('V.dim()=', V.dim(), ', nquery=', nquery, ', num_functions=', num_functions, ', dt_eval=', dt_eval)
 

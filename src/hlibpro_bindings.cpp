@@ -760,7 +760,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("point_is_in_mesh", &SimplexMesh::point_is_in_mesh)
         .def("point_is_in_mesh_vectorized", &SimplexMesh::point_is_in_mesh_vectorized)
         .def("point_query", &SimplexMesh::point_query)
-        .def("evaluate_CG1_functions_at_points", &SimplexMesh::evaluate_CG1_functions_at_points)
+        .def("eval_CG1", &SimplexMesh::eval_CG1)
         .def("set_sleep_duration", &SimplexMesh::set_sleep_duration)
         .def("reset_sleep_duration_to_default", &SimplexMesh::reset_sleep_duration_to_default)
         .def("set_thread_count", &SimplexMesh::set_thread_count)

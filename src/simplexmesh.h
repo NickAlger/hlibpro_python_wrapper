@@ -679,7 +679,7 @@ public:
     }
 
 
-    // ------------    SimplexMesh::evaluate_CG1_functions_at_points()    --------------
+    // ------------    SimplexMesh::eval_CG1()    --------------
     // INPUT:
     //   Finite element function nodal values:
     //      functions_at_vertices = [[f_1, f_2, f_3, f_4, ..., f_N],
@@ -704,8 +704,9 @@ public:
     //                            [g(p1), g(p2), ..., g(pM)],
     //                            [h(p1), h(p2), ..., h(pM)]]
     //       - shape = (num_functions, num_pts)
-    MatrixXd evaluate_CG1_functions_at_points( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
-                                               const Ref<const MatrixXd> points ) // shape=(dim, num_pts)
+    MatrixXd eval_CG1( const Ref<const MatrixXd> functions_at_vertices, // shape=(num_functions, num_vertices)
+                       const Ref<const MatrixXd> points,
+                       bool use_reflection ) // shape=(dim, num_pts)
     {
         int num_functions = functions_at_vertices.rows();
         int num_pts = points.cols();
@@ -727,7 +728,17 @@ public:
 
             for ( int ii=start; ii<stop; ++ii )
             {
-                std::pair<int,VectorXd> IC = point_query( points.col(ii) );
+                VectorXd point = points.col(ii);
+                std::pair<int,VectorXd> IC = point_query( point );
+                if ( use_reflection )
+                {
+                   if ( IC.first < 0 ) // if point is outside mesh
+                    {
+                        point = 2.0 * closest_point( point ) - point; // reflect point across boundary
+                        IC = point_query( point );
+                    }
+                }
+
                 all_simplex_inds[ii] = IC.first;
                 all_affine_coords.col(ii) = IC.second;
                 if ( IC.first >= 0 ) // if point is inside mesh
