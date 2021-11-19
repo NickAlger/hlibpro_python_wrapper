@@ -8,15 +8,10 @@
 #include "thread_pool.hpp"
 
 #include "kdtree.h"
-#include "misc.h"
 #include "rbf_interpolation.h"
 
-using namespace Eigen;
-using namespace std;
 
-using namespace HLIB;
-using namespace SMESH;
-using namespace KDT;
+namespace PCK {
 
 #if HLIB_SINGLE_PREC == 1
 using  real_t = float;
@@ -24,25 +19,24 @@ using  real_t = float;
 using  real_t = double;
 #endif
 
-
 class ImpulseResponseBatches
 {
 private:
 
 public:
-    int                     dim;
-    SimplexMesh             mesh;
-    vector<Eigen::VectorXd> pts;
-    vector<Eigen::VectorXd> mu;
-    vector<Eigen::MatrixXd> inv_Sigma;
-    vector<VectorXd>        psi_batches;
-    vector<int>             point2batch;
-    vector<int>             batch2point_start;
-    vector<int>             batch2point_stop;
+    int                          dim;
+    SMESH::SimplexMesh           mesh;
+    std::vector<Eigen::VectorXd> pts;
+    std::vector<Eigen::VectorXd> mu;
+    std::vector<Eigen::MatrixXd> inv_Sigma;
+    std::vector<Eigen::VectorXd> psi_batches;
+    std::vector<int>             point2batch;
+    std::vector<int>             batch2point_start;
+    std::vector<int>             batch2point_stop;
 
-    double                 tau;
-    int                    num_neighbors;
-    KDTree                 kdtree;
+    double                  tau;
+    int                     num_neighbors;
+    KDT::KDTree             kdtree;
 
     ImpulseResponseBatches( const Eigen::Ref<const Eigen::MatrixXd> mesh_vertices, // shape=(dim, num_vertices)
                             const Eigen::Ref<const Eigen::MatrixXi> mesh_cells,    // shape=(dim+1, num_cells)
@@ -104,13 +98,13 @@ public:
                                                                                     const Eigen::VectorXd & x) const
     {
         pair<Eigen::VectorXi, Eigen::VectorXd> nn_result = kdtree.query( x, num_neighbors );
-        VectorXi nearest_inds = nn_result.first;
+        Eigen::VectorXi nearest_inds = nn_result.first;
 
         int N_nearest = nearest_inds.size();
 
-        vector<int>      all_simplex_inds (N_nearest);
-        vector<VectorXd> all_affine_coords(N_nearest);
-        vector<bool>     ind_is_good      (N_nearest);
+        std::vector<int>             all_simplex_inds (N_nearest);
+        std::vector<Eigen::VectorXd> all_affine_coords(N_nearest);
+        std::vector<bool>            ind_is_good      (N_nearest);
         for ( int jj=0; jj<N_nearest; ++jj )
         {
             int ind = nearest_inds(jj);
@@ -128,13 +122,13 @@ public:
             if ( ind_is_good[jj] )
             {
                 int ind = nearest_inds[jj];
-                VectorXd dp = y - x + pts[ind] - mu[ind];
+                Eigen::VectorXd dp = y - x + pts[ind] - mu[ind];
 
                 double varphi_at_y_minus_x = 0.0;
                 if ( dp.transpose() * (inv_Sigma[ind] * dp) < tau*tau )
                 {
                     int b = point2batch[ind];
-                    const VectorXd & phi_j = psi_batches[b];
+                    const Eigen::VectorXd & phi_j = psi_batches[b];
                     for ( int kk=0; kk<dim+1; ++kk )
                     {
                         varphi_at_y_minus_x += all_affine_coords[jj](kk) * phi_j(mesh.cells(kk, all_simplex_inds[jj]));
@@ -149,7 +143,7 @@ public:
 };
 
 
-class ProductConvolutionKernelRBF : public TCoeffFn< real_t >
+class ProductConvolutionKernelRBF : public HLIB::TCoeffFn< real_t >
 {
 private:
     int dim;
@@ -165,8 +159,8 @@ public:
 
     ProductConvolutionKernelRBF( shared_ptr<ImpulseResponseBatches> col_batches,
                                  shared_ptr<ImpulseResponseBatches> row_batches,
-                                 vector<Eigen::VectorXd>            col_coords,
-                                 vector<Eigen::VectorXd>            row_coords,
+                                 std::vector<Eigen::VectorXd>       col_coords,
+                                 std::vector<Eigen::VectorXd>       row_coords,
                                  double                             gamma )
         : col_batches(col_batches),
           row_batches(row_batches),
@@ -282,10 +276,10 @@ public:
         }
     }
 
-    using TCoeffFn< real_t >::eval;
+    using HLIB::TCoeffFn< real_t >::eval;
 
     virtual matform_t  matrix_format  () const { return MATFORM_NONSYM; }
 
 };
 
-
+} // end namespace PCK

@@ -35,6 +35,7 @@ using namespace HLIB;
 using namespace KDT;
 using namespace AABB;
 using namespace SMESH;
+using namespace PCK;
 
 #if HLIB_SINGLE_PREC == 1
 using  real_t = float;
@@ -738,7 +739,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
 //    m.def("projected_affine_coordinates", &projected_affine_coordinates);
 //    m.def("powerset", &powerset);
-    m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
+//    m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
 //    m.def("woodbury_update", &woodbury_update);
 
 
@@ -754,7 +755,6 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF::eval_integral_kernel_block);
 
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
-    m.def("nearest_points_brute_force_vectorized", &nearest_points_brute_force_vectorized);
 
     py::class_<ImpulseResponseBatches, shared_ptr<ImpulseResponseBatches>>(m, "ImpulseResponseBatches")
         .def(py::init< const Ref<const MatrixXd>, // mesh_vertices,
