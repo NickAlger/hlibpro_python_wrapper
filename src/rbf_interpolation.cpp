@@ -1,10 +1,10 @@
-#include "rbf_interpolation.h"
 #include <cstdlib>
 #include <iostream>
 #include <math.h>
 #include <Eigen/Dense>
 #include <Eigen/LU>
 
+#include "rbf_interpolation.h"
 
 using namespace Eigen;
 using namespace std;

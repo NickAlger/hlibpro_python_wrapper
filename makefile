@@ -4,6 +4,8 @@ default: all
 
 HLIBPRO_DIR := /home/nick/hlibpro-2.8.1
 EIGEN_INCLUDE := /home/nick/anaconda3/envs/fenics3/include/eigen3
+THREADPOOL_INCLUDE := /home/nick/repos/thread-pool # https://github.com/bshoshany/thread-pool
+NALGER_HELPER_INCLUDE := /home/nick/repos/nalger_helper_functions/include
 
 ########################################################################
 
@@ -28,24 +30,24 @@ CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++17
 LIBS := -lhpro -Wl,-rpath,$(HLIBPRO_LIB)
 
 ALL_COMPILE_STUFF = $(CXXFLAGS) $(HLIBPRO_FLAGS) $(PYFLAGS) \
-					-I $(HLIBPRO_INCLUDE) -I$(EIGEN_INCLUDE) \
+					-I $(HLIBPRO_INCLUDE) -I$(EIGEN_INCLUDE) -I$(NALGER_HELPER_INCLUDE) -I$(THREADPOOL_INCLUDE) \
 					$(LDFLAGS) $(LIBS)
 
 # HLIBPRO_BINDINGS_TARGET = $(addsuffix $(PYSUFFIX), hlibpro_bindings)
 HLIBPRO_BINDINGS_TARGET = hlibpro_bindings.so
 
 
-all: $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET) $(BUILD_DIR)/kdtree_example
+all: $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-$(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET): $(OBJ_DIR)/hlibpro_bindings.o $(OBJ_DIR)/grid_interpolate.o $(OBJ_DIR)/product_convolution_hmatrix.o $(OBJ_DIR)/rbf_interpolation.o
+$(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET): $(OBJ_DIR)/hlibpro_bindings.o $(OBJ_DIR)/grid_interpolate.o $(OBJ_DIR)/product_convolution_hmatrix.o # $(OBJ_DIR)/rbf_interpolation.o
 	@echo 'Building target: $@'
 	g++ -o "$@" $^ $(ALL_COMPILE_STUFF)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-$(OBJ_DIR)/hlibpro_bindings.o: $(SRC_DIR)/hlibpro_bindings.cpp $(SRC_DIR)/aabbtree.h $(SRC_DIR)/kdtree.h $(SRC_DIR)/simplexmesh.h $(SRC_DIR)/geometric_sort.h $(SRC_DIR)/product_convolution_kernel.h $(SRC_DIR)/misc.h $(SRC_DIR)/rbf_interpolation.h
+$(OBJ_DIR)/hlibpro_bindings.o: $(SRC_DIR)/hlibpro_bindings.cpp $(SRC_DIR)/product_convolution_kernel.h $(SRC_DIR)/misc.h $(SRC_DIR)/rbf_interpolation.h
 	@echo 'Building target: $@'
 	g++ -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
 # 	cc -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
@@ -65,19 +67,19 @@ $(OBJ_DIR)/grid_interpolate.o: $(SRC_DIR)/grid_interpolate.cpp
 	@echo 'Finished building target: $@'
 	@echo ' '
 
-$(OBJ_DIR)/rbf_interpolation.o: $(SRC_DIR)/rbf_interpolation.cpp
-	@echo 'Building target: $@'
-	g++ -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
-# 	cc -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
-	@echo 'Finished building target: $@'
-	@echo ' '
+# $(OBJ_DIR)/rbf_interpolation.o: $(SRC_DIR)/rbf_interpolation.cpp
+# 	@echo 'Building target: $@'
+# 	g++ -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
+# # 	cc -o "$@" -c "$<" $(ALL_COMPILE_STUFF)
+# 	@echo 'Finished building target: $@'
+# 	@echo ' '
 
 
 clean:
 	-rm -rf $(OBJ_DIR)/product_convolution_hmatrix.o
 	-rm -rf $(OBJ_DIR)/hlibpro_bindings.o
 	-rm -rf $(OBJ_DIR)/grid_interpolate.o
-	-rm -rf $(OBJ_DIR)/rbf_interpolation.o
+# 	-rm -rf $(OBJ_DIR)/rbf_interpolation.o
 	-rm -rf $(BUILD_DIR)/$(HLIBPRO_BINDINGS_TARGET)
 	-@echo ' '
 

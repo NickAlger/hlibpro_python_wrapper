@@ -730,48 +730,13 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 
     m.def("invert_h_matrix", static_cast<void (*)(TMatrix *, const TTruncAcc &, const inv_options_t &)>(&HLIB::invert));
 
-    m.def("eval_thin_plate_splines_at_points", &eval_thin_plate_splines_at_points);
+//    m.def("eval_thin_plate_splines_at_points", &eval_thin_plate_splines_at_points);
 
-    py::class_<ThinPlateSplineWeightingFunctions>(m, "ThinPlateSplineWeightingFunctions")
-        .def(py::init< Array<double, Dynamic, 2> >())
-        .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
-
-
-    py::class_<KDTree>(m, "KDTree")
-        .def(py::init< const Ref<const MatrixXd> >())
-        .def_readwrite("block_size", &KDTree::block_size)
-        .def("query", &KDTree::query, "many querys, many neighbor")
-        .def("query_multithreaded", &KDTree::query_multithreaded, "many querys, many neighbor");
-
-
-    py::class_<AABBTree>(m, "AABBTree")
-        .def(py::init< const Ref<const MatrixXd>,
-                       const Ref<const MatrixXd> >())
-        .def("point_collisions", &AABBTree::point_collisions)
-        .def("point_collisions_vectorized", &AABBTree::point_collisions_vectorized)
-        .def("ball_collisions", &AABBTree::ball_collisions)
-        .def("ball_collisions_vectorized", &AABBTree::ball_collisions_vectorized);
-
-    py::class_<SimplexMesh>(m, "SimplexMesh")
-        .def(py::init< const Ref<const MatrixXd>,
-                       const Ref<const MatrixXi> >())
-        .def("closest_point", &SimplexMesh::closest_point)
-        .def("closest_point_multithreaded", &SimplexMesh::closest_point_multithreaded)
-        .def("point_is_in_mesh", &SimplexMesh::point_is_in_mesh)
-        .def("point_is_in_mesh_multithreaded", &SimplexMesh::point_is_in_mesh_multithreaded)
-        .def("first_point_collision", &SimplexMesh::first_point_collision)
-        .def("first_point_collision_multithreaded", &SimplexMesh::first_point_collision_multithreaded)
-        .def("eval_CG1", &SimplexMesh::eval_CG1)
-        .def("eval_CG1_multithreaded", &SimplexMesh::eval_CG1_multithreaded)
-        .def("set_sleep_duration", &SimplexMesh::set_sleep_duration)
-        .def("reset_sleep_duration_to_default", &SimplexMesh::reset_sleep_duration_to_default)
-        .def("set_thread_count", &SimplexMesh::set_thread_count)
-        .def("reset_thread_count_to_default", &SimplexMesh::reset_thread_count_to_default);
-//        .def("evaluate_functions_at_points_with_reflection", &SimplexMesh::evaluate_functions_at_points_with_reflection)
-//        .def("evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation", &SimplexMesh::evaluate_functions_at_points_with_reflection_and_ellipsoid_truncation);
+//    py::class_<ThinPlateSplineWeightingFunctions>(m, "ThinPlateSplineWeightingFunctions")
+//        .def(py::init< Array<double, Dynamic, 2> >())
+//        .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
 
 //    m.def("projected_affine_coordinates", &projected_affine_coordinates);
-    m.def("closest_point_in_simplex_vectorized", &closest_point_in_simplex_vectorized);
     m.def("powerset", &powerset);
     m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
 //    m.def("woodbury_update", &woodbury_update);
@@ -814,6 +779,4 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("build_kdtree", &ImpulseResponseBatches<2>::build_kdtree)
         .def("interpolation_points_and_values", &ImpulseResponseBatches<2>::interpolation_points_and_values);
 
-        m.def("power_of_two_floor", &power_of_two_floor);
-        m.def("heap_left_size", &heap_left_size);
 }

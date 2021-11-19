@@ -5,7 +5,7 @@
 #include <Eigen/Dense>
 #include <hlib.hh>
 
-#include "thread-pool-master/thread_pool.hpp"
+#include "thread_pool.hpp"
 
 #include "kdtree.h"
 #include "misc.h"
@@ -23,6 +23,7 @@ using  real_t = float;
 #else
 using  real_t = double;
 #endif
+
 
 template <int K>
 using BatchData = tuple<vector<Matrix<double, K, 1>>, // sample points batch
