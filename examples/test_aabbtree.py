@@ -264,6 +264,7 @@ box_widths = box_h * np.abs(np.random.randn(K, num_boxes))
 b_mins = np.array(box_centers - box_widths, order='F')
 b_maxes = np.array(box_centers + box_widths, order='F')
 
+
 AABB = hcpp.AABBTree(b_mins, b_maxes)
 
 ball_centers = np.array(np.random.randn(K, num_balls), order='F')
