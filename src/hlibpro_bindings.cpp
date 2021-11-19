@@ -737,46 +737,46 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 //        .def("eval_weighting_functions", &ThinPlateSplineWeightingFunctions::eval_weighting_functions);
 
 //    m.def("projected_affine_coordinates", &projected_affine_coordinates);
-    m.def("powerset", &powerset);
+//    m.def("powerset", &powerset);
     m.def("submatrix_deletion_factors", &submatrix_deletion_factors);
 //    m.def("woodbury_update", &woodbury_update);
 
 
-    py::class_<ProductConvolutionKernelRBF<2>, HLIB::TCoeffFn<real_t>>(m, "ProductConvolutionKernelRBF")
-        .def(py::init< shared_ptr<ImpulseResponseBatches<2>>, // IRO_FWD,
-                       shared_ptr<ImpulseResponseBatches<2>>, // IRO_ADJ,
-                       vector<Matrix<double, 2, 1>>,          // row_coords,
-                       vector<Matrix<double, 2, 1>>,          //  col_coords
-                       double                                 // gamma
+    py::class_<ProductConvolutionKernelRBF, HLIB::TCoeffFn<real_t>>(m, "ProductConvolutionKernelRBF")
+        .def(py::init< shared_ptr<ImpulseResponseBatches>, // IRO_FWD,
+                       shared_ptr<ImpulseResponseBatches>, // IRO_ADJ,
+                       vector<VectorXd>,                   // row_coords,
+                       vector<VectorXd>,                   //  col_coords
+                       double                              // gamma
                        >())
-        .def_readwrite("gamma", &ProductConvolutionKernelRBF<2>::gamma)
-        .def("eval_integral_kernel", &ProductConvolutionKernelRBF<2>::eval_integral_kernel)
-        .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF<2>::eval_integral_kernel_block);
+        .def_readwrite("gamma", &ProductConvolutionKernelRBF::gamma)
+        .def("eval_integral_kernel", &ProductConvolutionKernelRBF::eval_integral_kernel)
+        .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF::eval_integral_kernel_block);
 
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
     m.def("nearest_points_brute_force_vectorized", &nearest_points_brute_force_vectorized);
 
-    py::class_<ImpulseResponseBatches<2>, shared_ptr<ImpulseResponseBatches<2>>>(m, "ImpulseResponseBatches")
-        .def(py::init< const Ref<const Matrix<double, 2, Dynamic>>, // mesh_vertices,
-                       const Ref<const Matrix<int   , 3, Dynamic>>, // mesh_cells,
-                       int,                                         // num_neighbors,
-                       double                                       // tau
+    py::class_<ImpulseResponseBatches, shared_ptr<ImpulseResponseBatches>>(m, "ImpulseResponseBatches")
+        .def(py::init< const Ref<const MatrixXd>, // mesh_vertices,
+                       const Ref<const MatrixXi>, // mesh_cells,
+                       int,                       // num_neighbors,
+                       double                     // tau
                        >())
-        .def_readwrite("tau", &ImpulseResponseBatches<2>::tau)
-        .def_readwrite("num_neighbors", &ImpulseResponseBatches<2>::num_neighbors)
-        .def_readonly("kdtree", &ImpulseResponseBatches<2>::kdtree)
-        .def_readonly("mesh", &ImpulseResponseBatches<2>::mesh)
-        .def_readonly("pts", &ImpulseResponseBatches<2>::pts)
-        .def_readonly("mu", &ImpulseResponseBatches<2>::mu)
-        .def_readonly("inv_Sigma", &ImpulseResponseBatches<2>::inv_Sigma)
-        .def_readonly("psi_batches", &ImpulseResponseBatches<2>::psi_batches)
-        .def_readonly("point2batch", &ImpulseResponseBatches<2>::point2batch)
-        .def_readonly("batch2point_start", &ImpulseResponseBatches<2>::batch2point_start)
-        .def_readonly("batch2point_stop", &ImpulseResponseBatches<2>::batch2point_stop)
-        .def("num_pts", &ImpulseResponseBatches<2>::num_pts)
-        .def("num_batches", &ImpulseResponseBatches<2>::num_batches)
-        .def("add_batch", &ImpulseResponseBatches<2>::add_batch)
-        .def("build_kdtree", &ImpulseResponseBatches<2>::build_kdtree)
-        .def("interpolation_points_and_values", &ImpulseResponseBatches<2>::interpolation_points_and_values);
+        .def_readwrite("tau", &ImpulseResponseBatches::tau)
+        .def_readwrite("num_neighbors", &ImpulseResponseBatches::num_neighbors)
+        .def_readonly("kdtree", &ImpulseResponseBatches::kdtree)
+        .def_readonly("mesh", &ImpulseResponseBatches::mesh)
+        .def_readonly("pts", &ImpulseResponseBatches::pts)
+        .def_readonly("mu", &ImpulseResponseBatches::mu)
+        .def_readonly("inv_Sigma", &ImpulseResponseBatches::inv_Sigma)
+        .def_readonly("psi_batches", &ImpulseResponseBatches::psi_batches)
+        .def_readonly("point2batch", &ImpulseResponseBatches::point2batch)
+        .def_readonly("batch2point_start", &ImpulseResponseBatches::batch2point_start)
+        .def_readonly("batch2point_stop", &ImpulseResponseBatches::batch2point_stop)
+        .def("num_pts", &ImpulseResponseBatches::num_pts)
+        .def("num_batches", &ImpulseResponseBatches::num_batches)
+        .def("add_batch", &ImpulseResponseBatches::add_batch)
+        .def("build_kdtree", &ImpulseResponseBatches::build_kdtree)
+        .def("interpolation_points_and_values", &ImpulseResponseBatches::interpolation_points_and_values);
 
 }

@@ -16,7 +16,7 @@ using namespace std;
 
 using namespace HLIB;
 using namespace SMESH;
-//using namespace KDT;
+using namespace KDT;
 
 #if HLIB_SINGLE_PREC == 1
 using  real_t = float;
@@ -25,46 +25,41 @@ using  real_t = double;
 #endif
 
 
-template <int K>
-using BatchData = tuple<vector<Matrix<double, K, 1>>, // sample points batch
-                        vector<Matrix<double, K, 1>>, // sample mu batch
-                        vector<Matrix<double, K, K>>, // sample Sigma batch
-                        VectorXd>;                    // impulse response batch
-
-template <int K>
 class ImpulseResponseBatches
 {
 private:
 
 public:
-    SimplexMesh                  mesh;
-    vector<Matrix<double, K, 1>> pts;
-    vector<Matrix<double, K, 1>> mu;
-    vector<Matrix<double, K, K>> inv_Sigma;
-    vector<VectorXd>             psi_batches;
-    vector<int>                  point2batch;
-    vector<int>                  batch2point_start;
-    vector<int>                  batch2point_stop;
+    int                     dim;
+    SimplexMesh             mesh;
+    vector<Eigen::VectorXd> pts;
+    vector<Eigen::VectorXd> mu;
+    vector<Eigen::MatrixXd> inv_Sigma;
+    vector<VectorXd>        psi_batches;
+    vector<int>             point2batch;
+    vector<int>             batch2point_start;
+    vector<int>             batch2point_stop;
 
     double                 tau;
     int                    num_neighbors;
     KDTree                 kdtree;
 
-    ImpulseResponseBatches( const Ref<const Matrix<double, K,   Dynamic>> mesh_vertices,
-                            const Ref<const Matrix<int   , K+1, Dynamic>> mesh_cells,
-                            int                                           num_neighbors,
-                            double                                        tau )
+    ImpulseResponseBatches( const Eigen::Ref<const Eigen::MatrixXd> mesh_vertices, // shape=(dim, num_vertices)
+                            const Eigen::Ref<const Eigen::MatrixXi> mesh_cells,    // shape=(dim+1, num_cells)
+                            int                                     num_neighbors,
+                            double                                  tau )
         : mesh(mesh_vertices, mesh_cells), num_neighbors(num_neighbors), tau(tau)
-    {}
+    {
+        dim = mesh_vertices.rows();
+    }
 
     void build_kdtree()
     {
-        MatrixXd pts_matrix(K, pts.size());
+        Eigen::MatrixXd pts_matrix(dim, num_pts());
         for ( int ii=0; ii<pts.size(); ++ii )
         {
             pts_matrix.col(ii) = pts[ii];
         }
-//        kdtree = KDTree(pts_matrix);
         kdtree.build_tree(pts_matrix);
     }
 
@@ -78,25 +73,24 @@ public:
         return psi_batches.size();
     }
 
-    void add_batch( const BatchData<K> & batch_data, bool rebuild_kdtree )
+    void add_batch( const std::vector<Eigen::VectorXd> batch_points,
+                    const std::vector<Eigen::VectorXd> batch_mu,
+                    const std::vector<Eigen::MatrixXd> batch_Sigma,
+                    const Eigen::VectorXd &            impulse_response_batch,
+                    bool                               rebuild_kdtree )
     {
-        const vector<Matrix<double, K, 1>> & pts_batch              = get<0>(batch_data);
-        const vector<Matrix<double, K, 1>> & mu_batch               = get<1>(batch_data);
-        const vector<Matrix<double, K, K>> & Sigma_batch            = get<2>(batch_data);
-        const VectorXd                     & impulse_response_batch = get<3>(batch_data);
+        int num_new_pts = batch_points.size();
 
-        int num_new_pts = pts_batch.size();
-
-        batch2point_start.push_back(pts.size());
+        batch2point_start.push_back(num_pts());
         int batch_ind = psi_batches.size();
         for ( int ii=0; ii<num_new_pts; ++ii )
         {
             point2batch.push_back( batch_ind );
-            pts        .push_back( pts_batch[ii] );
-            mu         .push_back( mu_batch[ii] );
-            inv_Sigma  .push_back( Sigma_batch[ii].inverse() ); // Matrix is 2x2 or 3x3, so inverse is OK
+            pts        .push_back( batch_points[ii] );
+            mu         .push_back( batch_mu[ii] );
+            inv_Sigma  .push_back( batch_Sigma[ii].inverse() ); // Matrix is 2x2 or 3x3, so inverse is OK
         }
-        batch2point_stop.push_back(pts.size());
+        batch2point_stop.push_back(num_pts());
 
         psi_batches.push_back(impulse_response_batch);
 
@@ -106,10 +100,10 @@ public:
         }
     }
 
-    vector<pair<Matrix<double,K,1>, double>> interpolation_points_and_values(const Matrix<double, K, 1> & y,
-                                                                             const Matrix<double, K, 1> & x) const
+    std::vector<std::pair<Eigen::VectorXd, double>> interpolation_points_and_values(const Eigen::VectorXd & y,
+                                                                                    const Eigen::VectorXd & x) const
     {
-        pair<VectorXi, VectorXd> nn_result = kdtree.query( x, num_neighbors );
+        pair<Eigen::VectorXi, Eigen::VectorXd> nn_result = kdtree.query( x, num_neighbors );
         VectorXi nearest_inds = nn_result.first;
 
         int N_nearest = nearest_inds.size();
@@ -120,28 +114,28 @@ public:
         for ( int jj=0; jj<N_nearest; ++jj )
         {
             int ind = nearest_inds(jj);
-            Matrix<double, K, 1> z = y - x + pts[ind];
-            std::pair<VectorXi,MatrixXd> IC = mesh.first_point_collision( z );
+            Eigen::VectorXd z = y - x + pts[ind];
+            std::pair<Eigen::VectorXi, Eigen::MatrixXd> IC = mesh.first_point_collision( z );
             all_simplex_inds[jj]  = IC.first(0);
             all_affine_coords[jj] = IC.second.col(0);
             ind_is_good[jj] = ( all_simplex_inds[jj] >= 0 ); // y-x+xi is in mesh => varphi_i(y-x) is defined
         }
 
-        vector<pair<Matrix<double,K,1>, double>> good_points_and_values;
+        std::vector<std::pair<Eigen::VectorXd, double>> good_points_and_values;
         good_points_and_values.reserve(ind_is_good.size());
         for ( int jj=0; jj<N_nearest; ++jj )
         {
             if ( ind_is_good[jj] )
             {
                 int ind = nearest_inds[jj];
-                Matrix<double, K, 1> dp = y - x + pts[ind] - mu[ind];
+                VectorXd dp = y - x + pts[ind] - mu[ind];
 
                 double varphi_at_y_minus_x = 0.0;
                 if ( dp.transpose() * (inv_Sigma[ind] * dp) < tau*tau )
                 {
                     int b = point2batch[ind];
                     const VectorXd & phi_j = psi_batches[b];
-                    for ( int kk=0; kk<K+1; ++kk )
+                    for ( int kk=0; kk<dim+1; ++kk )
                     {
                         varphi_at_y_minus_x += all_affine_coords[jj](kk) * phi_j(mesh.cells(kk, all_simplex_inds[jj]));
                     }
@@ -154,49 +148,49 @@ public:
 
 };
 
-template <int K>
+
 class ProductConvolutionKernelRBF : public TCoeffFn< real_t >
 {
 private:
-    shared_ptr<ImpulseResponseBatches<K>> col_batches;
-    shared_ptr<ImpulseResponseBatches<K>> row_batches;
+    int dim;
+    shared_ptr<ImpulseResponseBatches> col_batches;
+    shared_ptr<ImpulseResponseBatches> row_batches;
 
 public:
-    vector<Matrix<double, K, 1>> row_coords;
-    vector<Matrix<double, K, 1>> col_coords;
+    std::vector<Eigen::VectorXd> row_coords;
+    std::vector<Eigen::VectorXd> col_coords;
     double                       gamma;
 
     thread_pool pool;
 
-    ProductConvolutionKernelRBF( shared_ptr<ImpulseResponseBatches<K>> col_batches,
-                                 shared_ptr<ImpulseResponseBatches<K>> row_batches,
-                                 vector<Matrix<double, K, 1>>          col_coords,
-                                 vector<Matrix<double, K, 1>>          row_coords,
-                                 double                                gamma )
+    ProductConvolutionKernelRBF( shared_ptr<ImpulseResponseBatches> col_batches,
+                                 shared_ptr<ImpulseResponseBatches> row_batches,
+                                 vector<Eigen::VectorXd>            col_coords,
+                                 vector<Eigen::VectorXd>            row_coords,
+                                 double                             gamma )
         : col_batches(col_batches),
           row_batches(row_batches),
           row_coords(row_coords),
           col_coords(col_coords),
           gamma(gamma)
-    {}
-
-    double eval_integral_kernel(const Matrix<double, K, 1> & y, const Matrix<double, K, 1> & x ) const
     {
-        vector<pair<Matrix<double,K,1>, double>> points_and_values_FWD;
+        dim = col_batches->dim;
+    }
+
+    double eval_integral_kernel(const Eigen::VectorXd & y,
+                                const Eigen::VectorXd & x ) const
+    {
+        std::vector<std::pair<Eigen::VectorXd, double>> points_and_values_FWD;
         if ( col_batches->num_pts() > 0 )
         {
             points_and_values_FWD = col_batches->interpolation_points_and_values(y, x); // forward
         }
 
-        vector<pair<Matrix<double,K,1>, double>> points_and_values_ADJ;
+        std::vector<std::pair<Eigen::VectorXd, double>> points_and_values_ADJ;
         if ( row_batches->num_pts() > 0 )
         {
             points_and_values_ADJ = row_batches->interpolation_points_and_values(x, y); // adjoint (swap x, y)
         }
-
-//        points_and_values_FWD.insert(points_and_values_FWD.begin(),
-//                                     points_and_values_ADJ.begin(),
-//                                     points_and_values_ADJ.end());
 
         // Add non-duplicates. Inefficient implementation but whatever.
         // Asymptotic complexity not affected because we already have to do O(k^2) matrix operation later anyways
@@ -209,11 +203,11 @@ public:
         points_and_values_FWD.reserve( N_FWD + N_ADJ );
         for ( int ii=0; ii<N_ADJ; ++ii )
         {
-            pair<Matrix<double,K,1>, double> & PV_ADJ = points_and_values_ADJ[ii];
+            std::pair<Eigen::VectorXd, double> & PV_ADJ = points_and_values_ADJ[ii];
             bool is_duplicate = false;
             for ( int jj=0; jj<N_FWD; ++jj )
             {
-                pair<Matrix<double,K,1>, double> & PV_FWD = points_and_values_FWD[jj];
+                pair<Eigen::VectorXd, double> & PV_FWD = points_and_values_FWD[jj];
                 if ( (PV_FWD.first - PV_ADJ.first).squaredNorm() < tol_squared )
                 {
                     is_duplicate = true;
@@ -232,25 +226,30 @@ public:
         double kernel_value = 0.0;
         if ( N_combined > 0 )
         {
-            MatrixXd P(K, N_combined);
-            VectorXd F(N_combined);
+            Eigen::MatrixXd P(dim, N_combined);
+            Eigen::VectorXd F(N_combined);
             for ( int jj=0; jj<N_combined; ++jj )
             {
                 P.col(jj) = points_and_values_FWD[jj].first;
                 F(jj)     = points_and_values_FWD[jj].second;
             }
-//            kernel_value = tps_interpolate( F, P, MatrixXd::Zero(K,1) );
-            kernel_value = tps_interpolate_least_squares( F, P, MatrixXd::Zero(K,1), gamma );
+            kernel_value = tps_interpolate_least_squares( F, P, Eigen::MatrixXd::Zero(dim,1), gamma );
         }
         return kernel_value;
     }
 
-    MatrixXd eval_integral_kernel_block(const Ref<const Matrix<double, K, Dynamic>> yy,
-                                        const Ref<const Matrix<double, K, Dynamic>> xx )
+    inline double eval_matrix_entry(const int row_ind,
+                                    const int col_ind ) const
+    {
+        return eval_integral_kernel(row_coords[row_ind], col_coords[col_ind]);
+    }
+
+    Eigen::MatrixXd eval_integral_kernel_block(const Eigen::Ref<const Eigen::MatrixXd> yy,  // shape=(dim,num_y)
+                                               const Eigen::Ref<const Eigen::MatrixXd> xx ) // shape=(dim,num_x)
     {
         int nx = xx.cols();
         int ny = yy.cols();
-        MatrixXd block(ny, nx);
+        Eigen::MatrixXd block(ny, nx);
 
         auto loop = [&](const int &a, const int &b)
         {
@@ -263,13 +262,12 @@ public:
         };
 
         pool.parallelize_loop(0, nx * ny, loop);
-
         return block;
     }
 
     void eval  ( const std::vector< idx_t > &  rowidxs,
-                         const std::vector< idx_t > &  colidxs,
-                         real_t *                      matrix ) const
+                 const std::vector< idx_t > &  colidxs,
+                 real_t *                      matrix ) const
     {
         int nrow = rowidxs.size();
         int ncol = colidxs.size();
@@ -278,7 +276,8 @@ public:
         {
             for ( size_t  ii = 0; ii < nrow; ++ii )
             {
-                matrix[ jj*nrow + ii ] = eval_integral_kernel(row_coords[rowidxs[ii]], col_coords[colidxs[jj]]);
+//                matrix[ jj*nrow + ii ] = eval_integral_kernel(row_coords[rowidxs[ii]], col_coords[colidxs[jj]]);
+                matrix[ jj*nrow + ii ] = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
             }
         }
     }
