@@ -2,7 +2,8 @@ default: all
 
 ##################    VVVV    Change these    VVVV    ##################
 
-HLIBPRO_DIR := /home/nick/hlibpro-2.8.1
+# HLIBPRO_DIR := /home/nick/hlibpro-2.8.1
+HLIBPRO_DIR := /home/nick/hlibpro-2.9
 EIGEN_INCLUDE := /home/nick/anaconda3/envs/fenics3/include/eigen3
 THREADPOOL_INCLUDE := /home/nick/repos/thread-pool # https://github.com/bshoshany/thread-pool
 NALGER_HELPER_INCLUDE := /home/nick/repos/nalger_helper_functions/include
@@ -23,9 +24,11 @@ OBJ_DIR  := ./obj
 BUILD_DIR  := ./hlibpro_python_wrapper
 
 LDFLAGS  = -shared -L$(HLIBPRO_LIB)
+CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++17 # <--- GOOD
 # CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++14
-CXXFLAGS = -O3 -Wall -shared -fPIC -std=c++17
 # CXXFLAGS = -O3 -Wall -shared -fPIC
+# CXXFLAGS = -Wall -shared -fPIC -std=c++17 -g -fsanitize=address
+# CXXFLAGS = -Wall -shared -fPIC -std=c++17 -g
 
 LIBS := -lhpro -Wl,-rpath,$(HLIBPRO_LIB)
 

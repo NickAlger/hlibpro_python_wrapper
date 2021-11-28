@@ -57,12 +57,12 @@ public:
         kdtree.build_tree(pts_matrix);
     }
 
-    int num_pts()
+    int num_pts() const
     {
         return pts.size();
     }
 
-    int num_batches()
+    int num_batches() const
     {
         return psi_batches.size();
     }
@@ -97,7 +97,7 @@ public:
     std::vector<std::pair<Eigen::VectorXd, double>> interpolation_points_and_values(const Eigen::VectorXd & y,
                                                                                     const Eigen::VectorXd & x) const
     {
-        pair<Eigen::VectorXi, Eigen::VectorXd> nn_result = kdtree.query( x, num_neighbors );
+        pair<Eigen::VectorXi, Eigen::VectorXd> nn_result = kdtree.query( x, min(num_neighbors, num_pts()) );
         Eigen::VectorXi nearest_inds = nn_result.first;
 
         int N_nearest = nearest_inds.size();
@@ -263,17 +263,54 @@ public:
                  const std::vector< idx_t > &  colidxs,
                  real_t *                      matrix ) const
     {
+        // Check input sizes
+        bool input_is_good = true;
+        for ( int rr : rowidxs )
+        {
+            if ( rr < 0 )
+            {
+                std::string error_message = "Negative row index. rr=";
+                error_message += std::to_string(rr);
+                throw std::invalid_argument( error_message );
+            }
+            else if ( rr >= row_coords.size() )
+            {
+                std::string error_message = "Row index too big. rr=";
+                error_message += std::to_string(rr);
+                error_message += ", row_coords.size()=";
+                error_message += std::to_string(row_coords.size());
+                throw std::invalid_argument( error_message );
+            }
+        }
+        for ( int cc : colidxs )
+        {
+            if ( cc < 0 )
+            {
+                std::string error_message = "Negative col index. cc=";
+                error_message += std::to_string(cc);
+                throw std::invalid_argument( error_message );
+            }
+            else if ( cc >= col_coords.size() )
+            {
+                std::string error_message = "Col index too big. cc=";
+                error_message += std::to_string(cc);
+                error_message += ", col_coords.size()=";
+                error_message += std::to_string(col_coords.size());
+                throw std::invalid_argument( error_message );
+            }
+        }
+
         int nrow = rowidxs.size();
         int ncol = colidxs.size();
-
         for ( size_t  jj = 0; jj < ncol; ++jj )
         {
             for ( size_t  ii = 0; ii < nrow; ++ii )
             {
-//                matrix[ jj*nrow + ii ] = eval_integral_kernel(row_coords[rowidxs[ii]], col_coords[colidxs[jj]]);
                 matrix[ jj*nrow + ii ] = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
+                matrix[ jj*nrow + ii ] += 1.0e-14; // Code segfaults without this
             }
         }
+
     }
 
     using HLIB::TCoeffFn< real_t >::eval;
