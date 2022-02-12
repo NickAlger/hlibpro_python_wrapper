@@ -27,6 +27,7 @@ public:
     int                          dim;
     SMESH::SimplexMesh           mesh;
     std::vector<Eigen::VectorXd> pts;
+    std::vector<double>          vol;
     std::vector<Eigen::VectorXd> mu;
     std::vector<Eigen::MatrixXd> inv_Sigma;
     std::vector<Eigen::VectorXd> psi_batches;
@@ -68,6 +69,7 @@ public:
     }
 
     void add_batch( const std::vector<Eigen::VectorXd> batch_points,
+                    const std::vector<double>          batch_vol,
                     const std::vector<Eigen::VectorXd> batch_mu,
                     const std::vector<Eigen::MatrixXd> batch_Sigma,
                     const Eigen::VectorXd &            impulse_response_batch,
@@ -81,6 +83,7 @@ public:
         {
             point2batch.push_back( batch_ind );
             pts        .push_back( batch_points[ii] );
+            vol        .push_back( batch_vol[ii] );
             mu         .push_back( batch_mu[ii] );
             inv_Sigma  .push_back( batch_Sigma[ii].inverse() ); // Matrix is 2x2 or 3x3, so inverse is OK
         }
@@ -97,6 +100,28 @@ public:
     std::vector<std::pair<Eigen::VectorXd, double>> interpolation_points_and_values(const Eigen::VectorXd & y,
                                                                                     const Eigen::VectorXd & x) const
     {
+        std::pair<Eigen::VectorXi, Eigen::MatrixXd> IC_x = mesh.first_point_collision( x );
+        int simplex_ind_x               = IC_x.first(0);
+        Eigen::VectorXd affine_coords_x = IC_x.second.col(0);
+
+        double   vol_at_x = 0.0;
+        Eigen::VectorXd mu_at_x(dim);
+        mu_at_x.setZero();
+        if ( simplex_ind_x >= 0 ) // if x is in the mesh
+        {
+            for ( int kk=0; kk<dim+1; ++kk )
+            {
+                int vertex_ind = mesh.cells(kk, simplex_ind_x);
+                vol_at_x += affine_coords_x(kk) * vol[vertex_ind]; // BAD
+//                mu_at_x  += affine_coords_x(kk) *  mu[vertex_ind];
+//                mu_at_x  += mu[vertex_ind];
+//                std::cout << std::endl;
+//                std::cout << "mu_at_x:" << mu_at_x << std::endl;
+//                std::cout << "vertex_ind:" << vertex_ind << std::endl;
+//                std::cout << "mu.size():" << mu.size() << std::endl;
+            }
+        }
+
         pair<Eigen::VectorXi, Eigen::VectorXd> nn_result = kdtree.query( x, min(num_neighbors, num_pts()) );
         Eigen::VectorXi nearest_inds = nn_result.first;
 
@@ -108,7 +133,9 @@ public:
         for ( int jj=0; jj<N_nearest; ++jj )
         {
             int ind = nearest_inds(jj);
-            Eigen::VectorXd z = y - x + pts[ind];
+            Eigen::VectorXd z = y - x + pts[ind]; // C
+//            Eigen::VectorXd mu_at_xj = mu[ind]; // D
+//            Eigen::VectorXd z = y - mu_at_x + mu_at_xj; // D
             std::pair<Eigen::VectorXi, Eigen::MatrixXd> IC = mesh.first_point_collision( z );
             all_simplex_inds[jj]  = IC.first(0);
             all_affine_coords[jj] = IC.second.col(0);
@@ -122,8 +149,9 @@ public:
             if ( ind_is_good[jj] )
             {
                 int ind = nearest_inds[jj];
-                Eigen::VectorXd dp = y - x + pts[ind] - mu[ind];
-
+                double vol_at_xj = vol[ind];
+                Eigen::VectorXd dp = y - x + pts[ind] - mu[ind]; // C
+//                Eigen::VectorXd dp = y - mu_at_x; // D
                 double varphi_at_y_minus_x = 0.0;
                 if ( dp.transpose() * (inv_Sigma[ind] * dp) < tau*tau )
                 {
@@ -131,9 +159,11 @@ public:
                     const Eigen::VectorXd & phi_j = psi_batches[b];
                     for ( int kk=0; kk<dim+1; ++kk )
                     {
-                        varphi_at_y_minus_x += all_affine_coords[jj](kk) * phi_j(mesh.cells(kk, all_simplex_inds[jj]));
+                        varphi_at_y_minus_x += vol_at_xj * all_affine_coords[jj](kk) * phi_j(mesh.cells(kk, all_simplex_inds[jj])); // A
+//                        varphi_at_y_minus_x += all_affine_coords[jj](kk) * phi_j(mesh.cells(kk, all_simplex_inds[jj])); // B
                     }
                 }
+//                varphi_at_y_minus_x *= vol_at_x; // B
                 good_points_and_values.push_back(make_pair(pts[ind] - x, varphi_at_y_minus_x));
             }
         }
@@ -141,6 +171,136 @@ public:
     }
 
 };
+
+//struct EllipsoidData
+//{
+//    const Eigen::VectorXd vol_at_mesh_nodes; // shape=(N,)
+//    const Eigen::MatrixXd mu_at_mesh_nodes; // shape=(d,N)
+//    const Eigen::MatrixXd Sigma_at_mesh_nodes; // shape=(d*d,N)
+//    const Eigen::VectorXd tau_at_mesh_nodes; // shape=(N,)
+//}
+
+struct Ellipsoid
+{
+    // Ellipsoid is the set of all points p such that
+        //   (p - mu)' * inv(Sigma) * (p - mu) < tau^2
+    const double          vol;
+    const Eigen::VectorXd mu; // shape=(d,)
+    const Eigen::MatrixXd Sigma; // shape=(d,d)
+    const double          tau
+};
+
+bool point_is_in_ellipsoid(const Eigen::VectorXd & p, const Ellipsoid & E)
+{
+    Eigen::VectorXd dp = p - E.mu;
+    return dp.transpose() * E.Sigma.ldlt().solve(dp) < E.tau*E.tau;
+}
+
+Ellipsoid get_ellipsoid_at_point(const Eigen::VectorXd    & p,
+                                 const vector<Ellipsoid>  & ellipsoids_at_mesh_nodes,
+                                 const SMESH::SimplexMesh & mesh)
+{
+    std::pair<Eigen::VectorXi, Eigen::MatrixXd> IC = mesh.first_point_collision( p );
+    const int cell_ind = IC.first(0);
+    const Eigen::VectorXd affine_coords = IC.second.col(0);
+    const int dim = affine_coords.size() - 1;
+
+    double          vol = 0.0;
+
+    Eigen::VectorXd mu(dim);
+    mu.setZero();
+
+    Eigen::MatrixXd Sigma(dim,dim);
+    Sigma.setZero();
+
+    double tau = 0.0
+
+    for ( int kk=0; kk<dim+1; ++kk )
+    {
+        const Ellipsoid & Ek = ellipsoids_at_mesh_nodes[mesh.cells(kk, cell_ind)];
+        vol   += affine_coords(kk) * Ek.vol;
+        mu    += affine_coords(kk) * Ek.mu;
+        Sigma += affine_coords(kk) * Ek.Sigma;
+        tau   += affine_coords(kk) * Ek.tau;
+    }
+    return Ellipsoid { vol, mu, Sigma, tau };
+}
+
+
+struct ImpulseResponseBatchData
+{
+    std::vector<Eigen::VectorXd> sample_points; // sample_points[j] has shape=(d,)
+
+    vector<int> (*get_nearest_sample_point_inds)(const Eigen::VectorXd, int); // find indices of k-nearest sample points to query point
+    bool        (*check_if_point_is_in_mesh)    (const Eigen::VectorXd);
+
+    std::vector<double (*)(const Eigen::VectorXd)> psi_batches; // psi_batches[j] : shape=(d,) -> scalar
+    std::vector<int> point2batch; // psi_batches[point2batch[j]] contains j'th impulse response
+};
+
+
+double eval_psi_j(const Eigen::VectorXd & p, const int j, const ImpulseResponseBatchData & IRBD, const SMESH::SimplexMesh & mesh)
+{
+    std::pair<Eigen::VectorXi, Eigen::MatrixXd> IC = mesh.first_point_collision( p );
+    const int cell_ind = IC.first(0);
+    const Eigen::VectorXd affine_coords = IC.second.col(0);
+    const int dim = affine_coords.size() - 1;
+
+    const int b = IRBD.point2batch[j];
+    const Eigen::VectorXd & phi_j = IRBD.psi_batches[b];
+    double psi_j_at_p = 0.0;
+    for ( int kk=0; kk<dim+1; ++kk )
+    {
+        psi_j_at_p += affine_coords(kk) * phi_j(mesh.cells(kk, cell_ind)); // A
+    }
+    return psi_j_at_p;
+}
+
+VectorXi get_nearest_sample_point_inds(const Eigen::VectorXd & p, const int k, const ImpulseResponseBatchData & IRBD)
+{
+    const int k_prime = min(k, IRBD.sample_points.size())
+    return IRBD.kdtree.query( x, k_prime ).first;
+}
+
+bool check_if_point_is_in_mesh(const Eigen::VectorXd & p, const SMESH::SimplexMesh & mesh)
+{
+    std::pair<Eigen::VectorXi, Eigen::MatrixXd> IC = mesh.first_point_collision( p );
+    return (IC.first(0) >= 0);
+}
+
+std::vector<std::pair<Eigen::VectorXd, double>> interpolation_points_and_values(const Eigen::VectorXd &          y, // shape=(d,)
+                                                                                const Eigen::VectorXd &          x, // shape=(d,)
+                                                                                const int                        num_neighbors,
+                                                                                const ImpulseResponseBatchData & IRBD,
+                                                                                const EllipsoidData &            ED,
+                                                                                const SMESH::SimplexMesh &       mesh)
+{
+    const Ellipsoid Ex = get_ellipsoid_at_point(x, ED, mesh);
+
+    const VectorXi nearest_inds = get_nearest_sample_point_inds(x, num_neighbors, IRBD);
+    const int N_nearest = nearest_inds.size();
+
+    std::vector<std::pair<Eigen::VectorXd, double>> good_points_and_values;
+    good_points_and_values.reserve(N_nearest);
+    for ( int jj=0; jj<N_nearest; ++jj )
+    {
+        const int xj_ind = nearest_inds[jj];
+        const Eigen::VectorXd xj = IRBD.sample_points[xj_ind];
+        const Eigen::VectorXd z = y - x + xj;
+        if ( check_if_point_is_in_mesh(z, mesh) )
+        {
+            const Ellipsoid Exj = get_ellipsoid_at_point(xj, ED, mesh);
+
+            double varphi_j_at_point = 0.0;
+            if ( point_is_in_ellipsoid(z, Exj) ) // if point is in the ellipsoid
+            {
+                varphi_j_at_point = Exj.vol * eval_psi_j(z, nearest_inds[jj], IRBD);
+            }
+            good_points_and_values.push_back(make_pair(xj - x, varphi_j_at_point));
+        }
+    }
+    return good_points_and_values;
+}
 
 
 class ProductConvolutionKernelRBF : public HLIB::TCoeffFn< real_t >

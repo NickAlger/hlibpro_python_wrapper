@@ -767,6 +767,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def_readonly("kdtree", &ImpulseResponseBatches::kdtree)
         .def_readonly("mesh", &ImpulseResponseBatches::mesh)
         .def_readonly("pts", &ImpulseResponseBatches::pts)
+        .def_readonly("vol", &ImpulseResponseBatches::vol)
         .def_readonly("mu", &ImpulseResponseBatches::mu)
         .def_readonly("inv_Sigma", &ImpulseResponseBatches::inv_Sigma)
         .def_readonly("psi_batches", &ImpulseResponseBatches::psi_batches)
