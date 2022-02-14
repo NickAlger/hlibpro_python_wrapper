@@ -751,25 +751,33 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        double                              // gamma
                        >())
         .def_readwrite("gamma", &ProductConvolutionKernelRBF::gamma)
+        .def_readwrite("mean_shift", &ProductConvolutionKernelRBF::mean_shift)
+        .def_readwrite("vol_preconditioning", &ProductConvolutionKernelRBF::vol_preconditioning)
         .def("eval_integral_kernel", &ProductConvolutionKernelRBF::eval_integral_kernel)
         .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF::eval_integral_kernel_block);
 
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
 
     py::class_<ImpulseResponseBatches, shared_ptr<ImpulseResponseBatches>>(m, "ImpulseResponseBatches")
-        .def(py::init< const Ref<const MatrixXd>, // mesh_vertices,
-                       const Ref<const MatrixXi>, // mesh_cells,
-                       int,                       // num_neighbors,
-                       double                     // tau
+        .def(py::init< const Eigen::Ref<const Eigen::MatrixXd>, //mesh_vertices, // shape=(dim, num_vertices)
+                       const Eigen::Ref<const Eigen::MatrixXi>, //mesh_cells,    // shape=(dim+1, num_cells)
+                       const std::vector<double>,               //mesh_vertex_vol;
+                       const std::vector<Eigen::VectorXd>,      //mesh_vertex_mu;
+                       const std::vector<Eigen::MatrixXd>,      //mesh_vertex_Sigma;
+                       int,                                     //num_neighbors,
+                       double                                   //tau
                        >())
         .def_readwrite("tau", &ImpulseResponseBatches::tau)
         .def_readwrite("num_neighbors", &ImpulseResponseBatches::num_neighbors)
         .def_readonly("kdtree", &ImpulseResponseBatches::kdtree)
         .def_readonly("mesh", &ImpulseResponseBatches::mesh)
-        .def_readonly("pts", &ImpulseResponseBatches::pts)
-        .def_readonly("vol", &ImpulseResponseBatches::vol)
-        .def_readonly("mu", &ImpulseResponseBatches::mu)
-        .def_readonly("inv_Sigma", &ImpulseResponseBatches::inv_Sigma)
+        .def_readonly("mesh_vertex_vol", &ImpulseResponseBatches::mesh_vertex_vol)
+        .def_readonly("mesh_vertex_mu", &ImpulseResponseBatches::mesh_vertex_mu)
+        .def_readonly("mesh_vertex_Sigma", &ImpulseResponseBatches::mesh_vertex_Sigma)
+        .def_readonly("sample_points", &ImpulseResponseBatches::sample_points)
+        .def_readonly("sample_vol", &ImpulseResponseBatches::sample_vol)
+        .def_readonly("sample_mu", &ImpulseResponseBatches::sample_mu)
+        .def_readonly("sample_Sigma", &ImpulseResponseBatches::sample_Sigma)
         .def_readonly("psi_batches", &ImpulseResponseBatches::psi_batches)
         .def_readonly("point2batch", &ImpulseResponseBatches::point2batch)
         .def_readonly("batch2point_start", &ImpulseResponseBatches::batch2point_start)
