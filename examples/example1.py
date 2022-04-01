@@ -137,6 +137,8 @@ A_factorized.visualize('inv_A_factors')
 
 A2_hmatrix = A_hmatrix.copy()
 
+# left
+
 dd = np.random.randn(A2_hmatrix.shape[0])
 A2_hmatrix.mul_diag_left(dd)
 
@@ -147,3 +149,18 @@ y2 = A2_hmatrix * z
 
 err_mul_diag_left = np.linalg.norm(y2 - y1) / np.linalg.norm(y1)
 print('err_mul_diag_left=', err_mul_diag_left)
+
+# right
+
+A3_hmatrix = A_hmatrix.copy()
+
+dd = np.random.randn(A3_hmatrix.shape[0])
+A3_hmatrix.mul_diag_right(dd)
+
+z = np.random.randn(A3_hmatrix.shape[1])
+
+y3 = A_hmatrix * (dd * z)
+y4 = A3_hmatrix * z
+
+err_mul_diag_right = np.linalg.norm(y3 - y4) / np.linalg.norm(y3)
+print('err_mul_diag_right=', err_mul_diag_right)

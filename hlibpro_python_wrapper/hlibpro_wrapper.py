@@ -170,6 +170,9 @@ class HMatrix:
     def mul_diag_left(me, v):
         hpro_cpp.mul_diag_left_wrapper(v, me.cpp_object, me.row_ct.cpp_object)
 
+    def mul_diag_right(me, v):
+        hpro_cpp.mul_diag_right_wrapper(v, me.cpp_object, me.col_ct.cpp_object)
+
     def visualize(me, filename):
         hpro_cpp.visualize_hmatrix(me.cpp_object, filename)
 
