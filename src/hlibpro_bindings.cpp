@@ -8,6 +8,7 @@
 #include <pybind11/pybind11.h>
 #include <hlib.hh>
 #include <hpro/algebra/mat_fac.hh>
+#include <hpro/vector/TScalarVector.hh>
 
 #include <Eigen/Dense>
 #include <Eigen/LU>
@@ -43,6 +44,33 @@ using  real_t = float;
 using  real_t = double;
 #endif
 
+void mul_diag_left_wrapper(const Eigen::Ref<const VectorXd> x,
+                           std::shared_ptr<HLIB::TMatrix> A_ptr,
+                           std::shared_ptr<HLIB::TClusterTree> row_ct_ptr)
+{
+    int N = x.size();
+    if ( N == A_ptr->rows() )
+    {
+        std::unique_ptr<HLIB::TVector> x_hlib = A_ptr.get()->row_vector();
+        for ( int ii=0; ii<N; ++ii )
+        {
+            x_hlib->set_entry( ii, x(ii) );
+        }
+        row_ct_ptr->perm_e2i()->permute( x_hlib.get() );
+
+        HLIB::TScalarVector x_hlib2( (size_t)N );
+        for ( int ii=0; ii<N; ++ii )
+        {
+            x_hlib2.set_entry( ii, x_hlib->entry(ii) );
+        }
+
+        mul_diag_left(x_hlib2, A_ptr.get());
+    }
+    else
+    {
+        cout << "x.size() does not equal A.rows() in mul_diag_left_wrapper. Multiplication A <- diag(x)*A not performed!" << endl;
+    }
+}
 
 std::shared_ptr<HLIB::TClusterTree> build_cluster_tree_from_dof_coords(const MatrixXd & dof_coords, const double nmin)
 {
@@ -185,6 +213,7 @@ void visualize_hmatrix(std::shared_ptr<HLIB::TMatrix> A_ptr, string title)
     mvis.svd( true );
     mvis.print( A_ptr.get(), title );
 }
+
 
 VectorXd h_matvec(std::shared_ptr<HLIB::TMatrix> A_ptr,
                   std::shared_ptr<HLIB::TClusterTree> row_ct_ptr,
@@ -788,4 +817,5 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("build_kdtree", &ImpulseResponseBatches::build_kdtree)
         .def("interpolation_points_and_values", &ImpulseResponseBatches::interpolation_points_and_values);
 
+    m.def("mul_diag_left_wrapper", &mul_diag_left_wrapper);
 }

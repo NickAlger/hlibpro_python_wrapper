@@ -167,6 +167,9 @@ class HMatrix:
     def add_identity(me, s=1.0, overwrite=False):
         return add_identity_to_hmatrix(me, s=s, overwrite=overwrite)
 
+    def mul_diag_left(me, v):
+        hpro_cpp.mul_diag_left_wrapper(v, me.cpp_object, me.row_ct.cpp_object)
+
     def visualize(me, filename):
         hpro_cpp.visualize_hmatrix(me.cpp_object, filename)
 

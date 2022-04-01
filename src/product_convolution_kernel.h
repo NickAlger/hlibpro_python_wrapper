@@ -48,7 +48,7 @@ public:
     ImpulseResponseBatches( const Eigen::Ref<const Eigen::MatrixXd> mesh_vertices, // shape=(dim, num_vertices)
                             const Eigen::Ref<const Eigen::MatrixXi> mesh_cells,    // shape=(dim+1, num_cells)
                             const std::vector<double>               mesh_vertex_vol,
-                            const std::vector<Eigen::VectorXd>      mesh_vertex_mu,
+                            const std::vector<Eigen::VectorXd>      mesh_vertex_mu, // size = num_vertices, mesh_vertex_mu[j] has shape (d,)
                             const std::vector<Eigen::MatrixXd>      mesh_vertex_Sigma,
                             int                                     num_neighbors,
                             double                                  tau )
@@ -78,8 +78,8 @@ public:
         return psi_batches.size();
     }
 
-    void add_batch( const Eigen::VectorXi & batch_point_inds,
-                    const Eigen::VectorXd & impulse_response_batch,
+    void add_batch( const Eigen::VectorXi & batch_point_inds, // indices of sample points in the batch we are adding
+                    const Eigen::VectorXd & impulse_response_batch, // shape = num_vertices
                     bool                    rebuild_kdtree )
     {
         int num_new_pts = batch_point_inds.size();
@@ -110,8 +110,8 @@ public:
         }
     }
 
-    std::vector<std::pair<Eigen::VectorXd, double>> interpolation_points_and_values(const Eigen::VectorXd & y,
-                                                                                    const Eigen::VectorXd & x,
+    std::vector<std::pair<Eigen::VectorXd, double>> interpolation_points_and_values(const Eigen::VectorXd & y, // 2d/3d
+                                                                                    const Eigen::VectorXd & x, // 2d/3d
                                                                                     const bool mean_shift,
                                                                                     const bool vol_preconditioning) const
     {

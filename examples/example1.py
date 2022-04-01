@@ -100,7 +100,7 @@ print('err_h_add=', err_h_add)
 
 ########    MULTIPLY HMATRICES   ########
 
-KM_hmatrix = hpro.h_mul(K_hmatrix, M_hmatrix, rtol=1e-6)  # alternatively: K_hmatrix + M_hmatrix
+KM_hmatrix = hpro.h_mul(K_hmatrix, M_hmatrix, rtol=1e-6)  # alternatively: K_hmatrix * M_hmatrix
 
 x = np.random.randn(dof_coords.shape[0])
 y = hpro.h_matvec(KM_hmatrix, x)
@@ -131,3 +131,19 @@ print('err_hfac=', err_hfac)
 
 A_factorized.visualize('inv_A_factors')
 # hpro.visualize_inverse_factors(iA_factorized, 'inv_A_factors')
+
+
+########    MULTIPLY HMATRIX BY DIAGONAL MATRIX   ########
+
+A2_hmatrix = A_hmatrix.copy()
+
+dd = np.random.randn(A2_hmatrix.shape[0])
+A2_hmatrix.mul_diag_left(dd)
+
+z = np.random.randn(A2_hmatrix.shape[1])
+
+y1 = dd * (A_hmatrix * z)
+y2 = A2_hmatrix * z
+
+err_mul_diag_left = np.linalg.norm(y2 - y1) / np.linalg.norm(y1)
+print('err_mul_diag_left=', err_mul_diag_left)
