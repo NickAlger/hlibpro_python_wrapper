@@ -387,4 +387,141 @@ public:
 
 };
 
+
+class ProductConvolutionKernelRBFColsOnly : public HLIB::TCoeffFn< real_t >
+{
+private:
+    int dim;
+    shared_ptr<ImpulseResponseBatches> col_batches;
+
+public:
+    std::vector<Eigen::VectorXd> row_coords;
+    std::vector<Eigen::VectorXd> col_coords;
+    bool                         mean_shift = true;
+    bool                         vol_preconditioning = true;
+
+    thread_pool pool;
+
+    ProductConvolutionKernelRBFColsOnly( shared_ptr<ImpulseResponseBatches> col_batches,
+                                         std::vector<Eigen::VectorXd>       col_coords,
+                                         std::vector<Eigen::VectorXd>       row_coords)
+        : col_batches(col_batches),
+          row_coords(row_coords),
+          col_coords(col_coords)
+    {
+        dim = col_batches->dim;
+    }
+
+    double eval_integral_kernel(const Eigen::VectorXd & y,
+                                const Eigen::VectorXd & x ) const
+    {
+        std::vector<std::pair<Eigen::VectorXd, double>> points_and_values;
+        if ( col_batches->num_pts() > 0 )
+        {
+            points_and_values = col_batches->interpolation_points_and_values(y, x, mean_shift, vol_preconditioning); // forward
+        }
+
+        int actual_num_pts = points_and_values.size();
+        double kernel_value = 0.0;
+        if ( actual_num_pts > 0 )
+        {
+            Eigen::MatrixXd P(dim, actual_num_pts);
+            Eigen::VectorXd F(actual_num_pts);
+            for ( int jj=0; jj<actual_num_pts; ++jj )
+            {
+                P.col(jj) = points_and_values[jj].first;
+                F(jj)     = points_and_values[jj].second;
+            }
+            kernel_value = tps_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1) );
+        }
+        return kernel_value;
+    }
+
+    inline double eval_matrix_entry(const int row_ind,
+                                    const int col_ind ) const
+    {
+        return eval_integral_kernel(row_coords[row_ind], col_coords[col_ind]);
+    }
+
+    Eigen::MatrixXd eval_integral_kernel_block(const Eigen::Ref<const Eigen::MatrixXd> yy,  // shape=(dim,num_y)
+                                               const Eigen::Ref<const Eigen::MatrixXd> xx ) // shape=(dim,num_x)
+    {
+        int nx = xx.cols();
+        int ny = yy.cols();
+        Eigen::MatrixXd block(ny, nx);
+
+        auto loop = [&](const int &a, const int &b)
+        {
+            for ( int ind=a; ind<b; ++ind )
+            {
+                int jj = ind / ny;
+                int ii = ind % ny;
+                block(ii, jj) = eval_integral_kernel(yy.col(ii), xx.col(jj));
+            }
+        };
+
+        pool.parallelize_loop(0, nx * ny, loop);
+        return block;
+    }
+
+    void eval  ( const std::vector< idx_t > &  rowidxs,
+                 const std::vector< idx_t > &  colidxs,
+                 real_t *                      matrix ) const
+    {
+        // Check input sizes
+        bool input_is_good = true;
+        for ( int rr : rowidxs )
+        {
+            if ( rr < 0 )
+            {
+                std::string error_message = "Negative row index. rr=";
+                error_message += std::to_string(rr);
+                throw std::invalid_argument( error_message );
+            }
+            else if ( rr >= row_coords.size() )
+            {
+                std::string error_message = "Row index too big. rr=";
+                error_message += std::to_string(rr);
+                error_message += ", row_coords.size()=";
+                error_message += std::to_string(row_coords.size());
+                throw std::invalid_argument( error_message );
+            }
+        }
+        for ( int cc : colidxs )
+        {
+            if ( cc < 0 )
+            {
+                std::string error_message = "Negative col index. cc=";
+                error_message += std::to_string(cc);
+                throw std::invalid_argument( error_message );
+            }
+            else if ( cc >= col_coords.size() )
+            {
+                std::string error_message = "Col index too big. cc=";
+                error_message += std::to_string(cc);
+                error_message += ", col_coords.size()=";
+                error_message += std::to_string(col_coords.size());
+                throw std::invalid_argument( error_message );
+            }
+        }
+
+        int nrow = rowidxs.size();
+        int ncol = colidxs.size();
+        for ( size_t  jj = 0; jj < ncol; ++jj )
+        {
+            for ( size_t  ii = 0; ii < nrow; ++ii )
+            {
+                matrix[ jj*nrow + ii ] = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
+                matrix[ jj*nrow + ii ] += 1.0e-14; // Code segfaults without this
+            }
+        }
+
+    }
+
+    using HLIB::TCoeffFn< real_t >::eval;
+
+    virtual matform_t  matrix_format  () const { return MATFORM_NONSYM; }
+
+};
+
 } // end namespace PCK

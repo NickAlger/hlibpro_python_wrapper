@@ -799,6 +799,16 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
         .def("eval_integral_kernel", &ProductConvolutionKernelRBF::eval_integral_kernel)
         .def("eval_integral_kernel_block", &ProductConvolutionKernelRBF::eval_integral_kernel_block);
 
+    py::class_<ProductConvolutionKernelRBFColsOnly, HLIB::TCoeffFn<real_t>>(m, "ProductConvolutionKernelRBFColsOnly")
+        .def(py::init< shared_ptr<ImpulseResponseBatches>, // IRO_FWD,
+                       vector<VectorXd>,                   // row_coords,
+                       vector<VectorXd>                    //  col_coords
+                       >())
+        .def_readwrite("mean_shift", &ProductConvolutionKernelRBFColsOnly::mean_shift)
+        .def_readwrite("vol_preconditioning", &ProductConvolutionKernelRBFColsOnly::vol_preconditioning)
+        .def("eval_integral_kernel", &ProductConvolutionKernelRBFColsOnly::eval_integral_kernel)
+        .def("eval_integral_kernel_block", &ProductConvolutionKernelRBFColsOnly::eval_integral_kernel_block);
+
     m.def("tps_interpolate_vectorized", &tps_interpolate_vectorized);
 
     py::class_<ImpulseResponseBatches, shared_ptr<ImpulseResponseBatches>>(m, "ImpulseResponseBatches")
@@ -834,3 +844,4 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("mul_diag_left_wrapper", &mul_diag_left_wrapper);
     m.def("mul_diag_right_wrapper", &mul_diag_right_wrapper);
 }
+
