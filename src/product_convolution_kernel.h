@@ -409,6 +409,7 @@ public:
           row_coords(row_coords),
           col_coords(col_coords)
     {
+        cout << "Using ProductConvolutionKernelRBFColsOnly!" << endl;
         dim = col_batches->dim;
     }
 
@@ -423,17 +424,33 @@ public:
 
         int actual_num_pts = points_and_values.size();
         double kernel_value = 0.0;
-        if ( actual_num_pts > 0 )
+
+        int exact_column_index = -1;
+        for ( int ii=0; ii<actual_num_pts; ++ii )
         {
-            Eigen::MatrixXd P(dim, actual_num_pts);
-            Eigen::VectorXd F(actual_num_pts);
-            for ( int jj=0; jj<actual_num_pts; ++jj )
+            if ( points_and_values[ii].first.norm() < 1e-9 )
             {
-                P.col(jj) = points_and_values[jj].first;
-                F(jj)     = points_and_values[jj].second;
+                exact_column_index = ii;
+                kernel_value = points_and_values[ii].second;
+                break;
             }
-            kernel_value = tps_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1) );
         }
+
+        if ( exact_column_index < 0 )
+        {
+            if ( actual_num_pts > 0 )
+            {
+                Eigen::MatrixXd P(dim, actual_num_pts);
+                Eigen::VectorXd F(actual_num_pts);
+                for ( int jj=0; jj<actual_num_pts; ++jj )
+                {
+                    P.col(jj) = points_and_values[jj].first;
+                    F(jj)     = points_and_values[jj].second;
+                }
+                kernel_value = tps_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1) );
+            }
+        }
+
         return kernel_value;
     }
 
