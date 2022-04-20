@@ -71,7 +71,8 @@ class HMatrix:
         return A_sym
 
     def spd(me, **kwargs):
-        return rational_positive_definite_approximation_method1(me, **kwargs)
+        return rational_positive_definite_approximation_low_rank_method(me, **kwargs)
+        # return rational_positive_definite_approximation_method1(me, **kwargs)
 
     def _set_symmetric(me):
         me._cpp_object.set_symmetric()
@@ -178,6 +179,19 @@ class HMatrix:
 
     def as_linear_operator(me):
         return spla.LinearOperator(me.shape, matvec=me.matvec)
+
+    def low_rank_update(me, X, Y, overwrite=False, rtol=default_rtol, atol=default_atol): #A -> A + X*Y
+        XY = hpro_cpp.make_permuted_hlibpro_low_rank_matrix(X, np.copy(Y.T), me.row_ct.cpp_object, me.col_ct.cpp_object)
+
+        acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
+
+        if overwrite == False:
+            A_plus_XY = me.copy()
+        else:
+            A_plus_XY = me
+
+        hpro_cpp.add(1.0, XY, 1.0, A_plus_XY.cpp_object, acc)
+        return A_plus_XY
 
 
 def add_identity_to_hmatrix(A_hmatrix, s=1.0, overwrite=False):
@@ -763,4 +777,47 @@ def rational_positive_definite_approximation_method2(A, overwrite=False,
     return M1
 
 
+def rational_positive_definite_approximation_low_rank_method(A,
+                                                             cutoff=0.0,
+                                                             block_size=20,
+                                                             max_rank=500,
+                                                             display=True,
+                                                             overwrite=False,
+                                                             rtol=default_rtol,
+                                                             atol=default_atol):
+    '''Form symmetric positive definite approximation of hmatrix A
+    uses low rank deflation to flip negative eigenvalues less than cutoff.
+    '''
+    cutoff = -np.abs(cutoff)
+
+    A_plus = A.sym(rtol=rtol, atol=atol, overwrite=overwrite)
+
+    update_rank=0
+    while update_rank < max_rank:
+        print('getting negative eigs')
+        min_eigs, min_evecs = spla.eigsh(A_plus.as_linear_operator(), block_size, which='SA')
+        negative_inds = min_eigs < 0
+        ee_neg = min_eigs[negative_inds]
+        U_neg = min_evecs[:, negative_inds]
+        update_rank += len(ee_neg)
+
+        X_update = U_neg
+        Y_update = np.dot(np.diag(-2 * ee_neg), U_neg.T)
+
+        print('hmatrix low rank update')
+        A_plus.low_rank_update(X_update, Y_update, overwrite=True, rtol=rtol, atol=atol)
+
+        if display:
+            print('update_rank=', update_rank)
+            print('min_eigs=', min_eigs)
+            print('cutoff=', cutoff)
+        if (np.max(min_eigs) > cutoff):
+            print('negative eigs smaller than cutoff. Good.')
+            break
+
+    return A_plus
+
+
+make_hlibpro_low_rank_matrix = hpro_cpp.make_hlibpro_low_rank_matrix # X = A @ B.T
+make_permuted_hlibpro_low_rank_matrix = hpro_cpp.make_permuted_hlibpro_low_rank_matrix
 

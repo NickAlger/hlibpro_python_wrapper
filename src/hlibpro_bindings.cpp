@@ -9,6 +9,8 @@
 #include <hlib.hh>
 #include <hpro/algebra/mat_fac.hh>
 #include <hpro/vector/TScalarVector.hh>
+#include <hpro/matrix/TRkMatrix.hh>
+#include <hpro/blas/Matrix.hh>
 
 #include <Eigen/Dense>
 #include <Eigen/LU>
@@ -43,6 +45,68 @@ using  real_t = float;
 #else
 using  real_t = double;
 #endif
+
+//std::shared_ptr<HLIB::TRkMatrix> make_hlibpro_low_rank_matrix(Eigen::MatrixXd A, Eigen::MatrixXd BT) // X = A*B^T
+std::shared_ptr<HLIB::TMatrix> make_hlibpro_low_rank_matrix(Eigen::MatrixXd A, Eigen::MatrixXd BT) // X = A*B^T
+{
+    int nrow = A.rows();
+    int ncol = BT.rows();
+    int rank = A.cols();
+
+    std::shared_ptr<HLIB::TRkMatrix> X = std::make_shared<HLIB::TRkMatrix> ();
+
+    X->set_size(nrow, ncol, rank);
+
+    for ( int ii=0; ii<nrow; ++ii )
+    {
+        for ( int jj=0; jj<rank; ++jj )
+        {
+            (X->blas_rmat_A())(ii,jj) = A(ii,jj);
+        }
+    }
+
+    for ( int ii=0; ii<ncol; ++ii )
+    {
+        for ( int jj=0; jj<rank; ++jj )
+        {
+            (X->blas_rmat_B())(ii,jj) = BT(ii,jj);
+        }
+    }
+
+    return X;
+}
+
+//std::shared_ptr<HLIB::TRkMatrix> make_permuted_hlibpro_low_rank_matrix(Eigen::MatrixXd A,
+std::shared_ptr<HLIB::TMatrix> make_permuted_hlibpro_low_rank_matrix(Eigen::MatrixXd A,
+                                                                     Eigen::MatrixXd BT,
+                                                                     std::shared_ptr<HLIB::TClusterTree> row_ct_ptr,
+                                                                     std::shared_ptr<HLIB::TClusterTree> col_ct_ptr) // X -> X + A * B^T
+{
+    int nrow = A.rows();
+    int ncol = BT.rows();
+    int rank = A.cols();
+
+    Eigen::MatrixXd A_internal_ordering(nrow, rank);
+    for ( int ii=0; ii<nrow; ++ii )
+    {
+        for ( int jj=0; jj<rank; ++jj )
+        {
+            A_internal_ordering(row_ct_ptr->perm_e2i()->permute(ii), jj) = A(ii,jj);
+        }
+    }
+
+    Eigen::MatrixXd BT_internal_ordering(ncol, rank);
+    for ( int ii=0; ii<ncol; ++ii )
+    {
+        for ( int jj=0; jj<rank; ++jj )
+        {
+            BT_internal_ordering(col_ct_ptr->perm_e2i()->permute(ii), jj) = BT(ii,jj);
+        }
+    }
+
+    return make_hlibpro_low_rank_matrix(A_internal_ordering,
+                                        BT_internal_ordering);
+}
 
 void mul_diag_left_wrapper(const Eigen::Ref<const VectorXd> x,
                            std::shared_ptr<HLIB::TMatrix> A_ptr,
@@ -845,5 +909,15 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("mul_diag_right_wrapper", &mul_diag_right_wrapper);
 
 
-}
+//    py::class_<HLIB::TRkMatrix, std::shared_ptr<TRkMatrix>>(m, "HLIB::TRkMatrix")
+//        .def("entry", &HLIB::TRkMatrix::entry)
+//        .def("rows", &HLIB::TRkMatrix::rows)
+//        .def("cols", &HLIB::TRkMatrix::cols)
+//        .def("rank", &HLIB::TRkMatrix::rank);
 
+//    py::class_<HLIB::TPermutation, std::shared_ptr<TPermutation>>(m, "HLIB::TPermutation");
+
+    m.def("make_hlibpro_low_rank_matrix", &make_hlibpro_low_rank_matrix);
+    m.def("make_permuted_hlibpro_low_rank_matrix", &make_permuted_hlibpro_low_rank_matrix);
+
+}

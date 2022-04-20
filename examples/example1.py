@@ -164,3 +164,54 @@ y4 = A3_hmatrix * z
 
 err_mul_diag_right = np.linalg.norm(y3 - y4) / np.linalg.norm(y3)
 print('err_mul_diag_right=', err_mul_diag_right)
+
+
+########    LOW RANK UPDATE   ########
+
+rank = 13
+U = np.random.randn(A_hmatrix.shape[0], rank)
+V = np.random.randn(rank, A_hmatrix.shape[1])
+
+z = np.random.randn(A_hmatrix.shape[1])
+q1 = A_hmatrix * z + np.dot(U, np.dot(V, z))
+
+A_plus_UV_hmatrix = A_hmatrix.low_rank_update(U, V)
+
+q2 = A_plus_UV_hmatrix * z
+
+err_low_rank_update = np.linalg.norm(q1 - q2) / np.linalg.norm(q1)
+print('err_low_rank_update=', err_low_rank_update)
+
+
+########    SYMMETRIC POSITIVE DEFINITE MODIFICATION    ########
+
+shift = -5e-2
+cutoff = 0.0
+
+A_indefinite_hmatrix = A_hmatrix.add_identity(s=shift)
+
+A_plus_hmatrix = A_indefinite_hmatrix.spd(cutoff=cutoff)
+
+A_indefinite_dense = A_csc.toarray() + shift * np.eye(A_csc.shape[0])
+
+print('computing spectral decomposition via dense brute force to check spd modification')
+dd, P = np.linalg.eigh(A_indefinite_dense)
+
+A_plus_dense = np.dot(P, np.dot(np.diag(np.abs(dd)), P.T))
+
+z = np.random.randn(A_plus_dense.shape[1])
+
+q1 = np.dot(A_plus_dense, z)
+q2 = A_plus_hmatrix * z
+
+q1b = A_csc * z
+discrepancy_pre_spd = np.linalg.norm(q2-q1b)/np.linalg.norm(q1b)
+print('discrepancy_pre_spd=', discrepancy_pre_spd)
+
+err_spd = np.linalg.norm(q2-q1)/np.linalg.norm(q1)
+print('err_spd=', err_spd)
+
+
+
+
+# A_plus_hmatrix.visualize('A_plus_hmatrix')
