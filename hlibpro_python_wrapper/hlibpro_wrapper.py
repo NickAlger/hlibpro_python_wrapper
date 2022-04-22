@@ -83,6 +83,9 @@ class HMatrix:
     def matvec(me, x):
         return h_matvec(me, x)
 
+    def rmatvec(me, x):
+        return h_rmatvec(me, x)
+
     def __add__(me, other):
         if isinstance(other, HMatrix):
             return h_add(other, me)
@@ -143,6 +146,9 @@ class HMatrix:
         if isinstance(other, float) or isinstance(other, np.number):
             return h_scale(me, other)
 
+        if isinstance(other, np.ndarray) and ( other.shape == (me.shape[0],) ):
+            return me.rmatvec(other)
+
         else:
             raise RuntimeError('cannot right multiply HMatrix with ' + str(other.type))
 
@@ -178,7 +184,7 @@ class HMatrix:
         hpro_cpp.visualize_hmatrix(me.cpp_object, filename)
 
     def as_linear_operator(me):
-        return spla.LinearOperator(me.shape, matvec=me.matvec)
+        return spla.LinearOperator(me.shape, matvec=me.matvec, rmatvec=me.rmatvec)
 
     def low_rank_update(me, X, Y, overwrite=False, rtol=default_rtol, atol=default_atol): #A -> A + X*Y
         X2 = np.zeros(X.shape)
@@ -687,6 +693,9 @@ def h_factorized_solve(iA_factorized, y):
 
 def h_matvec(A_hmatrix, x):
     return hpro_cpp.h_matvec(A_hmatrix.cpp_object, A_hmatrix.row_ct.cpp_object, A_hmatrix.col_ct.cpp_object, x)
+
+def h_rmatvec(A_hmatrix, x):
+    return hpro_cpp.h_rmatvec(A_hmatrix.cpp_object, A_hmatrix.row_ct.cpp_object, A_hmatrix.col_ct.cpp_object, x)
 
 # def visualize_hmatrix(A_hmatrix, title):
 #     _hpro_cpp.visualize_hmatrix(A_hmatrix.cpp_object, title)

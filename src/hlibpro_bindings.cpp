@@ -325,6 +325,34 @@ VectorXd h_matvec(std::shared_ptr<HLIB::TMatrix> A_ptr,
     return y;
 }
 
+VectorXd h_rmatvec(std::shared_ptr<HLIB::TMatrix> A_ptr,
+                   std::shared_ptr<HLIB::TClusterTree> row_ct_ptr,
+                   std::shared_ptr<HLIB::TClusterTree> col_ct_ptr,
+                   VectorXd y)
+{
+    // x = A^T * y
+    std::unique_ptr<HLIB::TVector> y_hlib = A_ptr.get()->row_vector();
+    std::unique_ptr<HLIB::TVector> x_hlib = A_ptr.get()->col_vector();
+
+    int n = y_hlib->size();
+    int m = x_hlib->size();
+
+    for ( size_t  i = 0; i < n; i++ )
+        y_hlib->set_entry( i, y(i) );
+
+    row_ct_ptr.get()->perm_e2i()->permute( y_hlib.get() );
+
+    A_ptr->apply(y_hlib.get(), x_hlib.get(), apply_trans);
+
+    col_ct_ptr.get()->perm_i2e()->permute( x_hlib.get() );
+
+    VectorXd x(n);
+    for ( size_t  i = 0; i < m; i++ )
+        x(i) = x_hlib->entry( i );
+
+    return x;
+}
+
 VectorXd h_factorized_inverse_matvec(HLIB::TFacInvMatrix * inv_A_ptr,
                                      HLIB::TClusterTree * row_ct_ptr,
                                      HLIB::TClusterTree * col_ct_ptr,
@@ -714,6 +742,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
     m.def("add_identity_to_hmatrix", &add_identity_to_hmatrix);
     m.def("visualize_hmatrix", &visualize_hmatrix);
     m.def("h_matvec", &h_matvec);
+    m.def("h_rmatvec", &h_rmatvec);
     m.def("hmatrix_factorized_inverse_destructive", &hmatrix_factorized_inverse_destructive);
     m.def("h_factorized_inverse_matvec", &h_factorized_inverse_matvec);
     m.def("build_hmatrix_from_sparse_matfile", &build_hmatrix_from_sparse_matfile);

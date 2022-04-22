@@ -183,6 +183,19 @@ err_low_rank_update = np.linalg.norm(q1 - q2) / np.linalg.norm(q1)
 print('err_low_rank_update=', err_low_rank_update)
 
 
+########    RMATVEC   ########
+
+A_plus_UV_hmatrix_T = A_plus_UV_hmatrix.T
+
+z = np.random.randn(A_hmatrix.shape[1])
+q1 = A_plus_UV_hmatrix_T * z
+
+q2 = A_plus_UV_hmatrix.rmatvec(z)
+
+err_rmatvec = np.linalg.norm(q1 - q2) / np.linalg.norm(q1)
+print('err_rmatvec=', err_rmatvec)
+
+
 ########    SYMMETRIC POSITIVE DEFINITE MODIFICATION    ########
 
 # ordered eigenvalues:
