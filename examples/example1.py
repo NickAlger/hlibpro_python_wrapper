@@ -212,6 +212,19 @@ err_spd = np.linalg.norm(q2-q1)/np.linalg.norm(q1)
 print('err_spd=', err_spd)
 
 
+########    DFP UPDATE    ########
 
+B_hmatrix = A_hmatrix.low_rank_update(U, U.T).add_identity(s=0.1)
 
-# A_plus_hmatrix.visualize('A_plus_hmatrix')
+X = np.random.randn(A_hmatrix.shape[0], 19)
+Y = np.zeros((A_hmatrix.shape[0], X.shape[1]))
+for k in range(X.shape[1]):
+    Y[:,k] = B_hmatrix * X[:,k]
+
+A_hmatrix_dfp = A_hmatrix.dfp_update(X, Y, rtol=1e-12, atol=1e-12)
+
+A_hmatrix_dfp.visualize('A_hmatrix_dfp')
+
+iA_dfp = A_hmatrix_dfp.inv(atol=1e-3, rtol=1e-3)
+
+iA_dfp.visualize('iA_hmatrix_dfp')

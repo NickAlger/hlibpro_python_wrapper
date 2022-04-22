@@ -193,6 +193,52 @@ class HMatrix:
         hpro_cpp.add(1.0, XY, 1.0, A_plus_XY.cpp_object, acc)
         return A_plus_XY
 
+    def dfp_update(me, X, Y,
+                   overwrite=False,
+                   force_positive_definite=True,
+                   check_correctness=True,
+                   rtol=default_rtol,
+                   atol=default_atol):
+        # Y = A * X
+        # A1 = (I - Y (Y^T X)^-1 X^T) A0 (I - X (X^T Y)^-1 Y^T) + Y (Y^T X)^-1 Y^T
+        #    = (I - Q X^T) A0 (I - X Q^T) + Q Y^T,                   where Q := Y (Y^T X)^-1
+        #    = A0 - A0 X Q^T - Q X^T A0 + Q X^T A0 X Q^T + Q Y^T
+        #    = A0 - Z Q^T    - Q Z^T    + Q X^T Z Q^T    + Q Y^T,    where Z := A0 X
+        #    = A0 + (Q X^T Z - Z) Q^T + Q (Y - Z)^T
+        if len(X.shape) == 1:
+            X = X.reshape((-1,1))
+        if len(Y.shape) == 1:
+            Y = Y.reshape((-1,1))
+
+        YtX = np.dot(Y.T, X)
+        ee, P = np.linalg.eigh(YtX) # note: symmetric because Y = A*X
+        if np.any(ee < 0):
+            print('warning: negative directions detected in DFP update')
+        if force_positive_definite:
+            iee = 1./np.abs(ee)
+        else:
+            iee = 1./ee
+        iYtX = np.dot(P, np.dot(np.diag(iee), P.T))
+        Q = np.dot(Y, iYtX)
+
+        Z = np.zeros((me.shape[0], X.shape[1]))
+        for k in range(X.shape[1]):
+            Z[:,k] = me.matvec(X[:,k].copy())
+
+        L = np.hstack([np.dot(Q, np.dot(X.T, Z)) - Z, Q])
+        R = np.hstack([Q, Y - Z]).T
+
+        print('doing low rank update')
+        A1 = me.low_rank_update(L, R, overwrite=overwrite, rtol=rtol, atol=atol)
+
+        if check_correctness:
+            Y2 = np.zeros(Y.shape)
+            for k in range(X.shape[1]):
+                Y2[:,k] = A1.matvec(X[:,k])
+            err_dfp = np.linalg.norm(Y2 - Y) / np.linalg.norm(Y)
+            print('err_dfp=', err_dfp, ', rtol=', rtol, ', atol=', atol)
+
+        return A1
 
 def add_identity_to_hmatrix(A_hmatrix, s=1.0, overwrite=False):
     if overwrite:
