@@ -192,24 +192,26 @@ A_indefinite_hmatrix = A_hmatrix.add_identity(s=shift)
 
 A_plus_hmatrix = A_indefinite_hmatrix.spd(cutoff=cutoff)
 
-A_indefinite_dense = A_csc.toarray() + shift * np.eye(A_csc.shape[0])
+check_spd = False
+if check_spd:
+    A_indefinite_dense = A_csc.toarray() + shift * np.eye(A_csc.shape[0])
 
-print('computing spectral decomposition via dense brute force to check spd modification')
-dd, P = np.linalg.eigh(A_indefinite_dense)
+    print('computing spectral decomposition via dense brute force to check spd modification')
+    dd, P = np.linalg.eigh(A_indefinite_dense)
 
-A_plus_dense = np.dot(P, np.dot(np.diag(np.abs(dd)), P.T))
+    A_plus_dense = np.dot(P, np.dot(np.diag(np.abs(dd)), P.T))
 
-z = np.random.randn(A_plus_dense.shape[1])
+    z = np.random.randn(A_plus_dense.shape[1])
 
-q1 = np.dot(A_plus_dense, z)
-q2 = A_plus_hmatrix * z
+    q1 = np.dot(A_plus_dense, z)
+    q2 = A_plus_hmatrix * z
 
-q1b = A_csc * z
-discrepancy_pre_spd = np.linalg.norm(q2-q1b)/np.linalg.norm(q1b)
-print('discrepancy_pre_spd=', discrepancy_pre_spd)
+    q1b = A_csc * z
+    discrepancy_pre_spd = np.linalg.norm(q2-q1b)/np.linalg.norm(q1b)
+    print('discrepancy_pre_spd=', discrepancy_pre_spd)
 
-err_spd = np.linalg.norm(q2-q1)/np.linalg.norm(q1)
-print('err_spd=', err_spd)
+    err_spd = np.linalg.norm(q2-q1)/np.linalg.norm(q1)
+    print('err_spd=', err_spd)
 
 
 ########    DFP UPDATE    ########
@@ -225,6 +227,30 @@ A_hmatrix_dfp = A_hmatrix.dfp_update(X, Y, rtol=1e-12, atol=1e-12)
 
 A_hmatrix_dfp.visualize('A_hmatrix_dfp')
 
-iA_dfp = A_hmatrix_dfp.inv(atol=1e-3, rtol=1e-3)
 
-iA_dfp.visualize('iA_hmatrix_dfp')
+########   SRK UPDATE    ########
+
+B_hmatrix = A_hmatrix.low_rank_update(U,U.T).add_identity(s=0.1)
+
+X = np.random.randn(A_hmatrix.shape[0], 19)
+Y = np.zeros((A_hmatrix.shape[0], X.shape[1]))
+for k in range(X.shape[1]):
+    Y[:,k] = B_hmatrix * X[:,k]
+
+A_hmatrix_SRK = A_hmatrix.SRK_update(X, Y, rtol=1e-12, atol=1e-12)
+
+A_hmatrix_SRK.visualize('A_hmatrix_SRK')
+
+
+########   BROYDEN UPDATE    ########
+
+B_hmatrix = A_hmatrix.low_rank_update(U,V).add_identity(s=0.1)
+
+X = np.random.randn(A_hmatrix.shape[0], 19)
+Y = np.zeros((A_hmatrix.shape[0], X.shape[1]))
+for k in range(X.shape[1]):
+    Y[:,k] = B_hmatrix * X[:,k]
+
+A_hmatrix_broyden = A_hmatrix.broyden_update(X, Y, rtol=1e-12, atol=1e-12)
+
+A_hmatrix_broyden.visualize('A_hmatrix_broyden')
