@@ -185,10 +185,37 @@ print('err_low_rank_update=', err_low_rank_update)
 
 ########    SYMMETRIC POSITIVE DEFINITE MODIFICATION    ########
 
+# ordered eigenvalues:
+# e1, e2, cutoff, e3, 0, e4, e5, e6
+# A ui = ei ui
+# A <- A + 2 * u1 * |e1| * u1^T +  2 * u2 * |e2| * u2^T
+
+# import scipy.sparse.linalg as spla
+#
+# M_linop = spla.LinearOperator(M_csc.shape, matvec=lambda x: M_csc * x)
+#
+# ee_min, _ = spla.eigsh(M_linop, k=5, which='SA')
+# e_min = np.min(ee_min)
+# # SA = smallest algebraic
+# # SM = smallest magnitude
+# # LA = largest algebraic
+# # LM = largest magnitude
+# # ee = -2, -0.9, 1, 2, 3
+# # SA = -1, SM = -0.9, LA = 3, LM = 3
+#
+# cutoff = -e_min/2.0
+
+# e1, e2, e3, e4, e5
+# e5*I - A :
+# e5-e4, e5-e3, e5-e2, e5-e1
+
+# 0, e1, e2, e3 close
+# 1/0, 1/e1, 1/e2 spread out
+
 shift = -5e-2
 cutoff = 0.0
 
-A_indefinite_hmatrix = A_hmatrix.add_identity(s=shift)
+A_indefinite_hmatrix = A_hmatrix.add_identity(s=shift) # A <- A - s*I
 
 A_plus_hmatrix = A_indefinite_hmatrix.spd(cutoff=cutoff)
 
@@ -215,6 +242,12 @@ if check_spd:
 
 
 ########    DFP UPDATE    ########
+# A0 =approx= A
+# A * X = Y, X.shape = Y.shape = (N,r)
+# A1 =approx= A0, but A1*X = Y
+# DFP:
+#    A1 = (I - Y (X^T Y)^-1 X^T) A0 (I - X (Y^T X)^-1 Y^T) + Y (Y^T X)^-1 Y^T
+#    A1 * X = Y + 0 = Y
 
 B_hmatrix = A_hmatrix.low_rank_update(U, U.T).add_identity(s=0.1)
 
@@ -229,6 +262,9 @@ A_hmatrix_dfp.visualize('A_hmatrix_dfp')
 
 
 ########   SRK UPDATE    ########
+# A1 = A0 + (Y - A0 X) ((Y - A0 X)^T X)^-1 (Y - A0 X)^T
+# A1 X = A0 X + Y - A0 X = Y
+# (Y - A0 X)^T X = Y^T X - X^T A0 X = X^T A X - X^T A0 X
 
 B_hmatrix = A_hmatrix.low_rank_update(U,U.T).add_identity(s=0.1)
 
@@ -243,6 +279,8 @@ A_hmatrix_SRK.visualize('A_hmatrix_SRK')
 
 
 ########   BROYDEN UPDATE    ########
+# A1 = A0 + (Y - A0 X)(X^T X)^-1 X^T
+# A1 X = A0 X + (Y - A0 X) (X^T X)^-1 X^T X = A0 X + Y - A0 X = Y
 
 B_hmatrix = A_hmatrix.low_rank_update(U,V).add_identity(s=0.1)
 
@@ -254,3 +292,9 @@ for k in range(X.shape[1]):
 A_hmatrix_broyden = A_hmatrix.broyden_update(X, Y, rtol=1e-12, atol=1e-12)
 
 A_hmatrix_broyden.visualize('A_hmatrix_broyden')
+
+#
+#
+# iH_hmatrix = (Hd_hmatrix + R_hmatrix).inv()
+# Hd_true * X + R_true * X = Y
+# iH_hmatrix.dfp_update(Y, X) # iH_hmatrix * Y = X <=> H_hmatrix * X = Y
