@@ -181,7 +181,11 @@ class HMatrix:
         return spla.LinearOperator(me.shape, matvec=me.matvec)
 
     def low_rank_update(me, X, Y, overwrite=False, rtol=default_rtol, atol=default_atol): #A -> A + X*Y
-        XY = hpro_cpp.make_permuted_hlibpro_low_rank_matrix(np.copy(X), np.copy(Y.T), me.row_ct.cpp_object, me.col_ct.cpp_object)
+        X2 = np.zeros(X.shape)
+        X2[:] = X
+        Y2T = np.zeros(Y.shape[::-1])
+        Y2T[:] = Y.T
+        XY = hpro_cpp.make_permuted_hlibpro_low_rank_matrix(X2, Y2T, me.row_ct.cpp_object, me.col_ct.cpp_object)
 
         acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
 
