@@ -71,7 +71,8 @@ class HMatrix:
         return A_sym
 
     def spd(me, **kwargs):
-        return rational_positive_definite_approximation_low_rank_method(me, **kwargs)
+        return make_hmatrix_spd_hackbusch_kress_2007(me, **kwargs)
+        # return rational_positive_definite_approximation_low_rank_method(me, **kwargs)
         # return rational_positive_definite_approximation_method1(me, **kwargs)
 
     def _set_symmetric(me):
@@ -937,6 +938,47 @@ def rational_positive_definite_approximation_low_rank_method(A,
 
     return A_plus
 
+
+def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=5, rtol=default_rtol, atol=default_atol, display_progress=True):
+    # Hackbusch, Wolfgang, and Wendy Kress. "A projection method for the computation of inner eigenvalues using high degree rational operators." Computing 81.4 (2007): 259-268.
+    if display_progress:
+        print('making hmatrix spd')
+        print('symmetrizing')
+    A_hmatrix = A_hmatrix.sym()
+
+    if display_progress:
+        print('getting largest eigenvalue with Lanczos')
+    ee, _ = spla.eigsh(A_hmatrix.as_linear_operator(), k=1, which='LM')
+    if display_progress:
+        print('largest eigenvalue='+str(np.max(ee)))
+
+    if display_progress:
+        print('Setting up operator T = (A - (b+a) I) / (b-a)')
+    b = np.max(ee) * 1.5
+    a = 0.0
+    T = A_hmatrix.copy()
+    T = (T * 2.0).add_identity(s=-(b + a)) * (1.0 / (b - a))
+
+    if display_progress:
+        print('computing T^(2^k)')
+    for ii in range(k):
+        if display_progress:
+            print('computing T^(2^'+str(ii+1)+') = T^(2^'+str(ii)+') * T^(2^'+str(ii)+')')
+        T = h_mul(T, T,
+                  rtol=rtol, atol=atol,
+                  display_progress=display_progress)
+
+    if display_progress:
+        print('computing non-negative spectral projector Pi = I / (I + T^(2^k))')
+    Pi = T.add_identity().inv(rtol=rtol, atol=atol, display_progress=display_progress)
+
+    if display_progress:
+        print('computing A_plus = Pi * A')
+    A_plus = h_mul(Pi, A_hmatrix,
+                   rtol=rtol, atol=atol,
+                   display_progress=display_progress).sym()
+
+    return A_plus
 
 make_hlibpro_low_rank_matrix = hpro_cpp.make_hlibpro_low_rank_matrix # X = A @ B.T
 make_permuted_hlibpro_low_rank_matrix = hpro_cpp.make_permuted_hlibpro_low_rank_matrix
