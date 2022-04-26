@@ -938,6 +938,21 @@ def rational_positive_definite_approximation_low_rank_method(A,
 
     return A_plus
 
+###
+
+# f_2(x) = 1/(1+x^2)
+# f_2(A) = (I + A*A)^-1
+# f_32(x) = 1/(1+x^32)
+# f_32(A) = (I + A*A*...*A)^-1
+# A^2 = A*A
+# A^4 = A^2 * A^2
+# A^8 = A^4 * A^4
+# ..
+# A^32 = A^16 * A^16
+# A * f_32(A) =approx= P diag(ee_plus) * P^T
+# A * P = P * diag(ee)
+# ee_plus(k) = ee(k) if ee(k) >=0 or 0 if ee(k) < 0
+# 1 / (1 + x^(2^k))
 
 def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=5, rtol=default_rtol, atol=default_atol, display_progress=True):
     # Hackbusch, Wolfgang, and Wendy Kress. "A projection method for the computation of inner eigenvalues using high degree rational operators." Computing 81.4 (2007): 259-268.
