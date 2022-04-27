@@ -954,7 +954,8 @@ def rational_positive_definite_approximation_low_rank_method(A,
 # ee_plus(k) = ee(k) if ee(k) >=0 or 0 if ee(k) < 0
 # 1 / (1 + x^(2^k))
 
-def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=5, rtol=default_rtol, atol=default_atol, display_progress=True):
+def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=5, rtol=default_rtol, atol=default_atol, display_progress=True,
+                                          a_factor=1e-2, b_factor=1.5):
     # Hackbusch, Wolfgang, and Wendy Kress. "A projection method for the computation of inner eigenvalues using high degree rational operators." Computing 81.4 (2007): 259-268.
     if display_progress:
         print('making hmatrix spd')
@@ -969,8 +970,14 @@ def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=5, rtol=default_rtol, ato
 
     if display_progress:
         print('Setting up operator T = (A - (b+a) I) / (b-a)')
-    b = np.max(ee) * 1.5
-    a = 0.0
+    lambda_max = np.max(ee)
+    a = lambda_max * a_factor
+    b = lambda_max * b_factor
+
+    if display_progress:
+        scaling_at_zero = 1. / (1. + ((b+a)/(b-a))**(2**k))
+        print('scaling_at_zero=', scaling_at_zero)
+
     T = A_hmatrix.copy()
     T = (T * 2.0).add_identity(s=-(b + a)) * (1.0 / (b - a))
 
