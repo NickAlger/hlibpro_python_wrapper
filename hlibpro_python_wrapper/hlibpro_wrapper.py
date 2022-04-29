@@ -954,8 +954,8 @@ def rational_positive_definite_approximation_low_rank_method(A,
 # ee_plus(k) = ee(k) if ee(k) >=0 or 0 if ee(k) < 0
 # 1 / (1 + x^(2^k))
 
-def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=5, rtol=default_rtol, atol=default_atol, display_progress=True,
-                                          a_factor=1e-2, b_factor=1.5):
+def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=1, rtol=default_rtol, atol=default_atol, display_progress=True,
+                                          a_factor=1.5, b_factor=0.0):
     # Hackbusch, Wolfgang, and Wendy Kress. "A projection method for the computation of inner eigenvalues using high degree rational operators." Computing 81.4 (2007): 259-268.
     if display_progress:
         print('making hmatrix spd')
@@ -963,20 +963,24 @@ def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=5, rtol=default_rtol, ato
     A_hmatrix = A_hmatrix.sym()
 
     if display_progress:
-        print('getting largest eigenvalue with Lanczos')
-    ee, _ = spla.eigsh(A_hmatrix.as_linear_operator(), k=1, which='LM')
+        print('getting smallest eigenvalue with Lanczos')
+    ee_SA, _ = spla.eigsh(A_hmatrix.as_linear_operator(), k=1, which='SA')
+    lambda_min = np.min(ee_SA)
     if display_progress:
-        print('largest eigenvalue='+str(np.max(ee)))
+        print('lambda_min=', lambda_min)
+
+    a = a_factor * lambda_min
+    b = b_factor * lambda_min
 
     if display_progress:
-        print('Setting up operator T = (A - (b+a) I) / (b-a)')
-    lambda_max = np.max(ee)
-    a = lambda_max * a_factor
-    b = lambda_max * b_factor
+        scaling_at_lambda_min = 1. / (1.0 + ((2.0*lambda_min - (b + a)) / (b - a)) ** (2 ** k))
+        print('scaling_at_lambda_min=', scaling_at_lambda_min)
 
-    if display_progress:
-        scaling_at_zero = 1. / (1. + ((b+a)/(b-a))**(2**k))
+        scaling_at_zero = 1. / (1.0 + (-(b+a)/(b-a))**(2**k))
         print('scaling_at_zero=', scaling_at_zero)
+
+    if display_progress:
+        print('Setting up operator T = (2*A - (b+a) I) / (b-a)')
 
     T = A_hmatrix.copy()
     T = (T * 2.0).add_identity(s=-(b + a)) * (1.0 / (b - a))
@@ -991,8 +995,12 @@ def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=5, rtol=default_rtol, ato
                   display_progress=display_progress)
 
     if display_progress:
-        print('computing non-negative spectral projector Pi = I / (I + T^(2^k))')
-    Pi = T.add_identity().inv(rtol=rtol, atol=atol, display_progress=display_progress)
+        print('computing negative spectral projector Pi_minus = I / (I + T^(2^k))')
+    Pi_minus = T.add_identity().inv(rtol=rtol, atol=atol, display_progress=display_progress)
+
+    if display_progress:
+        print('computing absolute value projector Pi = I - 2*Pi_minus')
+    Pi = (Pi_minus * (-2.0)).add_identity()
 
     if display_progress:
         print('computing A_plus = Pi * A')
