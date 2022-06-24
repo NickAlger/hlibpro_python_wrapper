@@ -224,9 +224,13 @@ class HMatrix:
         YtX = np.dot(Y.T, X)
         ee, P = np.linalg.eigh(YtX) # note: symmetric because Y = A*X
         if np.any(ee < 0):
-            print('warning: negative directions detected in DFP update')
+            num_eigs = len(ee)
+            num_negative_eigs = np.sum(ee < 0)
+            print('warning: ', num_negative_eigs, ' / ', num_eigs, ' negative directions detected in DFP update')
         if force_positive_definite:
-            iee = 1./np.abs(ee)
+            iee = np.zeros(len(ee))
+            iee[ee > 0] = 1./ee[ee > 0]
+            # iee = 1./np.abs(ee)
         else:
             iee = 1./ee
         iYtX = np.dot(P, np.dot(np.diag(iee), P.T))
