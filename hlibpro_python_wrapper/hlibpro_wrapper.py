@@ -221,8 +221,12 @@ class HMatrix:
         if len(Y.shape) == 1:
             Y = Y.reshape((-1,1))
 
+        # A X = Y
+        # Y^T X = X^T A X
+
         YtX = np.dot(Y.T, X)
         ee, P = np.linalg.eigh(YtX) # note: symmetric because Y = A*X
+        print('dfp_update: YtX eigs=', ee)
         if np.any(ee < 0):
             num_eigs = len(ee)
             num_negative_eigs = np.sum(ee < 0)
@@ -246,7 +250,7 @@ class HMatrix:
         print('doing low rank update')
         A1 = me.low_rank_update(L, R, overwrite=overwrite, rtol=rtol, atol=atol)
 
-        if check_correctness:
+        if check_correctness: # Does Y = A*X after update?
             Y2 = np.zeros(Y.shape)
             for k in range(X.shape[1]):
                 Y2[:,k] = A1.matvec(X[:,k])
