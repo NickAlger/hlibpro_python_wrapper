@@ -225,37 +225,82 @@ class HMatrix:
         # Y^T X = X^T A X
 
         YtX = np.dot(Y.T, X)
+        # print('DFP: YtX=', YtX)
         ee, P = np.linalg.eigh(YtX) # note: symmetric because Y = A*X
-        print('dfp_update: YtX eigs=', ee)
-        if np.any(ee < 0):
-            num_eigs = len(ee)
-            num_negative_eigs = np.sum(ee < 0)
-            print('warning: ', num_negative_eigs, ' / ', num_eigs, ' negative directions detected in DFP update')
-        if force_positive_definite:
-            iee = np.zeros(len(ee))
-            iee[ee > 0] = 1./ee[ee > 0]
-            # iee = 1./np.abs(ee)
-        else:
-            iee = 1./ee
-        iYtX = np.dot(P, np.dot(np.diag(iee), P.T))
-        Q = np.dot(Y, iYtX)
+        # print('dfp_update: YtX eigs=', ee)
+        positive_inds = (ee > 0)
+        n_plus = np.sum(positive_inds)
+        n = len(ee)
+        n_neg = n - n_plus
+        if n_neg > 0:
+            print('warning: ', n_neg, ' / ', n, ' negative directions detected in DFP update')
 
-        Y0 = np.zeros((me.shape[0], X.shape[1]))
-        for k in range(X.shape[1]):
-            Y0[:,k] = me.matvec(X[:,k].copy())
+        N = X.shape[0]
+        P_plus = P[:, positive_inds].reshape((n, n_plus))
+        XP_plus = np.dot(X, P_plus).reshape((N, n_plus))
+        X_plus, RR = np.linalg.qr(XP_plus, mode='reduced')
+        X_plus = X_plus.reshape((N, n_plus))
+        RR = RR.reshape((n_plus, n_plus))
+        C_plus = np.linalg.solve(RR.T, P_plus.T).T.reshape((n, n_plus))
 
-        L = np.hstack([np.dot(Q, np.dot(X.T, Y0)) - Y0, Q])
-        R = np.hstack([Q, Y - Y0]).T
+        if check_correctness:
+            err_X_plus = np.linalg.norm(np.dot(X, C_plus) - X_plus) / np.linalg.norm(X_plus)
+            print('err_X_plus=', err_X_plus)
+
+        # X_plus = np.dot(X, P[:, positive_inds])
+        # C_plus = np.linalg.lstsq(X, X_plus)
+        Y_plus = np.dot(Y, C_plus)
+
+        YtX_plus = np.dot(Y_plus.T, X_plus)
+        if check_correctness:
+            ee_plus, _ = np.linalg.eigh(YtX_plus)
+            num_negative_eigs_that_should_be_positive = np.sum(ee_plus < 0)
+            print('num_negative_eigs_that_should_be_positive=', num_negative_eigs_that_should_be_positive, ' / ', n_plus )
+
+        Q_plus = np.linalg.solve(YtX_plus, Y_plus.T).T
+
+        Y0_plus = np.zeros((N, n_plus))
+        for k in range(n_plus):
+            Y0_plus[:,k] = me.matvec(X_plus[:,k].copy())
+
+        L_plus = np.hstack([np.dot(Q_plus, np.dot(X_plus.T, Y0_plus)) - Y0_plus, Q_plus])
+        R_plus = np.hstack([Q_plus, Y_plus - Y0_plus]).T
 
         print('doing low rank update')
-        A1 = me.low_rank_update(L, R, overwrite=overwrite, rtol=rtol, atol=atol)
+        A1 = me.low_rank_update(L_plus, R_plus, overwrite=overwrite, rtol=rtol, atol=atol)
 
         if check_correctness: # Does Y = A*X after update?
-            Y2 = np.zeros(Y.shape)
-            for k in range(X.shape[1]):
-                Y2[:,k] = A1.matvec(X[:,k])
-            err_dfp = np.linalg.norm(Y2 - Y) / np.linalg.norm(Y)
+            Y2_plus = np.zeros(Y_plus.shape)
+            for k in range(X_plus.shape[1]):
+                Y2_plus[:,k] = A1.matvec(X_plus[:,k])
+            err_dfp = np.linalg.norm(Y2_plus - Y_plus) / np.linalg.norm(Y_plus)
             print('err_dfp=', err_dfp, ', rtol=', rtol, ', atol=', atol)
+
+        # if force_positive_definite:
+        #     iee = np.zeros(len(ee))
+        #     iee[ee > 0] = 1./ee[ee > 0]
+        #     # iee = 1./np.abs(ee)
+        # else:
+        #     iee = 1./ee
+        # iYtX = np.dot(P, np.dot(np.diag(iee), P.T))
+        # Q = np.dot(Y, iYtX)
+        #
+        # Y0 = np.zeros((me.shape[0], X.shape[1]))
+        # for k in range(X.shape[1]):
+        #     Y0[:,k] = me.matvec(X[:,k].copy())
+        #
+        # L = np.hstack([np.dot(Q, np.dot(X.T, Y0)) - Y0, Q])
+        # R = np.hstack([Q, Y - Y0]).T
+        #
+        # print('doing low rank update')
+        # A1 = me.low_rank_update(L, R, overwrite=overwrite, rtol=rtol, atol=atol)
+        #
+        # if check_correctness: # Does Y = A*X after update?
+        #     Y2 = np.zeros(Y.shape)
+        #     for k in range(X.shape[1]):
+        #         Y2[:,k] = A1.matvec(X[:,k])
+        #     err_dfp = np.linalg.norm(Y2 - Y) / np.linalg.norm(Y)
+        #     print('err_dfp=', err_dfp, ', rtol=', rtol, ', atol=', atol)
 
         return A1
 
