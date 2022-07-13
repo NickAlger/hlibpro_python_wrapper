@@ -1007,7 +1007,7 @@ def rational_positive_definite_approximation_low_rank_method(A,
 # ee_plus(k) = ee(k) if ee(k) >=0 or 0 if ee(k) < 0
 # 1 / (1 + x^(2^k))
 
-def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=1, rtol=default_rtol, atol=default_atol, display_progress=True,
+def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=2, rtol=default_rtol, atol=default_atol, display_progress=True,
                                           a_factor=1.5, b_factor=0.0):
     # Hackbusch, Wolfgang, and Wendy Kress. "A projection method for the computation of inner eigenvalues using high degree rational operators." Computing 81.4 (2007): 259-268.
     if display_progress:
