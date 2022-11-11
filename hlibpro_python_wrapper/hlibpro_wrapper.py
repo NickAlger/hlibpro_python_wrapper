@@ -163,7 +163,7 @@ class HMatrix:
     #     return me.__imul__(me, other)
 
     def inv(me, rtol=default_rtol, atol=default_atol,
-            overwrite=False, display_progress=True,
+            overwrite=False, display_progress=False,
             diag_type='general_diag', storage_type='store_normal', do_coarsen=False):
         return h_inv(me, rtol=rtol, atol=atol,
                      overwrite=overwrite, display_progress=display_progress,
@@ -568,7 +568,7 @@ class FactorizedHMatrix:
             raise RuntimeError('asdf')
 
 def h_inv(A_hmatrix, rtol=default_rtol, atol=default_atol,
-          overwrite=False, display_progress=True,
+          overwrite=False, display_progress=False,
           diag_type='general_diag', storage_type='store_normal', do_coarsen=False):
     # Look in hpro/algebra/mat_inv.hh
     acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
@@ -599,7 +599,10 @@ def h_inv(A_hmatrix, rtol=default_rtol, atol=default_atol,
         progress_bar = hpro_cpp.TConsoleProgressBar()
         inv_options = hpro_cpp.inv_options_t(cpp_diag_type, cpp_storage_type, do_coarsen, progress_bar)
     else:
-        inv_options = hpro_cpp.fac_options_t(cpp_diag_type, cpp_storage_type, do_coarsen)
+        # inv_options = hpro_cpp.fac_options_t(cpp_diag_type, cpp_storage_type, do_coarsen)
+        # inv_options = hpro_cpp.fac_options_t(cpp_diag_type, cpp_storage_type, do_coarsen, None)
+        # inv_options = hpro_cpp.fac_options_t()
+        inv_options = hpro_cpp.inv_options_t(cpp_diag_type, cpp_storage_type, do_coarsen, None)
 
     print('━━ H-matrix inverse ( rtol = ', rtol, ', atol = ', atol, ', overwrite=', overwrite, ' )')
 
@@ -1007,7 +1010,7 @@ def rational_positive_definite_approximation_low_rank_method(A,
 # ee_plus(k) = ee(k) if ee(k) >=0 or 0 if ee(k) < 0
 # 1 / (1 + x^(2^k))
 
-def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=2, rtol=default_rtol, atol=default_atol, display_progress=True,
+def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=2, rtol=default_rtol, atol=default_atol, display_progress=False,
                                           a_factor=1.5, b_factor=0.0):
     # Hackbusch, Wolfgang, and Wendy Kress. "A projection method for the computation of inner eigenvalues using high degree rational operators." Computing 81.4 (2007): 259-268.
     if display_progress:

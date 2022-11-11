@@ -375,7 +375,7 @@ public:
             for ( size_t  ii = 0; ii < nrow; ++ii )
             {
                 matrix[ jj*nrow + ii ] = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
-                matrix[ jj*nrow + ii ] += 1.0e-14; // Code segfaults without this
+                //matrix[ jj*nrow + ii ] += 1.0e-14; // Code segfaults without this
             }
         }
 
@@ -529,7 +529,7 @@ public:
             for ( size_t  ii = 0; ii < nrow; ++ii )
             {
                 matrix[ jj*nrow + ii ] = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
-                matrix[ jj*nrow + ii ] += 1.0e-14; // Code segfaults without this
+                //matrix[ jj*nrow + ii ] += 1.0e-14; // Code segfaults without this
             }
         }
 
