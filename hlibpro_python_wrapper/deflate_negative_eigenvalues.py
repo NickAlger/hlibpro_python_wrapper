@@ -224,7 +224,7 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
                                  lanczos_maxiter=2,
                                  preconditioner_only=False,
                                  display=True,
-                                ) -> typ.Tuple[np.ndarray, np.ndarray]: # (dd, V)
+                                ) -> typ.Tuple[np.ndarray, np.ndarray, float]: # (dd, V, LM_eig)
     '''Form low rank update A -> A + V @ diag(dd) @ V.T such that
         eigs(A + V @ diag(dd) @ V.T, B) > threshold
     A must be symmetric
@@ -253,12 +253,12 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
             return lambda x: x / OP_diag
 
         threshold = -0.5
-        dd, V = deflate_negative_eigenvalues(apply_A, apply_B, solve_B, N,
-                                             make_shifted_solver,
-                                             threshold=threshold,
-                                             chunk_size=50,
-                                             display=True,
-                                             )
+        dd, V, LM_eig = deflate_negative_eigenvalues(apply_A, apply_B, solve_B, N,
+                                                     make_shifted_solver,
+                                                     threshold=threshold,
+                                                     chunk_size=50,
+                                                     display=True,
+                                                    )
 
         A = np.diag(A_diag)
         B = np.diag(B_diag)
@@ -387,7 +387,7 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
     V = DSO.BU
     dd = gamma * DSO.dd
 
-    return dd, V
+    return dd, V, LM_eig
 
 
 

@@ -3,7 +3,10 @@ import scipy.sparse.linalg as spla
 from scipy.optimize import root_scalar
 from scipy.io import savemat
 from time import time
+import typing as typ
 from . import hlibpro_bindings as hpro_cpp
+from .deflate_negative_eigenvalues import DeflatedShiftedOperator, deflate_negative_eigenvalues
+from .interpolate_shifted_inverses import shifted_inverse_interpolation_preconditioner
 
 default_rtol = 1e-7
 default_atol = 1e-12
@@ -1065,6 +1068,177 @@ def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=2, rtol=default_rtol, ato
                    display_progress=display_progress).sym()
 
     return A_plus
+
+
+def deflate_negative_eigenvalues_of_hmatrix_pencil(
+        A: HMatrix, # shape=(N,N), symmetric
+        B: HMatrix, # shape=(N,N), symmetric positive definite
+        save_intermediate_factorizations: bool=True,
+        threshold=-0.5,
+        gamma: float = -1.0, # -1.0: set negative eigs to zero. -2.0: flip negative eigs
+        sigma_factor: float = 10.0, # Sigma scaled up by this much above previous bound
+        chunk_size: int=50,
+        tol: float=default_rtol,
+        ncv_factor=3,
+        lanczos_maxiter=2,
+        display=True,
+        shifted_preconditioner_only=True,
+) -> typ.Tuple[np.ndarray, np.ndarray, typ.List[float], typ.List[FactorizedInverseHMatrix]]:
+    N = A.shape[0]
+    assert(A.shape == (N, N))
+    assert(B.shape == (N, N))
+    assert(threshold < 0.0)
+    assert(sigma_factor > 1.0)
+    assert(chunk_size > 0)
+    assert(tol >= 0.0)
+    def printmaybe(*args, **kwargs):
+        if display:
+            print(*args, **kwargs)
+
+    printmaybe('Factorizing B')
+    B_fac = B.factorized_inverse(rtol=tol, overwrite=False)
+    printmaybe('Done factorizing B')
+
+    shifts: typ.List[float] = []
+    factorized_shifted_matrices: typ.List[FactorizedInverseHMatrix] = []
+    def make_shifted_solver(shift):
+        A_minus_shiftB = h_add(A, B, 1.0, -shift)
+        printmaybe('Factorizing A-shift*B')
+        A_minus_shiftB_fac = A_minus_shiftB.factorized_inverse(rtol=tol, overwrite=False)
+        printmaybe('Done factorizing A-shift*B')
+        if save_intermediate_factorizations:
+            shifts.append(shift)
+            factorized_shifted_matrices.append(A_minus_shiftB_fac)
+        return A_minus_shiftB_fac.matvec
+
+    dd, V, LM_eig = deflate_negative_eigenvalues(
+        A.matvec, B.matvec, B_fac.matvec, N,
+        make_shifted_solver, threshold=threshold,
+        gamma=gamma, sigma_factor=sigma_factor,
+        chunk_size=chunk_size, tol=tol,
+        ncv_factor=ncv_factor, lanczos_maxiter=lanczos_maxiter,
+        display=display,
+        preconditioner_only=shifted_preconditioner_only,
+    )
+    return dd, V, shifts, factorized_shifted_matrices
+
+
+class HMatrixShiftedInverseInterpolator:
+    '''
+    A is a symmetric NxN HMatrix
+    B is a symmetric positive definite HMatrix
+    dd and V must be generalized eigenvalues and eigenvectors of (A,B)'''
+    A: HMatrix
+    B: HMatrix
+    mu_min: float
+    mu_max: float
+    N: int
+    LM_eig: float
+    mu_spacing_factor: float
+    known_mus: typ.List[float]
+    known_shifted_factorizations: typ.List[FactorizedInverseHMatrix]
+    known_deflated_shifted_operators: typ.List[DeflatedShiftedOperator]
+    deflation_dd: np.ndarray
+    deflation_V: np.ndarray
+    gamma: float
+    rtol: float
+
+    def __init__(me, A: HMatrix, B: HMatrix,
+                 mu_min: float, mu_max: float, LM_eig: float,
+                 mu_spacing_factor: float=10.0,
+                 known_mus: typ.List[float]=None,
+                 known_shifted_factorizations: typ.List[FactorizedInverseHMatrix]=None,
+                 deflation_dd: np.ndarray=None,
+                 deflation_V: np.ndarray=None,
+                 rtol=default_rtol,
+                 gamma: float=-1.0,
+                ):
+        me.A = A
+        me.B = B
+        assert(0.0 < mu_min)
+        assert(mu_min <= mu_max)
+        me.mu_min = mu_min
+        me.mu_max = mu_max
+        N = A.shape[0]
+        assert(A.shape == (N,N))
+        assert(B.shape == (N,N))
+        me.LM_eig = LM_eig
+        assert(rtol > 0.0)
+        me.rtol = rtol
+        assert (mu_spacing_factor > 1.0)
+        me.mu_spacing_factor = mu_spacing_factor
+        assert(gamma < 0.0)
+        me.gamma = gamma
+
+        if deflation_dd is None:
+            me.deflation_dd = np.zeros((0,))
+            me.deflation_V = np.zeros((N,0))
+        else:
+            me.deflation_dd = deflation_dd
+            me.deflation_V = deflation_V
+
+        if known_mus is None:
+            assert(known_shifted_factorizations is None)
+            me.known_mus = []
+            me.known_shifted_factorizations = []
+        else:
+            assert(len(known_mus) == len(known_shifted_factorizations))
+            me.known_mus = known_mus
+            me.known_shifted_factorizations = known_shifted_factorizations
+        for mu in known_mus:
+            assert(mu > 0.0)
+
+        # Get new mus to fill in gaps
+
+        me.known_shifted_deflated_operators = []
+        for mu, fac in zip(known_mus, known_shifted_factorizations):
+            DSO = DeflatedShiftedOperator(A.matvec, B.matvec,
+                                          -mu, # mu = -shift (convention switch)
+                                          fac.matvec,
+                                          me.gamma, deflation_V, deflation_dd)
+            me.known_shifted_deflated_operators.append(DSO)
+
+    def make_shifted_factorization(me, mu: float, display=False) -> FactorizedInverseHMatrix:
+        assert(mu > 0.0)
+        A_plus_muB = h_add(me.A, me.B, 1.0, mu)
+        if display:
+            print('Factorizing A+mu*B')
+        A_plus_muB_fac = A_plus_muB.factorized_inverse(rtol=me.rtol, overwrite=False)
+        if display:
+            print('Done factorizing A+mu*B')
+        return A_plus_muB_fac
+
+    @property
+    def known_shifted_deflated_preconditioners(me):
+        return [S.solve_shifted_preconditioner for S in me.known_shifted_deflated_operators]
+
+    @property
+    def known_shifted_deflated_solvers(me):
+        return [S.solve_shifted for S in me.known_shifted_deflated_operators]
+
+    def apply_shifted_deflated(me, x: np.ndarray, mu: float) -> np.ndarray:  # x -> (A + mu*B) @ x
+        assert(mu > 0.0)
+        return (me.A.matvec(x) + mu * me.B.matvec(x)
+                + me.gamma * me.deflation_V @ (me.deflation_dd * (me.deflation_V.T @ x)))
+
+    def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=False) -> np.ndarray:
+        assert(mu > 0.0)
+        assert(b.shape == (me.N,))
+        return shifted_inverse_interpolation_preconditioner(
+            b, mu, me.known_mus, me.known_shifted_deflated_preconditioners,
+            np.abs(me.LM_eig), display=display)
+
+    def solve_shifted_deflated(me, b: np.ndarray, mu: float, display=False, rtol=None) -> np.ndarray:
+        assert (mu > 0.0)
+        assert (b.shape == (me.N,))
+        if rtol is None:
+            rtol = me.rtol
+        F_op = spla.LinearOperator((me.N, me.N), matvec=lambda x: me.apply_shifted_deflated(x, mu))
+        M_op = spla.LinearOperator((me.N, me.N), matvec=lambda x: me.solve_shifted_deflated_preconditioner(x, mu))
+        return spla.cg(F_op, b, tol=rtol, M=M_op)[0]
+
+
+
 
 make_hlibpro_low_rank_matrix = hpro_cpp.make_hlibpro_low_rank_matrix # X = A @ B.T
 make_permuted_hlibpro_low_rank_matrix = hpro_cpp.make_permuted_hlibpro_low_rank_matrix
