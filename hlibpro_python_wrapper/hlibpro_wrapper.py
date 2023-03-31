@@ -1341,7 +1341,8 @@ def deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator(
     dd = dd_min * mu_min
     LM_eig = LM_eig_min * mu_min
     known_mus = [-mu_min * shift for shift in shifts_min]
-    print('known_mus=', known_mus)
+    if display:
+        print('known_mus=', known_mus)
 
     return make_shifted_hmatrix_inverse_interpolator(
         A, B, mu_min, mu_max, LM_eig,
