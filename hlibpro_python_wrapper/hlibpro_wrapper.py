@@ -4,6 +4,8 @@ from scipy.optimize import root_scalar
 from scipy.io import savemat
 from time import time
 import typing as typ
+from dataclasses import dataclass
+from functools import cached_property
 from . import hlibpro_bindings as hpro_cpp
 from .deflate_negative_eigenvalues import DeflatedShiftedOperator, deflate_negative_eigenvalues
 from .interpolate_shifted_inverses import shifted_inverse_interpolation_preconditioner
@@ -1070,6 +1072,23 @@ def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=2, rtol=default_rtol, ato
     return A_plus
 
 
+def make_shifted_factorization(
+        A: HMatrix,
+        B: HMatrix,
+        mu: float,
+        display=False,
+        rtol=default_rtol,
+) -> FactorizedInverseHMatrix:
+    assert(mu > 0.0)
+    A_plus_muB = h_add(A, B, 1.0, mu)
+    if display:
+        print('Factorizing A+mu*B')
+    A_plus_muB_fac = A_plus_muB.factorized_inverse(rtol=rtol, overwrite=False)
+    if display:
+        print('Done factorizing A+mu*B')
+    return A_plus_muB_fac
+
+
 def deflate_negative_eigenvalues_of_hmatrix_pencil(
         A: HMatrix, # shape=(N,N), symmetric
         B: HMatrix, # shape=(N,N), symmetric positive definite
@@ -1083,7 +1102,7 @@ def deflate_negative_eigenvalues_of_hmatrix_pencil(
         lanczos_maxiter=2,
         display=True,
         shifted_preconditioner_only=True,
-) -> typ.Tuple[np.ndarray, np.ndarray, typ.List[float], typ.List[FactorizedInverseHMatrix]]:
+) -> typ.Tuple[np.ndarray, np.ndarray, typ.List[float], typ.List[FactorizedInverseHMatrix], float]:
     N = A.shape[0]
     assert(A.shape == (N, N))
     assert(B.shape == (N, N))
@@ -1102,10 +1121,7 @@ def deflate_negative_eigenvalues_of_hmatrix_pencil(
     shifts: typ.List[float] = []
     factorized_shifted_matrices: typ.List[FactorizedInverseHMatrix] = []
     def make_shifted_solver(shift):
-        A_minus_shiftB = h_add(A, B, 1.0, -shift)
-        printmaybe('Factorizing A-shift*B')
-        A_minus_shiftB_fac = A_minus_shiftB.factorized_inverse(rtol=tol, overwrite=False)
-        printmaybe('Done factorizing A-shift*B')
+        A_minus_shiftB_fac = make_shifted_factorization(A, B, -shift, display=display, rtol=tol)
         if save_intermediate_factorizations:
             shifts.append(shift)
             factorized_shifted_matrices.append(A_minus_shiftB_fac)
@@ -1120,106 +1136,66 @@ def deflate_negative_eigenvalues_of_hmatrix_pencil(
         display=display,
         preconditioner_only=shifted_preconditioner_only,
     )
-    return dd, V, shifts, factorized_shifted_matrices
+    return dd, V, shifts, factorized_shifted_matrices, LM_eig
 
 
+@dataclass(frozen=True)
 class HMatrixShiftedInverseInterpolator:
     '''
     A is a symmetric NxN HMatrix
     B is a symmetric positive definite HMatrix
-    dd and V must be generalized eigenvalues and eigenvectors of (A,B)'''
+    LM_eig is largest magnitude eigenvalue of matrix pencil (A, B)
+    known_shifted_factorizations[ii]: factorization of A+known_mu[ii]*B
+    dd and V are eigenvalues and eigenvectors of matrix pencil (A, B) that we deflate
+    gamma is the amount of deflation applied (-1.0: set chosen eigs to zero, -2.0: flip chosen eigs)
+    '''
     A: HMatrix
     B: HMatrix
-    mu_min: float
-    mu_max: float
-    N: int
     LM_eig: float
-    mu_spacing_factor: float
     known_mus: typ.List[float]
     known_shifted_factorizations: typ.List[FactorizedInverseHMatrix]
-    known_deflated_shifted_operators: typ.List[DeflatedShiftedOperator]
-    deflation_dd: np.ndarray
-    deflation_V: np.ndarray
+    dd: np.ndarray
+    V: np.ndarray
     gamma: float
-    rtol: float
 
-    def __init__(me, A: HMatrix, B: HMatrix,
-                 mu_min: float, mu_max: float, LM_eig: float,
-                 mu_spacing_factor: float=10.0,
-                 known_mus: typ.List[float]=None,
-                 known_shifted_factorizations: typ.List[FactorizedInverseHMatrix]=None,
-                 deflation_dd: np.ndarray=None,
-                 deflation_V: np.ndarray=None,
-                 rtol=default_rtol,
-                 gamma: float=-1.0,
-                ):
-        me.A = A
-        me.B = B
-        assert(0.0 < mu_min)
-        assert(mu_min <= mu_max)
-        me.mu_min = mu_min
-        me.mu_max = mu_max
-        N = A.shape[0]
-        assert(A.shape == (N,N))
-        assert(B.shape == (N,N))
-        me.LM_eig = LM_eig
-        assert(rtol > 0.0)
-        me.rtol = rtol
-        assert (mu_spacing_factor > 1.0)
-        me.mu_spacing_factor = mu_spacing_factor
-        assert(gamma < 0.0)
-        me.gamma = gamma
+    def __post_init__(me):
+        assert(me.A.shape == (me.N, me.N))
+        assert(me.B.shape == (me.N, me.N))
+        assert(len(me.known_mus) > 0)
+        assert (len(me.known_mus) == len(me.known_shifted_factorizations))
+        assert(me.dd.shape == (me.k,))
+        assert(me.V.shape == (me.N, me.k))
 
-        if deflation_dd is None:
-            me.deflation_dd = np.zeros((0,))
-            me.deflation_V = np.zeros((N,0))
-        else:
-            me.deflation_dd = deflation_dd
-            me.deflation_V = deflation_V
+    @cached_property
+    def N(me) -> int:
+        return me.A.shape[0]
 
-        if known_mus is None:
-            assert(known_shifted_factorizations is None)
-            me.known_mus = []
-            me.known_shifted_factorizations = []
-        else:
-            assert(len(known_mus) == len(known_shifted_factorizations))
-            me.known_mus = known_mus
-            me.known_shifted_factorizations = known_shifted_factorizations
-        for mu in known_mus:
-            assert(mu > 0.0)
+    @cached_property
+    def k(me) -> int:
+        return len(me.dd)
 
-        # Get new mus to fill in gaps
-
-        me.known_shifted_deflated_operators = []
-        for mu, fac in zip(known_mus, known_shifted_factorizations):
-            DSO = DeflatedShiftedOperator(A.matvec, B.matvec,
-                                          -mu, # mu = -shift (convention switch)
+    @cached_property
+    def known_shifted_deflated_operators(me) -> typ.List[DeflatedShiftedOperator]:
+        known_DSOs = []
+        for mu, fac in zip(me.known_mus, me.known_shifted_factorizations):
+            DSO = DeflatedShiftedOperator(me.A.matvec, me.B.matvec,
+                                          -mu,  # mu = -shift (convention switch)
                                           fac.matvec,
-                                          me.gamma, deflation_V, deflation_dd)
-            me.known_shifted_deflated_operators.append(DSO)
+                                          me.gamma, me.V, me.dd)
+            known_DSOs.append(DSO)
+        return known_DSOs
 
-    def make_shifted_factorization(me, mu: float, display=False) -> FactorizedInverseHMatrix:
-        assert(mu > 0.0)
-        A_plus_muB = h_add(me.A, me.B, 1.0, mu)
-        if display:
-            print('Factorizing A+mu*B')
-        A_plus_muB_fac = A_plus_muB.factorized_inverse(rtol=me.rtol, overwrite=False)
-        if display:
-            print('Done factorizing A+mu*B')
-        return A_plus_muB_fac
-
-    @property
+    @cached_property
     def known_shifted_deflated_preconditioners(me):
         return [S.solve_shifted_preconditioner for S in me.known_shifted_deflated_operators]
 
-    @property
+    @cached_property
     def known_shifted_deflated_solvers(me):
         return [S.solve_shifted for S in me.known_shifted_deflated_operators]
 
     def apply_shifted_deflated(me, x: np.ndarray, mu: float) -> np.ndarray:  # x -> (A + mu*B) @ x
         assert(mu > 0.0)
-        return (me.A.matvec(x) + mu * me.B.matvec(x)
-                + me.gamma * me.deflation_V @ (me.deflation_dd * (me.deflation_V.T @ x)))
+        return me.A.matvec(x) + mu * me.B.matvec(x) + me.gamma * me.V @ (me.dd * (me.V.T @ x))
 
     def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=False) -> np.ndarray:
         assert(mu > 0.0)
@@ -1232,11 +1208,153 @@ class HMatrixShiftedInverseInterpolator:
         assert (mu > 0.0)
         assert (b.shape == (me.N,))
         if rtol is None:
-            rtol = me.rtol
+            rtol = default_rtol
         F_op = spla.LinearOperator((me.N, me.N), matvec=lambda x: me.apply_shifted_deflated(x, mu))
         M_op = spla.LinearOperator((me.N, me.N), matvec=lambda x: me.solve_shifted_deflated_preconditioner(x, mu))
         return spla.cg(F_op, b, tol=rtol, M=M_op)[0]
 
+    def update_gamma(me, new_gamma: float) -> 'HMatrixShiftedInverseInterpolator':
+        return HMatrixShiftedInverseInterpolator(me.A, me.B, me.LM_eig, me.known_mus,
+                                                 me.known_shifted_factorizations, me.dd, me.V,
+                                                 new_gamma)
+
+    def insert_new_mu(me, new_mu: float, rtol=default_rtol, display=True
+                      ) -> 'HMatrixShiftedInverseInterpolator':
+        assert(new_mu > 0.0)
+        fac = make_shifted_factorization(me.A, me.B, new_mu, rtol=rtol, display=display)
+        new_known_mus = [mu for mu in me.known_mus] + [new_mu]
+        new_known_facs = [fac for fac in me.known_shifted_factorizations] + [fac]
+        return HMatrixShiftedInverseInterpolator(me.A, me.B, me.LM_eig, new_known_mus,
+                                                 new_known_facs, me.dd, me.V,
+                                                 me.gamma)
+
+
+def make_shifted_hmatrix_inverse_interpolator(
+        A: HMatrix,
+        B: HMatrix,
+        mu_min: float,
+        mu_max: float,
+        LM_eig: float=None,
+        mu_spacing_factor: float = 100.0,
+        known_mus: typ.List[float] = None,
+        known_shifted_factorizations: typ.List[FactorizedInverseHMatrix] = None,
+        deflation_dd: np.ndarray = None,
+        deflation_V: np.ndarray = None,
+        rtol: float = default_rtol,
+        boundary_mu_rtol = 0.1,
+        gamma: float = -1.0,
+        display=True,
+) -> HMatrixShiftedInverseInterpolator:
+    assert (0.0 < mu_min)
+    assert (mu_min <= mu_max)
+    N = A.shape[0]
+    assert (A.shape == (N, N))
+    assert (B.shape == (N, N))
+    assert (rtol > 0.0)
+    assert (mu_spacing_factor > 1.0)
+    assert (gamma < 0.0)
+    assert(boundary_mu_rtol >= 0.0)
+
+    if LM_eig is None:
+        B_fac = B.factorized_inverse(rtol=rtol,overwrite=False)
+        LM_eig = spla.eigsh(spla.LinearOperator((N, N), matvec=A.matvec),
+                            1,
+                            M=spla.LinearOperator((N, N), matvec=B.matvec),
+                            Minv=spla.LinearOperator((N, N), matvec=B_fac.matvec),
+                            which='LM', return_eigenvectors=False,
+                            tol=rtol)[0]
+
+    if deflation_dd is None:
+        assert(deflation_V is None)
+        deflation_dd = np.zeros((0,))
+        deflation_V = np.zeros((N, 0))
+
+    if known_mus is None:
+        assert(known_shifted_factorizations is None)
+        known_mus = []
+        known_shifted_factorizations = []
+    else:
+        assert (len(known_mus) == len(known_shifted_factorizations))
+
+    for mu in known_mus:
+        assert (mu > 0.0)
+
+    # Get new mus to fill in gaps
+    if np.min(np.abs(np.array(known_mus) - mu_min)) > boundary_mu_rtol * mu_min:
+        fac = make_shifted_factorization(A, B, mu_min, rtol=rtol, display=display)
+        known_mus.append(mu_min)
+        known_shifted_factorizations.append(fac)
+    if np.min(np.abs(np.array(known_mus) - mu_max)) > boundary_mu_rtol * mu_max:
+        fac = make_shifted_factorization(A, B, mu_max, rtol=rtol, display=display)
+        known_mus.append(mu_max)
+        known_shifted_factorizations.append(fac)
+
+    sorted_mus = np.sort(known_mus)
+    for ii in range(len(sorted_mus) - 1):
+        mu_low = sorted_mus[ii]
+        mu_high = sorted_mus[ii + 1]
+        if mu_high / mu_low > mu_spacing_factor:
+            mu_mid = np.exp(0.5 * (np.log(mu_low) + np.log(mu_high)))
+            fac = make_shifted_factorization(A, B, mu_mid, rtol=rtol, display=display)
+            known_mus.append(mu_mid)
+            known_shifted_factorizations.append(fac)
+
+    return HMatrixShiftedInverseInterpolator(A, B, LM_eig, known_mus,
+                                             known_shifted_factorizations,
+                                             deflation_dd, deflation_V, gamma)
+
+
+def deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator(
+        A: HMatrix,
+        B: HMatrix,
+        mu_min: float,
+        mu_max: float,
+        mu_spacing_factor: float = 100.0,
+        rtol: float = default_rtol,
+        boundary_mu_rtol: float=0.1,
+        gamma: float = -1.0,
+        threshold: float=-0.5,
+        chunk_size: int=50,
+        ncv_factor: int = 3,
+        lanczos_maxiter: int = 2,
+        display: bool=True,
+        save_intermediate_factorizations: bool=True,
+        shifted_preconditioner_only: bool=True,
+) -> HMatrixShiftedInverseInterpolator:
+    assert(0.0 < mu_min)
+    assert(mu_min < mu_max)
+    assert(mu_spacing_factor > 1.0)
+    assert(rtol > 0.0)
+    assert(boundary_mu_rtol > 0.0)
+    assert(threshold < 0.0)
+    assert(gamma < 0.0)
+
+    B_min = h_scale(B, mu_min)
+    dd_min, V_min, shifts_min, factorized_shifted_matrices, LM_eig_min = deflate_negative_eigenvalues_of_hmatrix_pencil(
+        A, B_min,
+        save_intermediate_factorizations=save_intermediate_factorizations,
+        threshold=threshold, gamma=gamma, sigma_factor=np.sqrt(mu_spacing_factor), chunk_size=chunk_size,
+        tol=rtol, ncv_factor=ncv_factor, lanczos_maxiter=lanczos_maxiter, display=display,
+        shifted_preconditioner_only=shifted_preconditioner_only)
+
+    V = V_min * np.sqrt(mu_min)
+    dd = dd_min * mu_min
+    LM_eig = LM_eig_min * mu_min
+    known_mus = [-mu_min * shift for shift in shifts_min]
+    print('known_mus=', known_mus)
+
+    return make_shifted_hmatrix_inverse_interpolator(
+        A, B, mu_min, mu_max, LM_eig,
+        mu_spacing_factor=mu_spacing_factor,
+        known_mus=known_mus,
+        known_shifted_factorizations=factorized_shifted_matrices,
+        deflation_dd=dd,
+        deflation_V=V,
+        rtol=rtol,
+        boundary_mu_rtol=boundary_mu_rtol,
+        gamma=gamma,
+        display=display,
+    )
 
 
 
