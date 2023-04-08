@@ -27,9 +27,11 @@ def shifted_inverse_interpolation_coeffs(mu: float,
     assert(mu0 <= mu)
     assert(mu <= mu1)
     assert(0.0 < lambda_max)
-    M = np.array([[1.0 / mu0,                1.0 / mu1],
-                  [1.0 / (mu0 + lambda_max), 1.0 / (mu1 + lambda_max)]])
-    b = np.array([1.0 / mu, 1.0 / (mu + lambda_max)])
+    a1 = 0.0
+    a2 = lambda_max
+    M = np.array([[1.0 / (mu0 + a1), 1.0 / (mu1 + a1)],
+                  [1.0 / (mu0 + a2), 1.0 / (mu1 + a2)]])
+    b = np.array([1.0 / (mu + a1), 1.0 / (mu + a2)])
     cc = np.linalg.solve(M, b)
     c0 = cc[0]
     c1 = cc[1]
@@ -37,8 +39,8 @@ def shifted_inverse_interpolation_coeffs(mu: float,
     f = lambda t: 1.0 / (t + mu)
     g = lambda t: c0 / (t + mu0) + c1 / (t + mu1)
 
-    assert(np.abs(f(0.0) - g(0.0)) <= _RTOL * np.abs(f(0.0)))
-    assert (np.abs(f(lambda_max) - g(lambda_max)) <= _RTOL * np.abs(f(lambda_max)))
+    assert(np.abs(f(a1) - g(a1)) <= _RTOL * np.abs(f(a1)))
+    assert (np.abs(f(a2) - g(a2)) <= _RTOL * np.abs(f(a2)))
 
     return c0, c1
 

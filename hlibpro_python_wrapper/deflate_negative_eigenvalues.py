@@ -38,17 +38,17 @@ class DeflatedShiftedOperator:
         assert(me.BU.shape == (me.N, me.k))
         assert(me.dd.shape == (me.k,))
 
-        b = np.random.randn(me.N)
-        x = me.solve_shifted(b)
-        norm_r = np.linalg.norm(b - me.apply_shifted(x))
-        norm_b = np.linalg.norm(b)
+        # b = np.random.randn(me.N)
+        # x = me.solve_shifted(b)
+        # norm_r = np.linalg.norm(b - me.apply_shifted(x))
+        # norm_b = np.linalg.norm(b)
         # print('shifted: norm_r/norm_b=', norm_r / norm_b)
         # assert(norm_r < 1e-6 * norm_b)
 
-        b = np.random.randn(me.N)
-        x = me.solve_shifted_deflated(b)
-        norm_r = np.linalg.norm(b - me.apply_shifted_deflated(x))
-        norm_b = np.linalg.norm(b)
+        # b = np.random.randn(me.N)
+        # x = me.solve_shifted_deflated(b)
+        # norm_r = np.linalg.norm(b - me.apply_shifted_deflated(x))
+        # norm_b = np.linalg.norm(b)
         # print('shifted and deflated: norm_r/norm_b=', norm_r / norm_b)
         # assert(norm_r < 1e-6 * norm_b)
 
@@ -76,7 +76,7 @@ class DeflatedShiftedOperator:
         return me.solve_shifted(b - me.BU @ (me.diag_Phi * (me.BU.T @ me.solve_shifted(b))))
 
     def solve_shifted_preconditioner_deflated(me, b: np.ndarray) -> np.ndarray: # b -> (A - sigma*B + gamma*B @ U @ diag(dd) @ U.T @ B)^-1 @ b
-        return me.solve_shifted(b - me.BU @ (me.diag_Phi * (me.BU.T @ me.solve_shifted_preconditioner(b))))
+        return me.solve_shifted_preconditioner(b - me.BU @ (me.diag_Phi * (me.BU.T @ me.solve_shifted_preconditioner(b))))
 
     def get_eigs_near_sigma(me, target_num_eigs=10, tol=1e-7, ncv_factor=None, maxiter=3, mode='cayley',
                             preconditioner_only=False) -> typ.Tuple[np.ndarray, np.ndarray]: # (dd, U)
@@ -216,7 +216,7 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
                                  N: int, # A.shape = B.shape = (N,N)
                                  make_OP_preconditioner: typ.Callable[[float], vec2vec], # Approximates sigma -> (v -> (A - sigma*B)^-1 @ v)
                                  threshold = -0.5,
-                                 gamma: float=-1.0, # -1.0: set negative eigs to zero. -2.0: flip negative eigs
+                                 # gamma: float=-1.0, # -1.0: set negative eigs to zero. -2.0: flip negative eigs
                                  sigma_factor: float=10.0, # Sigma scaled up by this much above previous bound
                                  chunk_size=50,
                                  tol: float=1e-8,
@@ -224,6 +224,7 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
                                  lanczos_maxiter=2,
                                  preconditioner_only=False,
                                  display=True,
+                                 perturb_mu_factor: float=1e-3,
                                 ) -> typ.Tuple[np.ndarray, np.ndarray, float]: # (dd, V, LM_eig)
     '''Form low rank update A -> A + V @ diag(dd) @ V.T such that
         eigs(A + V @ diag(dd) @ V.T, B) > threshold
@@ -264,7 +265,7 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
         B = np.diag(B_diag)
         ee_true, U_true = sla.eigh(A, B)
 
-        A_deflated = A + V @ np.diag(dd) @ V.T
+        A_deflated = A - V @ np.diag(dd) @ V.T
         Rayleigh = U_true.T @ A_deflated @ U_true
 
         nondiagonal_Rayleigh_error = np.linalg.norm(Rayleigh - np.diag(Rayleigh.diagonal())) / np.linalg.norm(Rayleigh)
@@ -288,7 +289,8 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
         print('intermediate_error=', intermediate_error)
 
     Out:
-        LM_eig= -422.4888729005527
+        Getting largest magnitude eigenvalue
+        LM_eig= 1543.762610926868
         making A-sigma*B preconditioner
         Getting eigs near sigma
         50  /  50  eigs found
@@ -299,33 +301,30 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
         Updating deflation
         50  /  50  eigs found
         Updating deflation
-        band_lower= -2.144669296642468
-        proposed_sigma= -21.446692966424678 , sigma= -21.446692966424678
+        band_lower= -2.0535650219189328
+        proposed_sigma= -20.53565021918933 , sigma= -20.53565021918933
         making A-sigma*B preconditioner
         50  /  50  eigs found
         Updating deflation
-        50  /  50  eigs found
+        48  /  50  eigs found
         Updating deflation
-        50  /  50  eigs found
+        39  /  50  eigs found
         Updating deflation
-        14  /  50  eigs found
+        3  /  50  eigs found
         Updating deflation
-        5  /  50  eigs found
-        Updating deflation
-        band_lower= -422.4888728940792
-        proposed_sigma= -4224.888728940792 , sigma= -443.61331654558035
+        band_lower= -210.99026648789436
+        proposed_sigma= -2109.9026648789436 , sigma= -1620.9507414732116
         making A-sigma*B preconditioner
         1  /  50  eigs found
         Updating deflation
-        band_lower= -4436.1331654558035
-        nondiagonal_Rayleigh_error= 3.598241444411492e-10
-        positive_error= 5.359260979138846e-17
-        zeroing_error= 2.2901072295801614e-11
-        intermediate_error= 1.177572665517129e-12
+        band_lower= -16209.507414732116
+        nondiagonal_Rayleigh_error= 3.691389968894912e-09
+        positive_error= 1.461716236723123e-16
+        zeroing_error= 8.118353873574888e-12
+        intermediate_error= 5.735309465718123e-12
     '''
     assert(N > 0)
     assert(threshold < 0.0)
-    assert(gamma < 0.0)
     assert(tol > 0.0)
     assert(sigma_factor > 0.0)
     A_op = CountedOperator((N,N), apply_A, display=False, name='A')
@@ -355,7 +354,8 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
     sigma = -1.0
     printmaybe('making A-sigma*B preconditioner')
     solve_P = make_OP_preconditioner(sigma)
-    DSO = DeflatedShiftedOperator(apply_A, apply_B, sigma, solve_P, gamma, V0, dd0)
+    # DSO = DeflatedShiftedOperator(apply_A, apply_B, sigma, solve_P, gamma, V0, dd0)
+    DSO = DeflatedShiftedOperator(apply_A, apply_B, sigma, solve_P, -1.0, V0, dd0)
 
     printmaybe('Getting eigs near sigma')
     DSO, d_lower, _ = deflate_negative_eigs_near_sigma(DSO, B_op, threshold, chunk_size,
@@ -367,9 +367,10 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
         band_lower = d_lower
     printmaybe('band_lower=', band_lower)
 
-    while -np.abs(LM_eig) < band_lower:
+    while -np.abs(LM_eig) <= band_lower:
         proposed_sigma = band_lower * sigma_factor
         sigma = np.max([-np.abs(LM_eig) * 1.05, proposed_sigma])
+        sigma = (1.0 + perturb_mu_factor*(np.random.rand() - 0.5)) * sigma
         printmaybe('proposed_sigma=', proposed_sigma, ', sigma=', sigma)
 
         printmaybe('making A-sigma*B preconditioner')
@@ -385,7 +386,7 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
         printmaybe('band_lower=', band_lower)
 
     V = DSO.BU
-    dd = gamma * DSO.dd
+    dd = DSO.dd
 
     return dd, V, LM_eig
 

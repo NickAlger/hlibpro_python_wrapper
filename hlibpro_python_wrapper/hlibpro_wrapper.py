@@ -10,8 +10,12 @@ from . import hlibpro_bindings as hpro_cpp
 from .deflate_negative_eigenvalues import DeflatedShiftedOperator, deflate_negative_eigenvalues
 from .interpolate_shifted_inverses import shifted_inverse_interpolation_preconditioner
 
-default_rtol = 1e-7
-default_atol = 1e-12
+_DEFAULT_RTOL = 1e-7
+_DEFAULT_ATOL = 1e-12
+
+_MU_SPACING_FACTOR: float = 5.0e1
+_BOUNDARY_MU_RTOL: float = 0.1
+_MAX_MUS = 20
 
 
 class HMatrix:
@@ -67,7 +71,7 @@ class HMatrix:
     def T(me):
         return me.transpose()
 
-    def sym(me, rtol=default_rtol, atol=default_atol, overwrite=False):
+    def sym(me, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL, overwrite=False):
         if overwrite:
             A_sym = h_add(me.T, me, alpha=0.5, beta=0.5, rtol=rtol, atol=atol, overwrite_B=True)
         else:
@@ -105,7 +109,7 @@ class HMatrix:
         else:
             raise RuntimeError('cannot add HMatrix to ' + str(other.type))
 
-    def __sub__(me, other, rtol=default_rtol, atol=default_atol):
+    def __sub__(me, other, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL):
         if isinstance(other, HMatrix):
             return h_add(other, me, beta=-1.0)
 
@@ -167,14 +171,14 @@ class HMatrix:
     # def __imatmul__(me, other):
     #     return me.__imul__(me, other)
 
-    def inv(me, rtol=default_rtol, atol=default_atol,
+    def inv(me, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL,
             overwrite=False, display_progress=False,
             diag_type='general_diag', storage_type='store_normal', do_coarsen=False):
         return h_inv(me, rtol=rtol, atol=atol,
                      overwrite=overwrite, display_progress=display_progress,
                      diag_type=diag_type, storage_type=storage_type, do_coarsen=do_coarsen)
 
-    def factorized_inverse(me, rtol=default_rtol, atol=default_atol, overwrite=False):
+    def factorized_inverse(me, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL, overwrite=False):
         return h_factorized_inverse(me, rtol=rtol, atol=atol)
 
     def add_identity(me, s=1.0, overwrite=False):
@@ -192,7 +196,7 @@ class HMatrix:
     def as_linear_operator(me):
         return spla.LinearOperator(me.shape, matvec=me.matvec, rmatvec=me.rmatvec)
 
-    def low_rank_update(me, X, Y, overwrite=False, rtol=default_rtol, atol=default_atol): #A -> A + X*Y
+    def low_rank_update(me, X, Y, overwrite=False, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL): #A -> A + X*Y
         X2 = np.zeros(X.shape)
         X2[:] = X
         Y2T = np.zeros(Y.shape[::-1])
@@ -213,8 +217,8 @@ class HMatrix:
                    overwrite=False,
                    force_positive_definite=True,
                    check_correctness=True,
-                   rtol=default_rtol,
-                   atol=default_atol):
+                   rtol=_DEFAULT_RTOL,
+                   atol=_DEFAULT_ATOL):
         # Y = A * X
         # A1 = (I - Y (Y^T X)^-1 X^T) A0 (I - X (X^T Y)^-1 Y^T) + Y (Y^T X)^-1 Y^T
         #    = (I - Q X^T) A0 (I - X Q^T) + Q Y^T,                   where Q := Y (Y^T X)^-1
@@ -312,8 +316,8 @@ class HMatrix:
     def broyden_update(me, X, Y,
                        overwrite=False,
                        check_correctness=True,
-                       rtol=default_rtol,
-                       atol=default_atol):
+                       rtol=_DEFAULT_RTOL,
+                       atol=_DEFAULT_ATOL):
         # A1 = A0 + (Y - A0 X)(X^T X)^-1 X^T
         if len(X.shape) == 1:
             X = X.reshape((-1, 1))
@@ -342,8 +346,8 @@ class HMatrix:
     def SRK_update(me, X, Y,
                    overwrite=False,
                    check_correctness=True,
-                   rtol=default_rtol,
-                   atol=default_atol):
+                   rtol=_DEFAULT_RTOL,
+                   atol=_DEFAULT_ATOL):
         # A1 = A0 + (Y - A0 X)((Y - A0 X)^T X)^-1 (Y - A0 X)^T
         if len(X.shape) == 1:
             X = X.reshape((-1, 1))
@@ -379,7 +383,7 @@ def add_identity_to_hmatrix(A_hmatrix, s=1.0, overwrite=False):
     return A_plus_alpha_I
 
 
-def h_add(A_hmatrix, B_hmatrix, alpha=1.0, beta=1.0, rtol=default_rtol, atol=default_atol, overwrite_B=False):
+def h_add(A_hmatrix, B_hmatrix, alpha=1.0, beta=1.0, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL, overwrite_B=False):
     # C = A + alpha * B to tolerance given by truncation accuracy object acc
     acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
     if overwrite_B:
@@ -400,7 +404,7 @@ def h_scale(A_hmatrix, alpha, overwrite_A=False):
     return alpha_A_hmatrix
 
 
-def h_mul(A_hmatrix, B_hmatrix, alpha_A_B_hmatrix=None, alpha=1.0, rtol=default_rtol, atol=default_atol, display_progress=True):
+def h_mul(A_hmatrix, B_hmatrix, alpha_A_B_hmatrix=None, alpha=1.0, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL, display_progress=True):
     # C = A * B
     acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
     if alpha_A_B_hmatrix is None:
@@ -454,7 +458,7 @@ class FactorizedInverseHMatrix:
         return h_factorized_solve(me, x)
 
 
-def h_factorized_inverse(A_hmatrix, rtol=default_rtol, atol=default_atol, overwrite=False):
+def h_factorized_inverse(A_hmatrix, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL, overwrite=False):
     acc = hpro_cpp.TTruncAcc(relative_eps=rtol, absolute_eps=atol)
     if overwrite:
         factors_cpp_object = A_hmatrix.cpp_object
@@ -572,7 +576,7 @@ class FactorizedHMatrix:
         else:
             raise RuntimeError('asdf')
 
-def h_inv(A_hmatrix, rtol=default_rtol, atol=default_atol,
+def h_inv(A_hmatrix, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL,
           overwrite=False, display_progress=False,
           diag_type='general_diag', storage_type='store_normal', do_coarsen=False):
     # Look in hpro/algebra/mat_inv.hh
@@ -624,7 +628,7 @@ def h_inv(A_hmatrix, rtol=default_rtol, atol=default_atol,
         return HMatrix(inverse_cpp_object, A_hmatrix.bct)
 
 
-def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol,
+def h_ldl(A_hmatrix, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL,
           overwrite=False, display_progress=True,
           eval_type='block_wise', storage_type='store_normal', do_coarsen=False):
     return _factorize_h_matrix(A_hmatrix, 'LDL', rtol, atol,
@@ -632,7 +636,7 @@ def h_ldl(A_hmatrix, rtol=default_rtol, atol=default_atol,
                                eval_type, storage_type, do_coarsen)
 
 
-def h_lu(A_hmatrix, rtol=default_rtol, atol=default_atol,
+def h_lu(A_hmatrix, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL,
          overwrite=False, display_progress=True,
          eval_type='block_wise', storage_type='store_normal', do_coarsen=False):
     return _factorize_h_matrix(A_hmatrix, 'LU', rtol, atol,
@@ -965,8 +969,8 @@ def rational_positive_definite_approximation_low_rank_method(A,
                                                              max_rank=500,
                                                              display=True,
                                                              overwrite=False,
-                                                             rtol=default_rtol,
-                                                             atol=default_atol):
+                                                             rtol=_DEFAULT_RTOL,
+                                                             atol=_DEFAULT_ATOL):
     '''Form symmetric positive definite approximation of hmatrix A
     uses low rank deflation to flip negative eigenvalues less than cutoff.
     '''
@@ -1015,7 +1019,7 @@ def rational_positive_definite_approximation_low_rank_method(A,
 # ee_plus(k) = ee(k) if ee(k) >=0 or 0 if ee(k) < 0
 # 1 / (1 + x^(2^k))
 
-def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=2, rtol=default_rtol, atol=default_atol, display_progress=False,
+def make_hmatrix_spd_hackbusch_kress_2007(A_hmatrix, k=2, rtol=_DEFAULT_RTOL, atol=_DEFAULT_ATOL, display_progress=False,
                                           a_factor=1.5, b_factor=0.0):
     # Hackbusch, Wolfgang, and Wendy Kress. "A projection method for the computation of inner eigenvalues using high degree rational operators." Computing 81.4 (2007): 259-268.
     if display_progress:
@@ -1077,7 +1081,7 @@ def make_shifted_factorization(
         B: HMatrix,
         mu: float,
         display=False,
-        rtol=default_rtol,
+        rtol=_DEFAULT_RTOL,
 ) -> FactorizedInverseHMatrix:
     assert(mu > 0.0)
     A_plus_muB = h_add(A, B, 1.0, mu)
@@ -1089,15 +1093,15 @@ def make_shifted_factorization(
     return A_plus_muB_fac
 
 
-def deflate_negative_eigenvalues_of_hmatrix_pencil(
+def negative_eigenvalues_of_hmatrix_pencil(
         A: HMatrix, # shape=(N,N), symmetric
         B: HMatrix, # shape=(N,N), symmetric positive definite
         save_intermediate_factorizations: bool=True,
         threshold=-0.5,
-        gamma: float = -1.0, # -1.0: set negative eigs to zero. -2.0: flip negative eigs
-        sigma_factor: float = 10.0, # Sigma scaled up by this much above previous bound
+        # gamma: float = -1.0, # -1.0: set negative eigs to zero. -2.0: flip negative eigs
+        sigma_factor: float = np.sqrt(_MU_SPACING_FACTOR), # Sigma scaled up by this much above previous bound
         chunk_size: int=50,
-        tol: float=default_rtol,
+        tol: float=_DEFAULT_RTOL,
         ncv_factor=3,
         lanczos_maxiter=2,
         display=True,
@@ -1130,7 +1134,7 @@ def deflate_negative_eigenvalues_of_hmatrix_pencil(
     dd, V, LM_eig = deflate_negative_eigenvalues(
         A.matvec, B.matvec, B_fac.matvec, N,
         make_shifted_solver, threshold=threshold,
-        gamma=gamma, sigma_factor=sigma_factor,
+        sigma_factor=sigma_factor,
         chunk_size=chunk_size, tol=tol,
         ncv_factor=ncv_factor, lanczos_maxiter=lanczos_maxiter,
         display=display,
@@ -1187,17 +1191,23 @@ class HMatrixShiftedInverseInterpolator:
 
     @cached_property
     def known_shifted_deflated_preconditioners(me):
-        return [S.solve_shifted_preconditioner for S in me.known_shifted_deflated_operators]
+        return [S.solve_shifted_preconditioner_deflated for S in me.known_shifted_deflated_operators]
 
     @cached_property
     def known_shifted_deflated_solvers(me):
         return [S.solve_shifted for S in me.known_shifted_deflated_operators]
 
-    def apply_shifted_deflated(me, x: np.ndarray, mu: float) -> np.ndarray:  # x -> (A + mu*B) @ x
+    def apply_shifted_deflated(me, x: np.ndarray, mu: float) -> np.ndarray:
+        '''x -> (A + gamma*V @ diag(dd) @ V.T + mu0*B) @ x'''
         assert(mu > 0.0)
         return me.A.matvec(x) + mu * me.B.matvec(x) + me.gamma * me.V @ (me.dd * (me.V.T @ x))
 
-    def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=False) -> np.ndarray:
+    def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=True) -> np.ndarray:
+        '''b -> c0*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b + c1*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b
+             =approx= (A + gamma*V @ diag(dd) @ V.T + mu*B)^-1 @ b, where:
+        mu0 < mu < mu1
+        c0 and c1 are chosen so that the approximation is exact on the largest end of the spectrum of A,
+        the zero end of the spectrum.'''
         assert(mu > 0.0)
         assert(b.shape == (me.N,))
         return shifted_inverse_interpolation_preconditioner(
@@ -1205,10 +1215,11 @@ class HMatrixShiftedInverseInterpolator:
             np.abs(me.LM_eig), display=display)
 
     def solve_shifted_deflated(me, b: np.ndarray, mu: float, display=False, rtol=None) -> np.ndarray:
+        '''b -> (A + gamma*V @ diag(dd) @ V.T + mu*B)^-1 @ b'''
         assert (mu > 0.0)
         assert (b.shape == (me.N,))
         if rtol is None:
-            rtol = default_rtol
+            rtol = _DEFAULT_RTOL
         F_op = spla.LinearOperator((me.N, me.N), matvec=lambda x: me.apply_shifted_deflated(x, mu))
         M_op = spla.LinearOperator((me.N, me.N), matvec=lambda x: me.solve_shifted_deflated_preconditioner(x, mu))
         return spla.cg(F_op, b, tol=rtol, M=M_op)[0]
@@ -1218,7 +1229,7 @@ class HMatrixShiftedInverseInterpolator:
                                                  me.known_shifted_factorizations, me.dd, me.V,
                                                  new_gamma)
 
-    def insert_new_mu(me, new_mu: float, rtol=default_rtol, display=True
+    def insert_new_mu(me, new_mu: float, rtol=_DEFAULT_RTOL, display=True
                       ) -> 'HMatrixShiftedInverseInterpolator':
         assert(new_mu > 0.0)
         fac = make_shifted_factorization(me.A, me.B, new_mu, rtol=rtol, display=display)
@@ -1235,16 +1246,29 @@ def make_shifted_hmatrix_inverse_interpolator(
         mu_min: float,
         mu_max: float,
         LM_eig: float=None,
-        mu_spacing_factor: float = 100.0,
+        mu_spacing_factor: float = _MU_SPACING_FACTOR, # e.g., 50.0
         known_mus: typ.List[float] = None,
         known_shifted_factorizations: typ.List[FactorizedInverseHMatrix] = None,
         deflation_dd: np.ndarray = None,
         deflation_V: np.ndarray = None,
-        rtol: float = default_rtol,
-        boundary_mu_rtol = 0.1,
+        rtol: float = _DEFAULT_RTOL,
+        boundary_mu_rtol = _BOUNDARY_MU_RTOL, # e.g., 0.1
         gamma: float = -1.0,
         display=True,
+        perturb_mu_factor: float=1e-3,
 ) -> HMatrixShiftedInverseInterpolator:
+    '''Make object that approximates action of (A + gamma*V @ diag(dd) @ V.T + mu*B)^-1
+    at arbitrary mu in [mu_min, mu_max] via weighted sum of known factorizations
+    of operators A + gamma*V @ diag(dd) @ V.T + mu_k*B.
+    Values mu_k are chosen to fill the range [mu_min, mu_max] to within factor mu_spacing_factor
+    I.e., if mu_i are ordered in increasing order, then mu_(i+1) <= mu_spacing_factor*mu_i.
+    Ensures that there are values of mu_k near mu_min and mu_max to within factor boundary_mu_rtol.
+    I.e., there exists mu_k such that |mu_k - mu_min| < boundary_mu_rtol*|mu_min|,
+    and similar for mu_max.
+    Requirements:
+        A symmetric
+        B symmetric positive definite
+        dd, V are generalized eigenvalues/eigenvectors of (A, B)'''
     assert (0.0 < mu_min)
     assert (mu_min <= mu_max)
     N = A.shape[0]
@@ -1252,8 +1276,11 @@ def make_shifted_hmatrix_inverse_interpolator(
     assert (B.shape == (N, N))
     assert (rtol > 0.0)
     assert (mu_spacing_factor > 1.0)
-    assert (gamma < 0.0)
     assert(boundary_mu_rtol >= 0.0)
+    assert(np.abs(perturb_mu_factor) < 1.0)
+
+    mu_min = (1.0 + perturb_mu_factor*(np.random.rand() - 0.5)) * mu_min
+    mu_max = (1.0 + perturb_mu_factor*(np.random.rand() - 0.5)) * mu_max
 
     if LM_eig is None:
         B_fac = B.factorized_inverse(rtol=rtol,overwrite=False)
@@ -1275,29 +1302,48 @@ def make_shifted_hmatrix_inverse_interpolator(
         known_shifted_factorizations = []
     else:
         assert (len(known_mus) == len(known_shifted_factorizations))
+        known_mus = known_mus.copy() # Don't modify original list
+        known_shifted_factorizations = known_shifted_factorizations.copy()
 
     for mu in known_mus:
         assert (mu > 0.0)
 
     # Get new mus to fill in gaps
     if np.min(np.abs(np.array(known_mus) - mu_min)) > boundary_mu_rtol * mu_min:
+        if display:
+            print('making shifted factorization A + mu_min*B, mu_min=', mu_min)
         fac = make_shifted_factorization(A, B, mu_min, rtol=rtol, display=display)
         known_mus.append(mu_min)
         known_shifted_factorizations.append(fac)
     if np.min(np.abs(np.array(known_mus) - mu_max)) > boundary_mu_rtol * mu_max:
+        if display:
+            print('making shifted factorization A + mu_max*B, mu_max=', mu_max)
         fac = make_shifted_factorization(A, B, mu_max, rtol=rtol, display=display)
         known_mus.append(mu_max)
         known_shifted_factorizations.append(fac)
 
-    sorted_mus = np.sort(known_mus)
-    for ii in range(len(sorted_mus) - 1):
-        mu_low = sorted_mus[ii]
-        mu_high = sorted_mus[ii + 1]
+    # Algorithm sub-optimal; looping and sorting way more than needed
+    sort_inds = list(np.argsort(known_mus).reshape(-1))
+    known_mus = [known_mus[ind] for ind in sort_inds]
+    known_shifted_factorizations = [known_shifted_factorizations[ind] for ind in sort_inds]
+    ii = 0
+    while ii + 1 < len(known_mus):
+        mu_low = known_mus[ii]
+        mu_high = known_mus[ii + 1]
         if mu_high / mu_low > mu_spacing_factor:
             mu_mid = np.exp(0.5 * (np.log(mu_low) + np.log(mu_high)))
+            if mu_mid / mu_low > mu_spacing_factor:
+                mu_mid = mu_low * mu_spacing_factor
+            if display:
+                print('making A + mu*B factorization. (mu_low, mu, mu_high)=', (mu_low, mu_mid, mu_high))
             fac = make_shifted_factorization(A, B, mu_mid, rtol=rtol, display=display)
             known_mus.append(mu_mid)
             known_shifted_factorizations.append(fac)
+
+            sort_inds = list(np.argsort(known_mus).reshape(-1))
+            known_mus = [known_mus[ind] for ind in sort_inds]
+            known_shifted_factorizations = [known_shifted_factorizations[ind] for ind in sort_inds]
+        ii += 1
 
     return HMatrixShiftedInverseInterpolator(A, B, LM_eig, known_mus,
                                              known_shifted_factorizations,
@@ -1309,14 +1355,14 @@ def deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator(
         B: HMatrix,
         mu_min: float,
         mu_max: float,
-        mu_spacing_factor: float = 100.0,
-        rtol: float = default_rtol,
-        boundary_mu_rtol: float=0.1,
+        mu_spacing_factor: float = _MU_SPACING_FACTOR,
+        rtol: float = _DEFAULT_RTOL,
+        boundary_mu_rtol: float=_BOUNDARY_MU_RTOL, # e.g. 0.1
         gamma: float = -1.0,
         threshold: float=-0.5,
         chunk_size: int=50,
-        ncv_factor: int = 3,
-        lanczos_maxiter: int = 2,
+        ncv_factor: int=3,
+        lanczos_maxiter: int=2,
         display: bool=True,
         save_intermediate_factorizations: bool=True,
         shifted_preconditioner_only: bool=True,
@@ -1330,7 +1376,7 @@ def deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator(
     assert(gamma < 0.0)
 
     B_min = h_scale(B, mu_min)
-    dd_min, V_min, shifts_min, factorized_shifted_matrices, LM_eig_min = deflate_negative_eigenvalues_of_hmatrix_pencil(
+    dd_min, V_min, shifts_min, factorized_shifted_matrices, LM_eig_min = negative_eigenvalues_of_hmatrix_pencil(
         A, B_min,
         save_intermediate_factorizations=save_intermediate_factorizations,
         threshold=threshold, gamma=gamma, sigma_factor=np.sqrt(mu_spacing_factor), chunk_size=chunk_size,
