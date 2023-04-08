@@ -91,6 +91,7 @@ errs = []
 for mu in mus:
     x_true = np.linalg.solve(A_plus_dense + mu * B_dense, b)
     x = shifted_interpolator.solve_shifted_deflated_preconditioner(b, mu, display=False)
+    # x = shifted_interpolator.solve_shifted_deflated(b, mu, display=False)
     err = np.linalg.norm(x_true - x) / np.linalg.norm(x_true)
     errs.append(err)
     print('mu=', mu, ', err=', err)
