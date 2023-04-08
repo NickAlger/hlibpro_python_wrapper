@@ -1309,13 +1309,21 @@ def make_shifted_hmatrix_inverse_interpolator(
         assert (mu > 0.0)
 
     # Get new mus to fill in gaps
-    if np.min(np.abs(np.array(known_mus) - mu_min)) > boundary_mu_rtol * mu_min:
+    dont_have_mu_min = True
+    if len(known_mus) > 0:
+        dont_have_mu_min = np.min(np.abs(np.array(known_mus) - mu_min)) > boundary_mu_rtol * mu_min
+
+    dont_have_mu_max = True
+    if len(known_mus) > 0:
+        dont_have_mu_max = np.min(np.abs(np.array(known_mus) - mu_max)) > boundary_mu_rtol * mu_max
+
+    if dont_have_mu_min:
         if display:
             print('making shifted factorization A + mu_min*B, mu_min=', mu_min)
         fac = make_shifted_factorization(A, B, mu_min, rtol=rtol, display=display)
         known_mus.append(mu_min)
         known_shifted_factorizations.append(fac)
-    if np.min(np.abs(np.array(known_mus) - mu_max)) > boundary_mu_rtol * mu_max:
+    if dont_have_mu_max:
         if display:
             print('making shifted factorization A + mu_max*B, mu_max=', mu_max)
         fac = make_shifted_factorization(A, B, mu_max, rtol=rtol, display=display)
@@ -1379,14 +1387,16 @@ def deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator(
     dd_min, V_min, shifts_min, factorized_shifted_matrices, LM_eig_min = negative_eigenvalues_of_hmatrix_pencil(
         A, B_min,
         save_intermediate_factorizations=save_intermediate_factorizations,
-        threshold=threshold, gamma=gamma, sigma_factor=np.sqrt(mu_spacing_factor), chunk_size=chunk_size,
+        threshold=threshold, sigma_factor=np.sqrt(mu_spacing_factor), chunk_size=chunk_size,
         tol=rtol, ncv_factor=ncv_factor, lanczos_maxiter=lanczos_maxiter, display=display,
         shifted_preconditioner_only=shifted_preconditioner_only)
+    # dd_min, V_min, shifts_min, factorized_shifted_matrices, LM_eig_min = negative_eigenvalues_of_hmatrix_pencil(
+    #     A, B_min, threshold=threshold)
 
-    V = V_min * np.sqrt(mu_min)
+    V = V_min / np.sqrt(mu_min) #* np.sqrt(mu_min)
     dd = dd_min * mu_min
     LM_eig = LM_eig_min * mu_min
-    known_mus = [-mu_min * shift for shift in shifts_min]
+    known_mus = [-shift * mu_min for shift in shifts_min]
     if display:
         print('known_mus=', known_mus)
 

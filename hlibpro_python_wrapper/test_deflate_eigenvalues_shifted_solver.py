@@ -22,6 +22,9 @@ B_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(B_csc, bct)
 iA_hmatrix = hpro.build_hmatrix_from_scipy_sparse_matrix(iA_csc, bct)
 A_hmatrix = iA_hmatrix.inv()
 
+
+########    hpro.negative_eigenvalues_of_hmatrix_pencil    ########
+
 threshold = -0.25
 
 dd, V, shifts, factorized_shifted_matrices, LM_eig = hpro.negative_eigenvalues_of_hmatrix_pencil(A_hmatrix, B_hmatrix, threshold=threshold)
@@ -72,16 +75,18 @@ for mu, fac in zip(shifts, factorized_shifted_matrices):
     fac_err = np.linalg.norm(x - x_true) / np.linalg.norm(x_true)
     print('mu=', mu, ', fac_err=', fac_err)
 
-##
 
-mu_max = -np.min(ee)*1.0
-mu_min = 0.5
+########    hpro.make_shifted_hmatrix_inverse_interpolator    ########
+
+mu_max = -np.min(ee)*1.1
+mu_min = 1.0
+mu_spacing_factor = 50.0
 
 shifted_interpolator = hpro.make_shifted_hmatrix_inverse_interpolator(
     A_hmatrix, B_hmatrix, mu_min, mu_max, gamma=-1.0,
-    mu_spacing_factor=50.0,
+    mu_spacing_factor=mu_spacing_factor,
     deflation_dd=dd, deflation_V=V, LM_eig=LM_eig, known_mus=[-s for s in shifts],
-    known_shifted_factorizations=factorized_shifted_matrices)
+    known_shifted_factorizations=factorized_shifted_matrices, display=True)
 
 
 b = np.random.randn(N)
@@ -97,3 +102,26 @@ for mu in mus:
     print('mu=', mu, ', err=', err)
 
 plt.loglog(mus, errs)
+
+
+########    hpro.deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator    ########
+
+two_B_hmatrix = hpro.h_scale(B_hmatrix, 2.0, overwrite_A=False)
+
+shifted_interpolator2 = hpro.deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator(
+    A_hmatrix, two_B_hmatrix, 0.5*mu_min, 0.5*mu_max, mu_spacing_factor=mu_spacing_factor, display=True,
+    threshold=threshold
+)
+
+b = np.random.randn(N)
+mus = list(np.logspace(np.log10(0.5*mu_min), np.log10(0.5*mu_max), 100))
+# mus = shifted_interpolator2.known_mus
+errs = []
+for mu in mus:
+    x_true = np.linalg.solve(A_plus_dense + mu * 2.0 * B_dense, b)
+    x = shifted_interpolator2.solve_shifted_deflated_preconditioner(b, mu, display=False)
+    err = np.linalg.norm(x_true - x) / np.linalg.norm(x_true)
+    errs.append(err)
+    print('mu=', mu, ', err=', err)
+
+plt.loglog(2.0*np.array(mus), errs)
