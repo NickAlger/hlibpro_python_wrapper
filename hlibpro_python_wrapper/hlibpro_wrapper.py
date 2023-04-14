@@ -1338,7 +1338,7 @@ def make_shifted_hmatrix_inverse_interpolator(
     while ii + 1 < len(known_mus):
         mu_low = known_mus[ii]
         mu_high = known_mus[ii + 1]
-        if mu_high / mu_low > mu_spacing_factor:
+        if mu_high / mu_low > mu_spacing_factor and mu_low < mu_max:
             mu_mid = np.exp(0.5 * (np.log(mu_low) + np.log(mu_high)))
             if mu_mid / mu_low > mu_spacing_factor:
                 mu_mid = mu_low * mu_spacing_factor
