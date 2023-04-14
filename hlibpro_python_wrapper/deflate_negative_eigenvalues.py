@@ -181,8 +181,9 @@ def deflate_negative_eigs_near_sigma(DSO: DeflatedShiftedOperator,
         dd = np.concatenate([dd, dd_new])
         if display:
             print('Updating deflation')
-        if np.any(dd_new < 0.0):
-            DSO = DSO.update_deflation(B_op.matmat(U_new[:, dd_new < 0.0]), dd_new[dd_new < 0.0])
+        if np.any(dd_new < threshold):
+            DSO = DSO.update_deflation(
+                B_op.matmat(U_new[:, dd_new < threshold]), dd_new[dd_new < threshold])
 
         if len(dd_new) == 0 or np.any(dd >= threshold):
             break
