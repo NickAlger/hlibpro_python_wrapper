@@ -399,6 +399,9 @@ def get_negative_eigenvalues_in_range(
         N: int, # A.shape = B.shape = (N,N)
         range_min: float,
         range_max: float,
+        prior_dd: np.ndarray=None,
+        prior_V: np.ndarray=None,
+        deflation_gamma: float=-2.0,
         sigma_factor: float=7.0, # Sigma scaled up by this much above previous bound
         chunk_size=50,
         tol: float=1e-8,
@@ -408,7 +411,7 @@ def get_negative_eigenvalues_in_range(
         perturb_mu_factor: float=1e-3,
         max_tries=100,
 ) -> typ.Tuple[np.ndarray, np.ndarray]: # (eigs, evecs)
-    '''Get generalized eigenvalues of (A,B) in (range_min, range_max) < 0.
+    '''Get generalized eigenvalues of (A+,B) in (range_min, range_max) < 0.
     Generalized eigenvalues of (A,B) may cluster at zero or positive numbers, but must not cluster at negative numbers
 
     A must be symmetric
@@ -436,30 +439,42 @@ def get_negative_eigenvalues_in_range(
             OP_diag = A_diag - shift * B_diag
             return lambda x: x / OP_diag
 
-        range_max = -0.1
-        range_min = -100.0
-        dd, V = get_negative_eigenvalues_in_range(
-            apply_A, apply_B, make_shifted_solver, N, range_min, range_max, display=True)
+        range1_max = -0.1
+        range1_min = -50.0
+        range2_max = -100.0
+        range2_min = -300.0
+
+        dd1, V1 = get_negative_eigenvalues_in_range(
+            apply_A, apply_B, make_shifted_solver, N, range1_min, range1_max, display=True)
+
+        dd2, V2 = get_negative_eigenvalues_in_range(
+            apply_A, apply_B, make_shifted_solver, N, range2_min, range2_max,
+            prior_dd=dd1, prior_V=V1, display=True)
 
         A = np.diag(A_diag)
         B = np.diag(B_diag)
+
+        A_deflated = A - V1 @ np.diag(dd1) @ V1.T - V2 @ np.diag(dd2) @ V2.T
+
         ee_true, U_true = sla.eigh(A, B)
 
-        A_deflated = A - V @ np.diag(dd) @ V.T
-
-        zeroing_inds = np.logical_and(range_min < ee_true, ee_true < range_max)
+        zeroing_inds1 = np.logical_and(range1_min < ee_true, ee_true < range1_max)
+        zeroing_inds2 = np.logical_and(range2_min < ee_true, ee_true < range2_max)
+        zeroing_inds12 = np.logical_or(zeroing_inds1, zeroing_inds2)
 
         ee_deflated_true = ee_true.copy()
-        ee_deflated_true[zeroing_inds] = 0.0
+        ee_deflated_true[zeroing_inds12] = 0.0
         A_deflated_true = (B @ U_true) @ np.diag(ee_deflated_true) @ (B @ U_true).T
 
         deflation_error = np.linalg.norm(A_deflated_true - A_deflated) / np.linalg.norm(A_deflated_true)
         print('deflation_error=', deflation_error)
 
     Out:
-        Getting eigenvalues in [-100.0, -0.5] via shift-and-invert method
-        making A-sigma*B solver, sigma= -2.501213900830772
-        Getting eigs near sigma= -2.501213900830772
+        Getting eigenvalues in [-50.0, -0.1] via shift-and-invert method
+        making A-sigma*B solver, sigma= -0.70027346246369
+        Getting eigs near sigma= -0.70027346246369
+        50  /  50  eigs found
+        Updating deflation
         50  /  50  eigs found
         Updating deflation
         50  /  50  eigs found
@@ -472,17 +487,49 @@ def get_negative_eigenvalues_in_range(
         Updating deflation
         50  /  50  eigs found
         Updating deflation
-        41  /  50  eigs found
+        49  /  50  eigs found
         Updating deflation
-        band_lower= -14.996322081165056
-        making A-sigma*B preconditioner, sigma= -74.97182661347448
-        Getting eigs near sigma= -74.97182661347448
+        46  /  50  eigs found
+        Updating deflation
+        50  /  50  eigs found
+        Updating deflation
+        43  /  50  eigs found
+        Updating deflation
+        35  /  50  eigs found
+        Updating deflation
+        29  /  50  eigs found
+        Updating deflation
+        44  /  50  eigs found
+        Updating deflation
+        38  /  50  eigs found
+        Updating deflation
         22  /  50  eigs found
+        Updating deflation
+        22  /  50  eigs found
+        Updating deflation
+        29  /  50  eigs found
+        Updating deflation
+        36  /  50  eigs found
+        Updating deflation
+        band_lower= -4.901914237245831
+        making A-sigma*B preconditioner, sigma= -34.31145635256429
+        Getting eigs near sigma= -34.31145635256429
+        50  /  50  eigs found
+        Updating deflation
+        50  /  50  eigs found
+        Updating deflation
+        33  /  50  eigs found
         Updating deflation
         0  /  50  eigs found
         Updating deflation
-        band_lower= -1685.4670526147313
-        deflation_error= 3.851033024258875e-10
+        band_lower= -372.83655294440257
+        Getting eigenvalues in [-300.0, -100.0] via shift-and-invert method
+        making A-sigma*B solver, sigma= -300.09893022873047
+        Getting eigs near sigma= -300.09893022873047
+        19  /  50  eigs found
+        Updating deflation
+        band_lower= -2100.6925116011134
+        deflation_error= 7.59970968906748e-10
     '''
     assert(N > 0)
     assert(range_min < range_max)
@@ -494,6 +541,16 @@ def get_negative_eigenvalues_in_range(
     def printmaybe(*args, **kwargs):
         if display:
             print(*args, **kwargs)
+
+    if (prior_dd is None) or (prior_V is None):
+        assert(prior_dd is None)
+        assert(prior_V is None)
+        prior_dd = np.zeros((0,))
+        prior_V = np.zeros((N,0))
+
+    num_prior_dd = len(prior_dd)
+    assert(prior_dd.shape == (num_prior_dd,))
+    assert(prior_V.shape == (N, num_prior_dd))
 
     printmaybe('Getting eigenvalues in [' + str(range_min) + ', ' + str(range_max) + '] via shift-and-invert method')
 
@@ -510,17 +567,19 @@ def get_negative_eigenvalues_in_range(
     printmaybe('making A-sigma*B solver, sigma=', sigma)
     solve_P = make_OP(sigma)
     DSO = DeflatedShiftedOperator(
-        apply_A, apply_B, sigma, solve_P, -2.0, # -2.0: flip eigs across zero to get them out of the way
-        np.zeros((N, 0)), np.zeros((0,)))
+        apply_A, apply_B, sigma, solve_P, deflation_gamma, # -2.0: flip eigs across zero to get them out of the way
+        prior_V, prior_dd)
 
     printmaybe('Getting eigs near sigma=', sigma)
-    DSO, _, _ = deflate_negative_eigs_near_sigma(
+    DSO, d_lower, _ = deflate_negative_eigs_near_sigma(
         DSO, B_op, threshold, chunk_size,
         ncv_factor, lanczos_maxiter, tol,
         max_tries=max_tries, preconditioner_only=True, display=display)
 
-    # band_lower = np.min([sigma*initial_sigma_factor, np.min(DSO.dd)])
-    band_lower = np.min([sigma * sigma_factor, np.min(DSO.dd)])
+    if d_lower is None:
+        band_lower = sigma * sigma_factor
+    else:
+        band_lower = np.min([sigma * sigma_factor, d_lower])
     printmaybe('band_lower=', band_lower)
 
     while range_min <= band_lower:
@@ -533,22 +592,28 @@ def get_negative_eigenvalues_in_range(
         DSO = DSO.update_sigma(sigma, iP_op.matvec)
 
         printmaybe('Getting eigs near sigma=', sigma)
-        DSO, _, _ = deflate_negative_eigs_near_sigma(
+        DSO, d_lower, _ = deflate_negative_eigs_near_sigma(
             DSO, B_op,
             range_max, #band_lower,
             chunk_size,
             ncv_factor, lanczos_maxiter, tol,
             max_tries=max_tries, preconditioner_only=True, display=display)
 
-        band_lower = np.min([sigma*sigma_factor, np.min(DSO.dd)])
+        if d_lower is None:
+            band_lower = sigma * sigma_factor
+        else:
+            band_lower = np.min([sigma * sigma_factor, d_lower])
+        # band_lower = np.min([sigma*sigma_factor, np.min(DSO.dd)])
         printmaybe('band_lower=', band_lower)
 
-    V = DSO.BU
-    dd = DSO.dd
+    new_V = DSO.BU[:,num_prior_dd:].reshape((N,-1))
+    new_dd = DSO.dd[num_prior_dd:].reshape(-1)
 
-    good_inds = np.logical_and(range_min <= dd, dd < range_max)
+    new_good_inds = np.logical_and(range_min <= new_dd, new_dd < range_max)
+    # good_dd = np.concatenate([prior_dd, new_dd[new_good_inds]])
+    # good_V = np.hstack([prior_V, new_V[:, new_good_inds]])
 
-    return dd[good_inds], V[:, good_inds]
+    return new_dd[new_good_inds].reshape(-1), new_V[:, new_good_inds].reshape((N,-1))
 
 
 
