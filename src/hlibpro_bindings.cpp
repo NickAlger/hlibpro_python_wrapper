@@ -899,6 +899,8 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        >())
         .def_readwrite("mean_shift", &ProductConvolutionKernelRBFColsOnly::mean_shift)
         .def_readwrite("vol_preconditioning", &ProductConvolutionKernelRBFColsOnly::vol_preconditioning)
+        .def_readonly("row_coords", &ProductConvolutionKernelRBFColsOnly::row_coords)
+        .def_readonly("col_coords", &ProductConvolutionKernelRBFColsOnly::col_coords)
         .def("eval_integral_kernel", &ProductConvolutionKernelRBFColsOnly::eval_integral_kernel)
         .def("eval_integral_kernel_block", &ProductConvolutionKernelRBFColsOnly::eval_integral_kernel_block);
 

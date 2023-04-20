@@ -178,21 +178,20 @@ def deflate_negative_eigs_near_sigma(DSO: DeflatedShiftedOperator,
         dd_new, U_new = DSO.get_eigs_near_sigma(target_num_eigs=chunk_size, ncv_factor=ncv_factor,
                                                 mode='cayley', maxiter=lanczos_maxiter, tol=tol,
                                                 preconditioner_only=preconditioner_only)
-        dd = np.concatenate([dd, dd_new])
+        good_inds = (dd_new < threshold)
         if display:
             print('Updating deflation')
-        if np.any(dd_new < threshold):
+        if np.any(good_inds):
+            dd = np.concatenate([dd, dd_new[good_inds]])
             DSO = DSO.update_deflation(
-                B_op.matmat(U_new[:, dd_new < threshold]), dd_new[dd_new < threshold])
+                B_op.matmat(U_new[:, good_inds]), dd_new[good_inds])
 
         if len(dd_new) == 0 or np.any(dd >= threshold):
             break
 
-    dd_minus = dd[dd < 0]
-
-    if len(dd_minus) > 0:
-        d_lower = np.min(dd_minus)
-        d_upper = np.max(dd_minus)
+    if len(dd) > 0:
+        d_lower = np.min(dd)
+        d_upper = np.max(dd)
     else:
         d_lower = None
         d_upper = None
@@ -218,7 +217,7 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
                                  make_OP_preconditioner: typ.Callable[[float], vec2vec], # Approximates sigma -> (v -> (A - sigma*B)^-1 @ v)
                                  threshold = -0.5,
                                  # gamma: float=-1.0, # -1.0: set negative eigs to zero. -2.0: flip negative eigs
-                                 sigma_factor: float=10.0, # Sigma scaled up by this much above previous bound
+                                 sigma_factor: float=np.sqrt(50.0), # Sigma scaled up by this much above previous bound
                                  chunk_size=50,
                                  tol: float=1e-8,
                                  ncv_factor=3,
@@ -361,6 +360,147 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
     printmaybe('Getting eigs near sigma')
     DSO, d_lower, _ = deflate_negative_eigs_near_sigma(DSO, B_op, threshold, chunk_size,
                                                        ncv_factor, lanczos_maxiter, tol, preconditioner_only, display)
+    # printmaybe('d_lower=', d_lower)
+    if d_lower is None:
+        band_lower = sigma * sigma_factor
+    else:
+        band_lower = d_lower
+    printmaybe('band_lower=', band_lower)
+
+    while -np.abs(LM_eig) <= band_lower:
+        proposed_sigma = band_lower * sigma_factor
+        sigma = np.max([-np.abs(LM_eig) * 1.05, proposed_sigma])
+        sigma = (1.0 + perturb_mu_factor*(np.random.rand() - 0.5)) * sigma
+        printmaybe('proposed_sigma=', proposed_sigma, ', sigma=', sigma)
+
+        printmaybe('making A-sigma*B preconditioner')
+        solve_P = make_OP_preconditioner(sigma)
+        iP_op = CountedOperator((N,N), solve_P, display=False, name='invP')
+        DSO = DSO.update_sigma(sigma, iP_op.matvec)
+        DSO, d_lower, _ = deflate_negative_eigs_near_sigma(DSO, B_op, band_lower, chunk_size,
+                                                           ncv_factor, lanczos_maxiter, tol, preconditioner_only, display)
+        if d_lower is None:
+            d_lower = sigma * sigma_factor
+
+        band_lower = np.min([d_lower, sigma * sigma_factor])
+        printmaybe('band_lower=', band_lower)
+
+    V = DSO.BU
+    dd = DSO.dd
+
+    return dd, V, LM_eig
+
+
+def get_negative_eigenvalues_in_range(
+        apply_A: vec2vec,
+        apply_B: vec2vec,
+        make_OP: typ.Callable[[float], vec2vec], # Approximates sigma -> (v -> (A - sigma*B)^-1 @ v)
+        N: int, # A.shape = B.shape = (N,N)
+        range_min: float,
+        range_max: float,
+        sigma_factor: float=np.sqrt(50.0), # Sigma scaled up by this much above previous bound
+        chunk_size=50,
+        tol: float=1e-8,
+        ncv_factor=3,
+        lanczos_maxiter=2,
+        display=False,
+        perturb_mu_factor: float=1e-3,
+) -> typ.Tuple[np.ndarray, np.ndarray]: # (eigs, evecs)
+    '''Get generalized eigenvalues of (A,B) in (range_min, range_max) < 0.
+    Generalized eigenvalues of (A,B) may cluster at zero or positive numbers, but must not cluster at negative numbers
+
+    A must be symmetric
+    B must be symmetric positive definite
+    OP = A - sigma*B
+    OP_preconditioner = make_OP_preconditioner(sigma)
+    OP_preconditioner(b) =approx= OP^-1 @ b
+
+
+
+    In:
+        import numpy as np
+        import scipy.linalg as sla
+
+        N = 1000
+        A_diag = np.sort(np.random.randn(N))
+        apply_A = lambda x: A_diag * x
+
+        B_diag = np.random.randn(N)
+        B_diag = np.sqrt(B_diag * B_diag)
+        apply_B = lambda x: B_diag * x
+        solve_B = lambda x: x / B_diag
+
+        noise_diag = 0.01*np.random.randn(N)
+
+        def make_shifted_solver(shift):
+            OP_diag = A_diag - shift * B_diag + noise_diag
+            return lambda x: x / OP_diag
+
+        threshold = -0.5
+        dd, V, LM_eig = deflate_negative_eigenvalues(apply_A, apply_B, solve_B, N,
+                                                     make_shifted_solver,
+                                                     threshold=threshold,
+                                                     chunk_size=50,
+                                                     display=True,
+                                                    )
+
+        A = np.diag(A_diag)
+        B = np.diag(B_diag)
+        ee_true, U_true = sla.eigh(A, B)
+
+        A_deflated = A - V @ np.diag(dd) @ V.T
+        Rayleigh = U_true.T @ A_deflated @ U_true
+
+        nondiagonal_Rayleigh_error = np.linalg.norm(Rayleigh - np.diag(Rayleigh.diagonal())) / np.linalg.norm(Rayleigh)
+        print('nondiagonal_Rayleigh_error=', nondiagonal_Rayleigh_error)
+
+        ee = Rayleigh.diagonal()
+        positive_inds = (ee_true >= 0.0)
+        positive_error = np.linalg.norm(ee_true[positive_inds] - ee[positive_inds]) / np.linalg.norm(ee_true[positive_inds])
+        print('positive_error=', positive_error)
+
+        zeroing_inds = (ee_true < threshold)
+        zeroing_error = np.linalg.norm(ee[zeroing_inds]) / np.linalg.norm(ee_true)
+        print('zeroing_error=', zeroing_error)
+
+        intermediate_inds = np.logical_and(threshold <= ee_true, ee_true < 0.0)
+        ee_int = ee[intermediate_inds]
+        ee_true_int = ee_true[intermediate_inds]
+        delta1 = np.abs(ee_true_int - ee_int)
+        delta2 = np.abs(ee_int)
+        intermediate_error = np.linalg.norm(np.min([delta1, delta2], axis=0)) / np.linalg.norm(ee_true)
+        print('intermediate_error=', intermediate_error)
+
+    Out:
+    '''
+    assert(N > 0)
+    assert(range_min < range_max)
+    assert(range_max < 0.0)
+    assert(tol > 0.0)
+    assert(sigma_factor > 0.0)
+    A_op = CountedOperator((N, N), apply_A, display=False, name='A')
+    B_op = CountedOperator((N, N), apply_B, display=False, name='B')
+
+    def printmaybe(*args, **kwargs):
+        if display:
+            print(*args, **kwargs)
+
+    printmaybe('Getting eigenvalues in [' + str(range_min) + ', ' + str(range_max) + '] via shift-and-invert method')
+
+    eigs0 = np.zeros((N, 0))
+    evecs0 = np.zeros((0,))
+
+    sigma = range_max
+    printmaybe('making A-sigma*B solver, sigma=', sigma)
+    solve_P = make_OP(sigma)
+    DSO = DeflatedShiftedOperator(apply_A, apply_B, sigma, solve_P, -2.0, evecs0, eigs0) # flip eigs across zero to get them out of the way
+
+    threshold = range_max / sigma_factor
+
+    printmaybe('Getting eigs near sigma=', sigma)
+    DSO, d_lower, _ = deflate_negative_eigs_near_sigma(DSO, B_op, threshold, range_max, chunk_size,
+                                                       ncv_factor, lanczos_maxiter, tol,
+                                                       preconditioner_only=True, display=display)
     # printmaybe('d_lower=', d_lower)
     if d_lower is None:
         band_lower = sigma * sigma_factor
