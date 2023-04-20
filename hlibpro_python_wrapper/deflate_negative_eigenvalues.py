@@ -399,8 +399,7 @@ def get_negative_eigenvalues_in_range(
         N: int, # A.shape = B.shape = (N,N)
         range_min: float,
         range_max: float,
-        sigma_factor: float=5.0, # Sigma scaled up by this much above previous bound
-        initial_sigma_factor: float=2.0,
+        sigma_factor: float=7.0, # Sigma scaled up by this much above previous bound
         chunk_size=50,
         tol: float=1e-8,
         ncv_factor=3,
@@ -424,7 +423,7 @@ def get_negative_eigenvalues_in_range(
         import numpy as np
         import scipy.linalg as sla
 
-        N = 1000
+        N = 2000
         A_diag = np.sort(np.random.randn(N))
         apply_A = lambda x: A_diag * x
 
@@ -437,7 +436,7 @@ def get_negative_eigenvalues_in_range(
             OP_diag = A_diag - shift * B_diag
             return lambda x: x / OP_diag
 
-        range_max = -0.5
+        range_max = -0.1
         range_min = -100.0
         dd, V = get_negative_eigenvalues_in_range(
             apply_A, apply_B, make_shifted_solver, N, range_min, range_max, display=True)
@@ -447,29 +446,43 @@ def get_negative_eigenvalues_in_range(
         ee_true, U_true = sla.eigh(A, B)
 
         A_deflated = A - V @ np.diag(dd) @ V.T
-        Rayleigh = U_true.T @ A_deflated @ U_true
 
-        nondiagonal_Rayleigh_error = np.linalg.norm(Rayleigh - np.diag(Rayleigh.diagonal())) / np.linalg.norm(Rayleigh)
-        print('nondiagonal_Rayleigh_error=', nondiagonal_Rayleigh_error)
+        zeroing_inds = np.logical_and(range_min < ee_true, ee_true < range_max)
 
-        ee = Rayleigh.diagonal()
-        positive_inds = (ee_true >= 0.0)
-        positive_error = np.linalg.norm(ee_true[positive_inds] - ee[positive_inds]) / np.linalg.norm(ee_true[positive_inds])
-        print('positive_error=', positive_error)
+        ee_deflated_true = ee_true.copy()
+        ee_deflated_true[zeroing_inds] = 0.0
+        A_deflated_true = (B @ U_true) @ np.diag(ee_deflated_true) @ (B @ U_true).T
 
-        zeroing_inds = (ee_true < threshold)
-        zeroing_error = np.linalg.norm(ee[zeroing_inds]) / np.linalg.norm(ee_true)
-        print('zeroing_error=', zeroing_error)
-
-        intermediate_inds = np.logical_and(range_max <= ee_true, ee_true < 0.0)
-        ee_int = ee[intermediate_inds]
-        ee_true_int = ee_true[intermediate_inds]
-        delta1 = np.abs(ee_true_int - ee_int)
-        delta2 = np.abs(ee_int)
-        intermediate_error = np.linalg.norm(np.min([delta1, delta2], axis=0)) / np.linalg.norm(ee_true)
-        print('intermediate_error=', intermediate_error)
+        deflation_error = np.linalg.norm(A_deflated_true - A_deflated) / np.linalg.norm(A_deflated_true)
+        print('deflation_error=', deflation_error)
 
     Out:
+        Getting eigenvalues in [-100.0, -0.5] via shift-and-invert method
+        making A-sigma*B solver, sigma= -2.501213900830772
+        Getting eigs near sigma= -2.501213900830772
+        50  /  50  eigs found
+        Updating deflation
+        50  /  50  eigs found
+        Updating deflation
+        50  /  50  eigs found
+        Updating deflation
+        50  /  50  eigs found
+        Updating deflation
+        47  /  50  eigs found
+        Updating deflation
+        50  /  50  eigs found
+        Updating deflation
+        41  /  50  eigs found
+        Updating deflation
+        band_lower= -14.996322081165056
+        making A-sigma*B preconditioner, sigma= -74.97182661347448
+        Getting eigs near sigma= -74.97182661347448
+        22  /  50  eigs found
+        Updating deflation
+        0  /  50  eigs found
+        Updating deflation
+        band_lower= -1685.4670526147313
+        deflation_error= 3.851033024258875e-10
     '''
     assert(N > 0)
     assert(range_min < range_max)
