@@ -411,7 +411,7 @@ def get_negative_eigenvalues_in_range(
         perturb_mu_factor: float=1e-3,
         max_tries=100,
 ) -> typ.Tuple[np.ndarray, np.ndarray]: # (eigs, evecs)
-    '''Get generalized eigenvalues of (A+,B) in (range_min, range_max) < 0.
+    '''Get generalized eigenvalues of (A,B) in (range_min, range_max) < 0.
     Generalized eigenvalues of (A,B) may cluster at zero or positive numbers, but must not cluster at negative numbers
 
     A must be symmetric
@@ -419,8 +419,6 @@ def get_negative_eigenvalues_in_range(
     OP = A - sigma*B
     OP_preconditioner = make_OP_preconditioner(sigma)
     OP_preconditioner(b) =approx= OP^-1 @ b
-
-
 
     In:
         import numpy as np
