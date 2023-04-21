@@ -7,7 +7,7 @@ import typing as typ
 from dataclasses import dataclass
 from functools import cached_property
 from . import hlibpro_bindings as hpro_cpp
-from .deflate_negative_eigenvalues import DeflatedShiftedOperator, deflate_negative_eigenvalues
+from .deflate_negative_eigenvalues import DeflatedShiftedOperator, negative_eigenvalues_of_matrix_pencil
 from .interpolate_shifted_inverses import shifted_inverse_interpolation_preconditioner
 
 _DEFAULT_RTOL = 1e-7
@@ -1096,31 +1096,29 @@ def make_shifted_factorization(
 def negative_eigenvalues_of_hmatrix_pencil(
         A: HMatrix, # shape=(N,N), symmetric
         B: HMatrix, # shape=(N,N), symmetric positive definite
+        range_min: float, # range_min < range_max < 0. range_min can be None
+        range_max: float,
+        B_fac: FactorizedInverseHMatrix=None,
         save_intermediate_factorizations: bool=True,
-        threshold=-0.5,
-        # gamma: float = -1.0, # -1.0: set negative eigs to zero. -2.0: flip negative eigs
-        sigma_factor: float = np.sqrt(_MU_SPACING_FACTOR), # Sigma scaled up by this much above previous bound
-        chunk_size: int=50,
-        tol: float=_DEFAULT_RTOL,
-        ncv_factor=3,
-        lanczos_maxiter=2,
-        display=True,
-        shifted_preconditioner_only=True,
-) -> typ.Tuple[np.ndarray, np.ndarray, typ.List[float], typ.List[FactorizedInverseHMatrix], float]:
+        display: bool=False,
+        tol=1e-8,
+        additional_options: typ.Dict[str, typ.Any]=None,
+) -> typ.Tuple[np.ndarray, np.ndarray, typ.List[float], typ.List[FactorizedInverseHMatrix]]:
     N = A.shape[0]
     assert(A.shape == (N, N))
     assert(B.shape == (N, N))
-    assert(threshold < 0.0)
-    assert(sigma_factor > 1.0)
-    assert(chunk_size > 0)
-    assert(tol >= 0.0)
+    assert(range_max < 0.0)
     def printmaybe(*args, **kwargs):
         if display:
             print(*args, **kwargs)
 
-    printmaybe('Factorizing B')
-    B_fac = B.factorized_inverse(rtol=tol, overwrite=False)
-    printmaybe('Done factorizing B')
+    if additional_options is None:
+        additional_options = dict()
+
+    if (range_min is None) and (B_fac is None):
+        printmaybe('Factorizing B')
+        B_fac = B.factorized_inverse(rtol=tol, overwrite=False)
+        printmaybe('Done factorizing B')
 
     shifts: typ.List[float] = []
     factorized_shifted_matrices: typ.List[FactorizedInverseHMatrix] = []
@@ -1131,16 +1129,12 @@ def negative_eigenvalues_of_hmatrix_pencil(
             factorized_shifted_matrices.append(A_minus_shiftB_fac)
         return A_minus_shiftB_fac.matvec
 
-    dd, V, LM_eig = deflate_negative_eigenvalues(
-        A.matvec, B.matvec, B_fac.matvec, N,
-        make_shifted_solver, threshold=threshold,
-        sigma_factor=sigma_factor,
-        chunk_size=chunk_size, tol=tol,
-        ncv_factor=ncv_factor, lanczos_maxiter=lanczos_maxiter,
-        display=display,
-        preconditioner_only=shifted_preconditioner_only,
-    )
-    return dd, V, shifts, factorized_shifted_matrices, LM_eig
+    dd, V = negative_eigenvalues_of_matrix_pencil(
+        A.matvec, B.matvec, make_shifted_solver, N,
+        range_min, range_max, solve_B=B_fac.matvec,
+        tol=tol, display=display, **additional_options)
+
+    return dd, V, shifts, factorized_shifted_matrices
 
 
 @dataclass(frozen=True)
@@ -1366,14 +1360,10 @@ def deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator(
         mu_spacing_factor: float = _MU_SPACING_FACTOR,
         rtol: float = _DEFAULT_RTOL,
         boundary_mu_rtol: float=_BOUNDARY_MU_RTOL, # e.g. 0.1
-        gamma: float = -1.0,
+        gamma: float = -2.0,
         threshold: float=-0.5,
-        chunk_size: int=50,
-        ncv_factor: int=3,
-        lanczos_maxiter: int=2,
+        negative_eigenvalue_finder_options: typ.Dict[str, typ.Any]=None,
         display: bool=True,
-        save_intermediate_factorizations: bool=True,
-        shifted_preconditioner_only: bool=True,
 ) -> HMatrixShiftedInverseInterpolator:
     assert(0.0 < mu_min)
     assert(mu_min < mu_max)
@@ -1383,13 +1373,24 @@ def deflate_negative_eigs_then_make_shifted_hmatrix_inverse_interpolator(
     assert(threshold < 0.0)
     assert(gamma < 0.0)
 
+    if negative_eigenvalue_finder_options is None:
+        negative_eigenvalue_finder_options = dict()
+
     B_min = h_scale(B, mu_min)
-    dd_min, V_min, shifts_min, factorized_shifted_matrices, LM_eig_min = negative_eigenvalues_of_hmatrix_pencil(
-        A, B_min,
-        save_intermediate_factorizations=save_intermediate_factorizations,
-        threshold=threshold, sigma_factor=np.sqrt(mu_spacing_factor), chunk_size=chunk_size,
-        tol=rtol, ncv_factor=ncv_factor, lanczos_maxiter=lanczos_maxiter, display=display,
-        shifted_preconditioner_only=shifted_preconditioner_only)
+    dd_min, V_min, shifts_min, factorized_shifted_matrices = negative_eigenvalues_of_hmatrix_pencil(
+        A, B_min, None, threshold,
+        save_intermediate_factorizations=True,
+        display=display,
+        tol=rtol,
+        additional_options=negative_eigenvalue_finder_options,
+    )
+
+        # negative_eigenvalues_of_hmatrix_pencil(
+        # A, B_min, None, threshold,
+        # save_intermediate_factorizations=save_intermediate_factorizations,
+        # threshold=threshold, sigma_factor=np.sqrt(mu_spacing_factor), chunk_size=chunk_size,
+        # tol=rtol, ncv_factor=ncv_factor, lanczos_maxiter=lanczos_maxiter, display=display,
+        # shifted_preconditioner_only=shifted_preconditioner_only)
     # dd_min, V_min, shifts_min, factorized_shifted_matrices, LM_eig_min = negative_eigenvalues_of_hmatrix_pencil(
     #     A, B_min, threshold=threshold)
 
