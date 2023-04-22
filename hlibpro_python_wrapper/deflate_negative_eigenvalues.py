@@ -122,7 +122,8 @@ class DeflatedShiftedOperator:
         return me.apply_shifted(x) + me.gamma * me.BU @ (me.dd * (me.BU.T @ x))
 
     def solve_shifted_deflated(me, b: np.ndarray) -> np.ndarray: # b -> (A - sigma*B + gamma*B @ U @ diag(dd) @ U.T @ B)^-1 @ b
-        return me.solve_shifted(b - me.BU @ (me.diag_Phi * (me.BU.T @ me.solve_shifted(b))))
+        return solve_shifted_deflated(b, me.solve_shifted, me.sigma, me.gamma, me.dd, me.BU)
+        # return me.solve_shifted(b - me.BU @ (me.diag_Phi * (me.BU.T @ me.solve_shifted(b))))
 
     def solve_shifted_preconditioner_deflated(me, b: np.ndarray) -> np.ndarray: # b -> (A - sigma*B + gamma*B @ U @ diag(dd) @ U.T @ B)^-1 @ b
         return me.solve_shifted_preconditioner(b - me.BU @ (me.diag_Phi * (me.BU.T @ me.solve_shifted_preconditioner(b))))

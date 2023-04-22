@@ -1098,6 +1098,8 @@ def negative_eigenvalues_of_hmatrix_pencil(
         B: HMatrix, # shape=(N,N), symmetric positive definite
         range_min: float, # range_min < range_max < 0. range_min can be None
         range_max: float,
+        prior_dd: None,
+        prior_V: None,
         B_fac: FactorizedInverseHMatrix=None,
         save_intermediate_factorizations: bool=True,
         display: bool=False,
@@ -1131,38 +1133,154 @@ def negative_eigenvalues_of_hmatrix_pencil(
 
     dd, V = negative_eigenvalues_of_matrix_pencil(
         A.matvec, B.matvec, make_shifted_solver, N,
-        range_min, range_max, solve_B=B_fac.matvec,
+        range_min, range_max,
+        prior_dd=prior_dd, prior_V=prior_V,
+        solve_B=B_fac.matvec,
         tol=tol, display=display, **additional_options)
 
     return dd, V, shifts, factorized_shifted_matrices
 
 
-@dataclass(frozen=True)
+@dataclass
 class HMatrixShiftedInverseInterpolator:
     '''
     A is a symmetric NxN HMatrix
     B is a symmetric positive definite HMatrix
-    LM_eig is largest magnitude eigenvalue of matrix pencil (A, B)
-    known_shifted_factorizations[ii]: factorization of A+known_mu[ii]*B
-    dd and V are eigenvalues and eigenvectors of matrix pencil (A, B) that we deflate
+    shifted_factorizations[ii]: factorization of A+mu[ii]*B
+    dd and U are eigenvalues and eigenvectors of matrix pencil (A, B) that we deflate
+    BU = B @ U
     gamma is the amount of deflation applied (-1.0: set chosen eigs to zero, -2.0: flip chosen eigs)
     '''
     A: HMatrix
     B: HMatrix
-    LM_eig: float
-    known_mus: typ.List[float]
-    known_shifted_factorizations: typ.List[FactorizedInverseHMatrix]
+    mus: typ.List[float]
+    shifted_factorizations: typ.List[FactorizedInverseHMatrix]
+    B_fac: FactorizedInverseHMatrix
     dd: np.ndarray
-    V: np.ndarray
+    BU: np.ndarray # B @ U
+    spectrum_lower_bound: float
     gamma: float
+    fac_rtol: float
+    check_rtol: float
+    display: bool
 
-    def __post_init__(me):
-        assert(me.A.shape == (me.N, me.N))
-        assert(me.B.shape == (me.N, me.N))
-        assert(len(me.known_mus) > 0)
-        assert (len(me.known_mus) == len(me.known_shifted_factorizations))
+    def __init__(me,
+                 A: HMatrix,
+                 B: HMatrix,
+                 mus: typ.List[float]=None,
+                 shifted_factorizations: typ.List[FactorizedInverseHMatrix]=None,
+                 B_fac: FactorizedInverseHMatrix=None,
+                 dd: np.ndarray = None,
+                 BU: np.ndarray = None,
+                 LM_eig: float = None,
+                 LM_eig: None,
+                 spectrum_lower_bound: float = None,
+                 gamma: float=-2.0, # -2.0 for flipping negative eigs, -1.0 to set them to zero
+                 fac_rtol: float = 1e-10,
+                 check_rtol: float = 1e-7,
+                 display: bool=False,
+                 ):
+        assert(check_rtol > 0.0)
+        me.check_rtol = check_rtol
+        assert(fac_rtol > 0.0)
+        assert(check_rtol < fac_rtol)
+        me.fac_rtol = fac_rtol
+        me.display = display
+        assert(gamma <= 0.0)
+        me.gamma = gamma
+
+        me.A = A
+        me.B = B
+        assert (me.A.shape == (me.N, me.N))
+        assert (me.B.shape == (me.N, me.N))
+
+        # check symmetry of A and B
+        u = np.random.randn(me.N)
+        v = np.random.randn(me.N)
+        tA1 = np.dot(me.A.matvec(u), v)
+        tA2 = np.dot(u, me.A.matvec(v))
+        assert(np.abs(tA2 - tA1) <= me.check_rtol * (np.abs(tA1) + np.abs(tA2))) # A is symmetric
+
+        tB1 = np.dot(me.B.matvec(u), v)
+        tB2 = np.dot(u, me.B.matvec(v))
+        assert (np.abs(tB2 - tB1) <= me.check_rtol * (np.abs(tB1) + np.abs(tB2)))  # B is symmetric
+
+        # check correctness of shifted factorizations
+        me.mus = mus if mus is not None else []
+        me.shifted_factorizations = shifted_factorizations if shifted_factorizations is not None else []
+        assert(len(me.mus) == len(me.shifted_factorizations))
+
+        for mu, fac in zip(me.mus, me.shifted_factorizations):
+            me.check_shifted_factorization(mu, fac)
+
+        # Make B factorization if it is not supplied. Check it's correctness
+        if B_fac is None:
+            me.B_fac = B.factorized_inverse(rtol=me.fac_rtol, overwrite=False)
+        else:
+            me.B_fac = B_fac
+        assert(B_fac.shape == (me.N, me.N))
+        x = np.random.randn(me.N)
+        x2 = me.B_fac.matvec(me.B.matvec(x))
+        assert(np.linalg.norm(x2 - x) <= me.check_rtol * np.linalg.norm(x)) # B_fac is correct
+
+        # Check correctness of supplied generalized eigenvalues and eigenvectors
+        if dd is None:
+            me.dd = np.zeros((0,))
+        else:
+            me.dd = dd
         assert(me.dd.shape == (me.k,))
-        assert(me.V.shape == (me.N, me.k))
+        assert(np.all(dd <= 0.0))
+
+        if BU is None:
+            me.BU = np.zeros((me.N,0))
+        else:
+            me.BU = BU
+        assert(me.BU.shape == (me.N, me.k))
+        me.check_generalized_eigenproblem_correctness()
+
+        if LM_eig is None:
+            me.printmaybe('Computing largest magnitude eigenvalue of (A, B)')
+            me.LM_eig = spla.eigsh(spla.LinearOperator((me.N, me.N), matvec=me.A.matvec),
+                                   1,
+                                   M=spla.LinearOperator((me.N, me.N), matvec=me.B.matvec),
+                                   Minv=spla.LinearOperator((me.N, me.N), matvec=me.B_fac.matvec),
+                                   which='LM', return_eigenvectors=False,
+                                   tol=me.check_rtol)[0]
+            me.printmaybe('LM_eig=', me.LM_eig)
+        else:
+            me.LM_eig = LM_eig
+
+        me.spectrum_lower_bound = me.LM_eig if spectrum_lower_bound is None else spectrum_lower_bound
+
+    def printmaybe(me, *args, **kwargs):
+        if me.display:
+            print(*args, **kwargs)
+
+    def check_shifted_factorization(me, mu, shifted_factorization):
+        assert(shifted_factorization.shape == (me.N, me.N))
+        x = np.random.randn(me.N)
+        b = me.A.matvec(x) + mu * me.B.matvec(x)
+        x2 = shifted_factorization.matvec(b)
+        assert(np.linalg.norm(x2 - x) <= me.check_rtol * np.linalg.norm(x)) # shifted factorization is correct
+
+    def check_generalized_eigenproblem_correctness(me):
+        # Require:
+        # U.T @ A @ U = diag(dd)    Equation 1
+        # U.T @ B @ U = I           Equation 2
+        if me.k  == 0:
+            return True
+
+        x1 = np.random.randn(me.k)
+        x2 = np.random.randn(me.k)
+        z1 = me.B_fac.matvec(me.BU @ x1)
+        z2 = me.B_fac.matvec(me.BU @ x2)
+        E1_left = np.dot(z1, me.A.matvec(z2))
+        E1_right = np.sum(x1 * me.dd * x2)
+        assert(np.abs(E1_left - E1_right) < me.check_rtol * (np.abs(E1_left) + np.abs(E1_right))) # U.T @ A @ U = diag(dd)
+        E2_left = np.dot(z1, me.B.matvec(z2))
+        E2_right = np.sum(x1 * x2)
+        assert(np.abs(E2_left - E2_right) < me.check_rtol * (np.abs(E2_left) + np.abs(E2_right)))  # U.T @ B @ U = I
+
 
     @cached_property
     def N(me) -> int:
@@ -1175,7 +1293,7 @@ class HMatrixShiftedInverseInterpolator:
     @cached_property
     def known_shifted_deflated_operators(me) -> typ.List[DeflatedShiftedOperator]:
         known_DSOs = []
-        for mu, fac in zip(me.known_mus, me.known_shifted_factorizations):
+        for mu, fac in zip(me.mus, me.shifted_factorizations):
             DSO = DeflatedShiftedOperator(me.A.matvec, me.B.matvec,
                                           -mu,  # mu = -shift (convention switch)
                                           fac.matvec,
@@ -1205,7 +1323,7 @@ class HMatrixShiftedInverseInterpolator:
         assert(mu > 0.0)
         assert(b.shape == (me.N,))
         return shifted_inverse_interpolation_preconditioner(
-            b, mu, me.known_mus, me.known_shifted_deflated_preconditioners,
+            b, mu, me.mus, me.known_shifted_deflated_preconditioners,
             np.abs(me.LM_eig), display=display)
 
     def solve_shifted_deflated(me, b: np.ndarray, mu: float, display=False, rtol=None) -> np.ndarray:
