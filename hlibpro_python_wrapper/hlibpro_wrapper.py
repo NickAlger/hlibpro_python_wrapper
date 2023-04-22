@@ -7,7 +7,7 @@ import typing as typ
 from dataclasses import dataclass
 from functools import cached_property
 from . import hlibpro_bindings as hpro_cpp
-from .deflate_negative_eigenvalues import DeflatedShiftedOperator, negative_eigenvalues_of_matrix_pencil
+from .deflate_negative_eigenvalues import DeflatedShiftedOperator, negative_eigenvalues_of_matrix_pencil, solve_shifted_deflated
 from .interpolate_shifted_inverses import shifted_inverse_interpolation_preconditioner
 
 _DEFAULT_RTOL = 1e-7
@@ -1098,12 +1098,12 @@ def negative_eigenvalues_of_hmatrix_pencil(
         B: HMatrix, # shape=(N,N), symmetric positive definite
         range_min: float, # range_min < range_max < 0. range_min can be None
         range_max: float,
-        prior_dd: None,
-        prior_V: None,
+        prior_dd: np.ndarray=None,
+        prior_V: np.ndarray=None,
         B_fac: FactorizedInverseHMatrix=None,
         save_intermediate_factorizations: bool=True,
         display: bool=False,
-        tol=1e-8,
+        tol: float=1e-8,
         additional_options: typ.Dict[str, typ.Any]=None,
 ) -> typ.Tuple[np.ndarray, np.ndarray, typ.List[float], typ.List[FactorizedInverseHMatrix]]:
     N = A.shape[0]
@@ -1173,11 +1173,10 @@ class HMatrixShiftedInverseInterpolator:
                  dd: np.ndarray = None,
                  BU: np.ndarray = None,
                  LM_eig: float = None,
-                 LM_eig: None,
                  spectrum_lower_bound: float = None,
                  gamma: float=-2.0, # -2.0 for flipping negative eigs, -1.0 to set them to zero
                  fac_rtol: float = 1e-10,
-                 check_rtol: float = 1e-7,
+                 check_rtol: float = 1e-6,
                  display: bool=False,
                  ):
         assert(check_rtol > 0.0)
@@ -1236,7 +1235,7 @@ class HMatrixShiftedInverseInterpolator:
         else:
             me.BU = BU
         assert(me.BU.shape == (me.N, me.k))
-        me.check_generalized_eigenproblem_correctness()
+        me.check_generalized_eigenproblem_correctness(me.dd, me.BU)
 
         if LM_eig is None:
             me.printmaybe('Computing largest magnitude eigenvalue of (A, B)')
@@ -1250,7 +1249,10 @@ class HMatrixShiftedInverseInterpolator:
         else:
             me.LM_eig = LM_eig
 
-        me.spectrum_lower_bound = me.LM_eig if spectrum_lower_bound is None else spectrum_lower_bound
+        if spectrum_lower_bound is None:
+            spectrum_lower_bound = -me.LM_eig
+        assert(spectrum_lower_bound < 0.0)
+        me.spectrum_lower_bound = spectrum_lower_bound
 
     def printmaybe(me, *args, **kwargs):
         if me.display:
@@ -1263,24 +1265,24 @@ class HMatrixShiftedInverseInterpolator:
         x2 = shifted_factorization.matvec(b)
         assert(np.linalg.norm(x2 - x) <= me.check_rtol * np.linalg.norm(x)) # shifted factorization is correct
 
-    def check_generalized_eigenproblem_correctness(me):
+    def check_generalized_eigenproblem_correctness(me, check_dd: np.ndarray, check_BU: np.ndarray):
         # Require:
         # U.T @ A @ U = diag(dd)    Equation 1
         # U.T @ B @ U = I           Equation 2
-        if me.k  == 0:
-            return True
-
-        x1 = np.random.randn(me.k)
-        x2 = np.random.randn(me.k)
-        z1 = me.B_fac.matvec(me.BU @ x1)
-        z2 = me.B_fac.matvec(me.BU @ x2)
-        E1_left = np.dot(z1, me.A.matvec(z2))
-        E1_right = np.sum(x1 * me.dd * x2)
-        assert(np.abs(E1_left - E1_right) < me.check_rtol * (np.abs(E1_left) + np.abs(E1_right))) # U.T @ A @ U = diag(dd)
-        E2_left = np.dot(z1, me.B.matvec(z2))
-        E2_right = np.sum(x1 * x2)
-        assert(np.abs(E2_left - E2_right) < me.check_rtol * (np.abs(E2_left) + np.abs(E2_right)))  # U.T @ B @ U = I
-
+        check_k = len(check_dd)
+        assert(check_dd.shape == (check_k,))
+        assert(check_BU.shape == (me.N, check_k))
+        if check_k  > 0:
+            x1 = np.random.randn(check_k)
+            x2 = np.random.randn(check_k)
+            z1 = me.B_fac.matvec(check_BU @ x1)
+            z2 = me.B_fac.matvec(check_BU @ x2)
+            E1_left = np.dot(z1, me.A.matvec(z2))
+            E1_right = np.sum(x1 * check_dd * x2)
+            assert(np.abs(E1_left - E1_right) < me.check_rtol * (np.abs(E1_left) + np.abs(E1_right))) # U.T @ A @ U = diag(dd)
+            E2_left = np.dot(z1, me.B.matvec(z2))
+            E2_right = np.sum(x1 * x2)
+            assert(np.abs(E2_left - E2_right) < me.check_rtol * (np.abs(E2_left) + np.abs(E2_right)))  # U.T @ B @ U = I
 
     @cached_property
     def N(me) -> int:
@@ -1290,29 +1292,14 @@ class HMatrixShiftedInverseInterpolator:
     def k(me) -> int:
         return len(me.dd)
 
-    @cached_property
-    def known_shifted_deflated_operators(me) -> typ.List[DeflatedShiftedOperator]:
-        known_DSOs = []
-        for mu, fac in zip(me.mus, me.shifted_factorizations):
-            DSO = DeflatedShiftedOperator(me.A.matvec, me.B.matvec,
-                                          -mu,  # mu = -shift (convention switch)
-                                          fac.matvec,
-                                          me.gamma, me.V, me.dd)
-            known_DSOs.append(DSO)
-        return known_DSOs
-
-    @cached_property
-    def known_shifted_deflated_preconditioners(me):
-        return [S.solve_shifted_preconditioner_deflated for S in me.known_shifted_deflated_operators]
-
-    @cached_property
-    def known_shifted_deflated_solvers(me):
-        return [S.solve_shifted for S in me.known_shifted_deflated_operators]
-
     def apply_shifted_deflated(me, x: np.ndarray, mu: float) -> np.ndarray:
         '''x -> (A + gamma*V @ diag(dd) @ V.T + mu0*B) @ x'''
         assert(mu > 0.0)
-        return me.A.matvec(x) + mu * me.B.matvec(x) + me.gamma * me.V @ (me.dd * (me.V.T @ x))
+        return me.A.matvec(x) + mu * me.B.matvec(x) + me.gamma * me.BU @ (me.dd * (me.BU.T @ x))
+
+    def solve_shifted_deflated_with_known_mu(me, b: np.ndarray, mu_ind: int) -> np.ndarray:
+        return solve_shifted_deflated(
+            b, me.shifted_factorizations[mu_ind].matvec, -me.mus[mu_ind], me.gamma, me.dd, me.BU)
 
     def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=True) -> np.ndarray:
         '''b -> c0*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b + c1*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b
@@ -1322,34 +1309,47 @@ class HMatrixShiftedInverseInterpolator:
         the zero end of the spectrum.'''
         assert(mu > 0.0)
         assert(b.shape == (me.N,))
+        known_shifted_deflated_solvers = [
+            lambda b, _mu=mu: me.solve_shifted_deflated_with_known_mu(b, _mu)
+            for mu in me.mus]
         return shifted_inverse_interpolation_preconditioner(
-            b, mu, me.mus, me.known_shifted_deflated_preconditioners,
+            b, mu, me.mus, known_shifted_deflated_solvers,
             np.abs(me.LM_eig), display=display)
 
-    def solve_shifted_deflated(me, b: np.ndarray, mu: float, display=False, rtol=None) -> np.ndarray:
-        '''b -> (A + gamma*V @ diag(dd) @ V.T + mu*B)^-1 @ b'''
-        assert (mu > 0.0)
-        assert (b.shape == (me.N,))
-        if rtol is None:
-            rtol = _DEFAULT_RTOL
-        F_op = spla.LinearOperator((me.N, me.N), matvec=lambda x: me.apply_shifted_deflated(x, mu))
-        M_op = spla.LinearOperator((me.N, me.N), matvec=lambda x: me.solve_shifted_deflated_preconditioner(x, mu))
-        return spla.cg(F_op, b, tol=rtol, M=M_op)[0]
-
-    def update_gamma(me, new_gamma: float) -> 'HMatrixShiftedInverseInterpolator':
-        return HMatrixShiftedInverseInterpolator(me.A, me.B, me.LM_eig, me.known_mus,
-                                                 me.known_shifted_factorizations, me.dd, me.V,
-                                                 new_gamma)
-
-    def insert_new_mu(me, new_mu: float, rtol=_DEFAULT_RTOL, display=True
-                      ) -> 'HMatrixShiftedInverseInterpolator':
+    def insert_new_mu(me, new_mu: float, new_fac: FactorizedInverseHMatrix=None) -> 'HMatrixShiftedInverseInterpolator':
         assert(new_mu > 0.0)
-        fac = make_shifted_factorization(me.A, me.B, new_mu, rtol=rtol, display=display)
-        new_known_mus = [mu for mu in me.known_mus] + [new_mu]
-        new_known_facs = [fac for fac in me.known_shifted_factorizations] + [fac]
-        return HMatrixShiftedInverseInterpolator(me.A, me.B, me.LM_eig, new_known_mus,
-                                                 new_known_facs, me.dd, me.V,
-                                                 me.gamma)
+        if new_fac is None:
+            new_fac = make_shifted_factorization(me.A, me.B, new_mu, rtol=me.fac_rtol, display=me.display)
+        me.check_shifted_factorization(new_mu, new_fac)
+        me.mus.append(new_mu)
+        me.shifted_factorizations.append(new_fac)
+
+    def insert_new_deflation(me, new_dd: np.ndarray, new_BU: np.ndarray):
+        new_k = len(new_dd)
+        assert(new_dd.shape == (new_k,))
+        assert(new_BU.shape == (me.N, new_k))
+        proposed_dd = np.concatenate([me.dd, new_dd])
+        proposed_BU = np.hstack([me.BU, new_BU])
+        me.check_generalized_eigenproblem_correctness(proposed_dd, proposed_BU)
+        me.dd = proposed_dd
+        me.BU = proposed_BU
+
+    def deflate_more(me, new_spectrum_lower_bound: float, **additional_options):
+        assert(new_spectrum_lower_bound < 0.0)
+        if new_spectrum_lower_bound > me.spectrum_lower_bound:
+            new_dd, new_BU, new_shifts, new_facs = negative_eigenvalues_of_hmatrix_pencil(
+                me.A, me.B, me.spectrum_lower_bound, new_spectrum_lower_bound,
+                prior_dd=me.dd, prior_V=me.BU,
+                B_fac=me.B_fac,
+                save_intermediate_factorizations=True,
+                display=me.display, tol=me.fac_rtol,
+                additional_options=additional_options)
+
+            new_mus = list(-np.array(new_shifts))
+            for mu, fac in zip(new_mus, new_facs):
+                me.insert_new_mu(mu, fac)
+
+            me.insert_new_deflation(new_dd, new_BU)
 
 
 def make_shifted_hmatrix_inverse_interpolator(
