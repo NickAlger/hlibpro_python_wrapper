@@ -1246,6 +1246,8 @@ class HMatrixShiftedInverseInterpolator:
     gamma: float
     fac_rtol: float
     check_rtol: float
+    auto_mu_insertion_factor: float
+    auto_deflation_factor: float
     display: bool
 
     def __init__(me,
@@ -1261,8 +1263,12 @@ class HMatrixShiftedInverseInterpolator:
                  gamma: float=-2.0, # -2.0 for flipping negative eigs, -1.0 to set them to zero
                  fac_rtol: float = 1e-10,
                  check_rtol: float = 1e-6,
+                 auto_mu_insertion_factor: float=5.0,
+                 auto_deflation_factor: float=0.1,
                  display: bool=False,
                  ):
+        me.auto_mu_insertion_factor = auto_mu_insertion_factor
+        me.auto_deflation_factor = auto_deflation_factor
         assert(check_rtol > 0.0)
         me.check_rtol = check_rtol
         assert(fac_rtol > 0.0)
