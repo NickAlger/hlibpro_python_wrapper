@@ -1150,7 +1150,7 @@ class HMatrixShiftedInverseInterpolator:
     BU = B @ U
     gamma is the amount of deflation applied (-1.0: set chosen eigs to zero, -2.0: flip chosen eigs)
 
-    In:
+    Example usage:
         import numpy as np
         import scipy.linalg as sla
         import scipy.sparse as sps
@@ -1220,23 +1220,12 @@ class HMatrixShiftedInverseInterpolator:
             err_solve_shifted_deflated = np.linalg.norm(x - x2) / np.linalg.norm(x)
             print('mu=', mu, ', err_solve_shifted_deflated=', err_solve_shifted_deflated)
 
-
-
-        def make_shifted_solver(shift):
-            OP_diag = A_diag - shift * B_diag
-            return lambda x: x / OP_diag
-
-        range1_max = -0.1
-        range1_min = -50.0
-        range2_max = -100.0
-        range2_min = -300.0
-
-        dd1, V1 = get_negative_eigenvalues_in_range(
-            apply_A, apply_B, make_shifted_solver, N, range1_min, range1_max, display=True)
-
-        dd2, V2 = get_negative_eigenvalues_in_range(
-            apply_A, apply_B, make_shifted_solver, N, range2_min, range2_max,
-            prior_dd=dd1, prior_V=V1, display=True)
+        b = np.random.randn(N)
+        mu = np.min(HSII.mus) / (1.1 * HSII.auto_mu_insertion_factor)
+        x = HSII.solve_shifted_deflated_preconditioner(b, mu)
+        b2 = HSII.apply_shifted_deflated(x, mu)
+        err_auto_mu_insertion = np.linalg.norm(b2 - b) / np.linalg.norm(b)
+        print('err_auto_mu_insertion=', err_auto_mu_insertion)
 
     '''
     A: HMatrix
@@ -1400,7 +1389,8 @@ class HMatrixShiftedInverseInterpolator:
         return solve_shifted_deflated(
             b, me.shifted_factorizations[mu_ind].matvec, -me.mus[mu_ind], me.gamma, me.dd, me.BU)
 
-    def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=True) -> np.ndarray:
+    def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=True,
+                                              auto_insert_mu=True) -> np.ndarray:
         '''b -> c0*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b + c1*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b
              =approx= (A + gamma*V @ diag(dd) @ V.T + mu*B)^-1 @ b, where:
         mu0 < mu < mu1
@@ -1408,7 +1398,7 @@ class HMatrixShiftedInverseInterpolator:
         the zero end of the spectrum.'''
         assert(mu > 0.0)
         assert(b.shape == (me.N,))
-        if me.nearest_mu_factor(mu) > me.auto_mu_insertion_factor:
+        if (me.nearest_mu_factor(mu) > me.auto_mu_insertion_factor) and auto_insert_mu:
             me.insert_new_mu(mu)
 
         known_shifted_deflated_solvers = [
