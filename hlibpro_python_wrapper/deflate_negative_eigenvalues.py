@@ -410,7 +410,7 @@ def negative_eigenvalues_of_matrix_pencil(
         prior_dd: np.ndarray=None,
         prior_V: np.ndarray=None,
         deflation_gamma: float=-2.0,
-        sigma_factor: float=7.0, # Sigma scaled up by this much above previous bound
+        sigma_factor: float=5.0, # Sigma scaled up by this much above previous bound
         chunk_size=50,
         tol: float=1e-8,
         ncv_factor=3,

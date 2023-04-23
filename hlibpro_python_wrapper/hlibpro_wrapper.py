@@ -1220,6 +1220,8 @@ class HMatrixShiftedInverseInterpolator:
             err_solve_shifted_deflated = np.linalg.norm(x - x2) / np.linalg.norm(x)
             print('mu=', mu, ', err_solve_shifted_deflated=', err_solve_shifted_deflated)
 
+        print('HSII.mus=', HSII.mus)
+
         b = np.random.randn(N)
         mu = np.min(HSII.mus) / (1.1 * HSII.auto_mu_insertion_factor)
         x = HSII.solve_shifted_deflated_preconditioner(b, mu)
@@ -1390,7 +1392,8 @@ class HMatrixShiftedInverseInterpolator:
             b, me.shifted_factorizations[mu_ind].matvec, -me.mus[mu_ind], me.gamma, me.dd, me.BU)
 
     def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=True,
-                                              auto_insert_mu=True) -> np.ndarray:
+                                              auto_insert_mu=True,
+                                              auto_deflation=True) -> np.ndarray:
         '''b -> c0*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b + c1*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b
              =approx= (A + gamma*V @ diag(dd) @ V.T + mu*B)^-1 @ b, where:
         mu0 < mu < mu1
@@ -1398,8 +1401,12 @@ class HMatrixShiftedInverseInterpolator:
         the zero end of the spectrum.'''
         assert(mu > 0.0)
         assert(b.shape == (me.N,))
+        if (me.auto_deflation_factor is not None) and auto_deflation:
+            me.deflate_more(-me.auto_deflation_factor * mu,
+                            auto_insert_mu=False)  # prevent recursive deflation and mu factorization
+
         if (me.nearest_mu_factor(mu) > me.auto_mu_insertion_factor) and auto_insert_mu:
-            me.insert_new_mu(mu)
+            me.insert_new_mu(mu, auto_deflation=False)
 
         known_shifted_deflated_solvers = [
             lambda b, _ii=ii: me.solve_shifted_deflated_with_known_mu(b, _ii)
@@ -1419,7 +1426,7 @@ class HMatrixShiftedInverseInterpolator:
         me.mus.append(new_mu)
         me.shifted_factorizations.append(new_fac)
         if (me.auto_deflation_factor is not None) and auto_deflation:
-            me.deflate_more(-me.auto_deflation_factor * np.min(me.mus))
+            me.deflate_more(-me.auto_deflation_factor * np.min(me.mus), auto_insert_mu=False) # prevent recursive deflation and mu factorization
 
     def insert_new_deflation(me, new_dd: np.ndarray, new_BU: np.ndarray):
         new_k = len(new_dd)
@@ -1431,7 +1438,7 @@ class HMatrixShiftedInverseInterpolator:
         me.dd = proposed_dd
         me.BU = proposed_BU
 
-    def deflate_more(me, new_spectrum_lower_bound: float, **additional_options):
+    def deflate_more(me, new_spectrum_lower_bound: float, auto_insert_mu: bool=True, **additional_options):
         assert(new_spectrum_lower_bound < 0.0)
         if new_spectrum_lower_bound > me.spectrum_lower_bound:
             if me.display:
