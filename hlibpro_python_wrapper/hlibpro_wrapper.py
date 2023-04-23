@@ -1141,7 +1141,6 @@ def negative_eigenvalues_of_hmatrix_pencil(
     return dd, V, shifts, factorized_shifted_matrices
 
 
-@dataclass
 class HMatrixShiftedInverseInterpolator:
     '''
     A is a symmetric NxN HMatrix
@@ -1150,6 +1149,91 @@ class HMatrixShiftedInverseInterpolator:
     dd and U are eigenvalues and eigenvectors of matrix pencil (A, B) that we deflate
     BU = B @ U
     gamma is the amount of deflation applied (-1.0: set chosen eigs to zero, -2.0: flip chosen eigs)
+
+    In:
+        import numpy as np
+        import scipy.linalg as sla
+        import scipy.sparse as sps
+        import hlibpro_python_wrapper as hpro
+
+        N = 2000
+        diagA = np.sort(np.random.randn(N))
+        diagB = np.abs(np.random.randn(N))
+
+        pp = np.random.randn(N,1)
+        ct = hpro.build_cluster_tree_from_pointcloud(pp, 32)
+        bct = hpro.build_block_cluster_tree(ct, ct, 1.0)
+
+        A = hpro.build_hmatrix_from_scipy_sparse_matrix(sps.diags(diagA, 0).tocsr(), bct)
+        B = hpro.build_hmatrix_from_scipy_sparse_matrix(sps.diags(diagB, 0).tocsr(), bct)
+
+        HSII = hpro.HMatrixShiftedInverseInterpolator(A, B, display=True)
+
+        z = np.random.randn(N)
+        err_A_hmatrix = np.linalg.norm(HSII.A.matvec(z) - diagA * z) / np.linalg.norm(diagA * z)
+        err_B_hmatrix = np.linalg.norm(HSII.B.matvec(z) - z * diagB) / np.linalg.norm(diagB * z)
+        err_B_fac_hmatrix = np.linalg.norm(HSII.B_fac.matvec(z) - z / diagB) / np.linalg.norm(z / diagB)
+        print('err_A_hmatrix', err_A_hmatrix)
+        print('err_B_hmatrix=', err_B_hmatrix)
+        print('err_B_fac_hmatrix', err_B_fac_hmatrix)
+
+        ind = np.argmax(np.abs(diagA / diagB))
+        LM_eig_true = (diagA / diagB)[ind]
+        LM_eig_err = np.abs(HSII.LM_eig - LM_eig_true) / np.abs(LM_eig_true)
+        print('LM_eig_err=', LM_eig_err)
+
+        ee_true = np.sort(diagA / diagB)
+
+        lb1 = np.min(ee_true / 10.0)
+        HSII.deflate_more(lb1)
+
+        deflation1_err = np.linalg.norm(HSII.dd - ee_true[ee_true < lb1]) / np.linalg.norm(ee_true[ee_true < lb1])
+        print('deflation1_err=', deflation1_err)
+
+        lb2 = np.min(lb1 / 30.0)
+        HSII.deflate_more(lb2)
+
+        deflation2_err = np.linalg.norm(HSII.dd - ee_true[ee_true < lb2]) / np.linalg.norm(ee_true[ee_true < lb2])
+        print('deflation2_err=', deflation2_err)
+
+        A_dense = np.diag(diagA)
+        B_dense = np.diag(diagB)
+
+        A_deflated = A_dense + HSII.gamma * HSII.BU @ np.diag(HSII.dd) @ HSII.BU.T
+
+        ee_true, U_true = sla.eigh(A_dense, B_dense)
+        deflation_inds = (ee_true < HSII.spectrum_lower_bound)
+        ee_deflated_true = ee_true.copy()
+        ee_deflated_true[deflation_inds] = ee_true[deflation_inds] + HSII.gamma * ee_true[deflation_inds]
+        A_deflated_true = (B_dense @ U_true) @ np.diag(ee_deflated_true) @ (B_dense @ U_true).T
+
+        deflation_err = np.linalg.norm(A_deflated - A_deflated_true) / np.linalg.norm(A_deflated_true)
+        print('deflation_err=', deflation_err)
+
+        for ii in range(len(HSII.mus)):
+            mu = HSII.mus[ii]
+            x = np.random.randn(N)
+            b = A_deflated_true @ x + mu * B_dense @ x
+            x2 = HSII.solve_shifted_deflated_with_known_mu(b, ii)
+            err_solve_shifted_deflated = np.linalg.norm(x - x2) / np.linalg.norm(x)
+            print('mu=', mu, ', err_solve_shifted_deflated=', err_solve_shifted_deflated)
+
+        def make_shifted_solver(shift):
+            OP_diag = A_diag - shift * B_diag
+            return lambda x: x / OP_diag
+
+        range1_max = -0.1
+        range1_min = -50.0
+        range2_max = -100.0
+        range2_min = -300.0
+
+        dd1, V1 = get_negative_eigenvalues_in_range(
+            apply_A, apply_B, make_shifted_solver, N, range1_min, range1_max, display=True)
+
+        dd2, V2 = get_negative_eigenvalues_in_range(
+            apply_A, apply_B, make_shifted_solver, N, range2_min, range2_max,
+            prior_dd=dd1, prior_V=V1, display=True)
+
     '''
     A: HMatrix
     B: HMatrix
@@ -1182,7 +1266,7 @@ class HMatrixShiftedInverseInterpolator:
         assert(check_rtol > 0.0)
         me.check_rtol = check_rtol
         assert(fac_rtol > 0.0)
-        assert(check_rtol < fac_rtol)
+        assert(check_rtol > fac_rtol)
         me.fac_rtol = fac_rtol
         me.display = display
         assert(gamma <= 0.0)
@@ -1217,7 +1301,7 @@ class HMatrixShiftedInverseInterpolator:
             me.B_fac = B.factorized_inverse(rtol=me.fac_rtol, overwrite=False)
         else:
             me.B_fac = B_fac
-        assert(B_fac.shape == (me.N, me.N))
+        assert(me.B_fac.shape == (me.N, me.N))
         x = np.random.randn(me.N)
         x2 = me.B_fac.matvec(me.B.matvec(x))
         assert(np.linalg.norm(x2 - x) <= me.check_rtol * np.linalg.norm(x)) # B_fac is correct
@@ -1228,14 +1312,14 @@ class HMatrixShiftedInverseInterpolator:
         else:
             me.dd = dd
         assert(me.dd.shape == (me.k,))
-        assert(np.all(dd <= 0.0))
+        assert(np.all(me.dd <= 0.0))
 
         if BU is None:
             me.BU = np.zeros((me.N,0))
         else:
             me.BU = BU
         assert(me.BU.shape == (me.N, me.k))
-        me.check_generalized_eigenproblem_correctness(me.dd, me.BU)
+        me.check_generalized_eigs(me.dd, me.BU)
 
         if LM_eig is None:
             me.printmaybe('Computing largest magnitude eigenvalue of (A, B)')
@@ -1244,13 +1328,13 @@ class HMatrixShiftedInverseInterpolator:
                                    M=spla.LinearOperator((me.N, me.N), matvec=me.B.matvec),
                                    Minv=spla.LinearOperator((me.N, me.N), matvec=me.B_fac.matvec),
                                    which='LM', return_eigenvectors=False,
-                                   tol=me.check_rtol)[0]
+                                   tol=me.fac_rtol)[0]
             me.printmaybe('LM_eig=', me.LM_eig)
         else:
             me.LM_eig = LM_eig
 
         if spectrum_lower_bound is None:
-            spectrum_lower_bound = -me.LM_eig
+            spectrum_lower_bound = -1.05*np.abs(me.LM_eig)
         assert(spectrum_lower_bound < 0.0)
         me.spectrum_lower_bound = spectrum_lower_bound
 
@@ -1265,7 +1349,7 @@ class HMatrixShiftedInverseInterpolator:
         x2 = shifted_factorization.matvec(b)
         assert(np.linalg.norm(x2 - x) <= me.check_rtol * np.linalg.norm(x)) # shifted factorization is correct
 
-    def check_generalized_eigenproblem_correctness(me, check_dd: np.ndarray, check_BU: np.ndarray):
+    def check_generalized_eigs(me, check_dd: np.ndarray, check_BU: np.ndarray):
         # Require:
         # U.T @ A @ U = diag(dd)    Equation 1
         # U.T @ B @ U = I           Equation 2
@@ -1310,8 +1394,8 @@ class HMatrixShiftedInverseInterpolator:
         assert(mu > 0.0)
         assert(b.shape == (me.N,))
         known_shifted_deflated_solvers = [
-            lambda b, _mu=mu: me.solve_shifted_deflated_with_known_mu(b, _mu)
-            for mu in me.mus]
+            lambda b, _ii=ii: me.solve_shifted_deflated_with_known_mu(b, _ii)
+            for ii in range(len(me.mus))]
         return shifted_inverse_interpolation_preconditioner(
             b, mu, me.mus, known_shifted_deflated_solvers,
             np.abs(me.LM_eig), display=display)
@@ -1330,7 +1414,7 @@ class HMatrixShiftedInverseInterpolator:
         assert(new_BU.shape == (me.N, new_k))
         proposed_dd = np.concatenate([me.dd, new_dd])
         proposed_BU = np.hstack([me.BU, new_BU])
-        me.check_generalized_eigenproblem_correctness(proposed_dd, proposed_BU)
+        me.check_generalized_eigs(proposed_dd, proposed_BU)
         me.dd = proposed_dd
         me.BU = proposed_BU
 
@@ -1350,6 +1434,19 @@ class HMatrixShiftedInverseInterpolator:
                 me.insert_new_mu(mu, fac)
 
             me.insert_new_deflation(new_dd, new_BU)
+            me.spectrum_lower_bound = new_spectrum_lower_bound
+
+    def mu_bracket(me, mu: float) -> typ.Tuple[float, float]:
+        mus_array = np.array(me.mus)
+        lower_mus = mus_array[mus_array <= mu]
+        upper_mus = mus_array[mu < mus_array]
+        mu_lo = None
+        mu_hi = None
+        if len(lower_mus) > 0:
+            mu_lo = np.max(lower_mus)
+        if len(upper_mus) > 0:
+            mu_hi = np.min(upper_mus)
+        return mu_lo, mu_hi
 
 
 def make_shifted_hmatrix_inverse_interpolator(
