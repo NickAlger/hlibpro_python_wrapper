@@ -1452,7 +1452,7 @@ class HMatrixShiftedInverseInterpolator:
                 prior_dd=me.dd, prior_V=me.BU,
                 B_fac=me.B_fac,
                 save_intermediate_factorizations=True,
-                display=me.display, tol=me.fac_rtol,
+                display=me.display,
                 additional_options=additional_options)
 
             new_mus = list(-np.array(new_shifts))
