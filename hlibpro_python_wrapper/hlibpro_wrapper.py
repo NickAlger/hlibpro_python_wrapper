@@ -1277,7 +1277,7 @@ class HMatrixShiftedInverseInterpolator:
                  spectrum_lower_bound: float = None,
                  gamma: float=-2.0, # -2.0 for flipping negative eigs, -1.0 to set them to zero
                  fac_rtol: float = 1e-12,
-                 check_rtol: float = 1e-6,
+                 check_rtol: float = 1e-3, #1e-6,
                  display: bool=False,
                  ):
         assert_gt(check_rtol, 0.0)
@@ -1403,7 +1403,7 @@ class HMatrixShiftedInverseInterpolator:
         return solve_shifted_deflated(
             b, me.shifted_factorizations[mu_ind].matvec, -me.mus[mu_ind], me.gamma, me.dd, me.BU)
 
-    def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float, display=True
+    def solve_shifted_deflated_preconditioner(me, b: np.ndarray, mu: float
                                               ) -> np.ndarray:
         '''b -> c0*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b + c1*(A + gamma*V @ diag(dd) @ V.T + mu0*B)^-1 @ b
              =approx= (A + gamma*V @ diag(dd) @ V.T + mu*B)^-1 @ b, where:
@@ -1418,7 +1418,7 @@ class HMatrixShiftedInverseInterpolator:
             for ii in range(len(me.mus))]
         return shifted_inverse_interpolation_preconditioner(
             b, mu, me.mus, known_shifted_deflated_solvers,
-            np.abs(me.LM_eig), display=display)
+            np.abs(me.LM_eig), display=me.display)
 
     def insert_new_mu(me, new_mu: float, new_fac: FactorizedInverseHMatrix=None
                       ) -> 'HMatrixShiftedInverseInterpolator':

@@ -273,6 +273,7 @@ std::shared_ptr<HLIB::TMatrix> build_hmatrix_from_coefffn(TCoeffFn<real_t> & coe
     timer.start();
 
     std::unique_ptr<HLIB::TMatrix>  A = h_builder.build( bct_ptr.get(), acc, & progress );
+//    std::unique_ptr<HLIB::TMatrix>  A = h_builder.build( bct_ptr.get(), acc);
 
     timer.pause();
     std::cout << "    done in " << timer << std::endl;

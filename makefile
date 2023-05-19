@@ -2,8 +2,10 @@ default: all
 
 ##################    VVVV    Change these    VVVV    ##################
 
-# HLIBPRO_DIR := /home/nick/hlibpro-2.8.1
-HLIBPRO_DIR := /home/nick/hlibpro-2.9
+HLIBPRO_DIR := /home/nick/hlibpro-2.8.1
+# HLIBPRO_DIR := /home/nick/hlibpro-2.9
+# HLIBPRO_DIR := /home/nick/hlibpro-2.9.1
+# HLIBPRO_DIR := /home/nick/hlibpro-3.0
 EIGEN_INCLUDE := /home/nick/anaconda3/envs/fenics3/include/eigen3
 THREADPOOL_INCLUDE := /home/nick/repos/thread-pool # https://github.com/bshoshany/thread-pool
 NALGER_HELPER_INCLUDE := /home/nick/repos/nalger_helper_functions/include
