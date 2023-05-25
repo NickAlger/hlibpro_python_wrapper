@@ -7,6 +7,51 @@
 using namespace Eigen;
 
 
+// Radial basis function interpolation with Gaussian kernel basis functions
+double RBF_GAUSS_interpolate( const Eigen::VectorXd & function_at_rbf_points,
+                              const Eigen::MatrixXd & rbf_points,
+                              const Eigen::VectorXd & eval_point )
+{
+    int N = rbf_points.cols();
+
+    double function_at_eval_point;
+    if ( N == 1 )
+    {
+        function_at_eval_point = function_at_rbf_points(0);
+    }
+    else
+    {
+        Eigen::VectorXd max_pt = rbf_points.rowwise().maxCoeff();
+        Eigen::VectorXd min_pt  = rbf_points.rowwise().minCoeff();
+
+        double diam_squared = (max_pt - min_pt).squaredNorm();
+        double sigma_squared = diam_squared / (3.0 * 3.0);
+
+        Eigen::MatrixXd M(N, N);
+        for ( int jj=0; jj<N; ++jj )
+        {
+            for ( int ii=0; ii<N; ++ii )
+            {
+                double r_squared = (rbf_points.col(ii) - rbf_points.col(jj)).squaredNorm();
+                M(ii,jj) = exp( - 0.5 * r_squared / sigma_squared);
+            }
+        }
+
+        Eigen::VectorXd weights = M.lu().solve(function_at_rbf_points);
+
+        Eigen::VectorXd rbfs_at_eval_point(N);
+        for ( int ii=0; ii<N; ++ii )
+        {
+            double r_squared = (rbf_points.col(ii) - eval_point).squaredNorm();
+            rbfs_at_eval_point(ii) = exp( - 0.5 * r_squared / sigma_squared);
+        }
+
+        function_at_eval_point = (weights.array() * rbfs_at_eval_point.array()).sum();
+    }
+    return function_at_eval_point;
+}
+
+
 double tps_interpolate( const VectorXd & function_at_rbf_points,
                         const MatrixXd & rbf_points,
                         const VectorXd & eval_point )
@@ -36,10 +81,10 @@ double tps_interpolate( const VectorXd & function_at_rbf_points,
                 }
             }
         }
-//        M += 1e-6 * MatrixXd::Identity(N, N);
+//        M += 1e-6 * M.norm() * MatrixXd::Identity(N, N);
 
-        VectorXd weights = M.lu().solve(function_at_rbf_points);
-//        VectorXd weights = M.colPivHouseholderQr().solve(function_at_rbf_points);
+//        VectorXd weights = M.lu().solve(function_at_rbf_points);
+        VectorXd weights = M.colPivHouseholderQr().solve(function_at_rbf_points);
 
         VectorXd rbfs_at_eval_point(N);
         for ( int ii=0; ii<N; ++ii )

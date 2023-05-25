@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <math.h>
+#include <cmath>
 #include <Eigen/Dense>
 #include <hlib.hh>
 
@@ -428,6 +429,14 @@ public:
         int exact_column_index = -1;
         for ( int ii=0; ii<actual_num_pts; ++ii )
         {
+            if ( std::isnan(points_and_values[ii].first.norm()) )
+            {
+                std::cout << "NAN entry first: (" << y << ", " << x << ")" << std::endl;
+            }
+            if ( std::isnan(points_and_values[ii].second) )
+            {
+                std::cout << "NAN entry second: (" << y << ", " << x << ")" << std::endl;
+            }
             if ( points_and_values[ii].first.norm() < 1e-9 )
             {
                 exact_column_index = ii;
@@ -447,7 +456,28 @@ public:
                     P.col(jj) = points_and_values[jj].first;
                     F(jj)     = points_and_values[jj].second;
                 }
-                kernel_value = tps_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1) );
+//                kernel_value = tps_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1) );
+                kernel_value = RBF_GAUSS_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1) );
+
+                if ( std::isnan(kernel_value) )
+                {
+                    std::cout << "NAN entry: y=[" << y << "], x=[" << x << "]" << std::endl;
+                    for (int jj=0; jj<points_and_values.size(); ++jj)
+                    {
+                        std::cout << "p" << jj << "=[" << points_and_values[jj].first << "]" << std::endl;;
+                        std::cout << "f=" << points_and_values[jj].second << std::endl;
+                    }
+                    throw std::runtime_error("NAN kernel entry");
+                }
+                if ( std::isinf(kernel_value) )
+                {
+                    std::cout << "INF entry: y=[" << y << "], x=[" << x << "]" << std::endl;
+                    for (int jj=0; jj<points_and_values.size(); ++jj)
+                    {
+                        std::cout << points_and_values[jj].first << std::endl;
+                        std::cout << points_and_values[jj].second << std::endl;
+                    }
+                }
             }
         }
 
@@ -528,8 +558,27 @@ public:
         {
             for ( size_t  ii = 0; ii < nrow; ++ii )
             {
-                matrix[ jj*nrow + ii ] = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
-                matrix[ jj*nrow + ii ] += 1.0e-14; // Code segfaults without this
+//                double entry = abs(eval_matrix_entry(rowidxs[ii], colidxs[jj]));
+                double entry = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
+                if ( std::isnan(entry) )
+                {
+//                    std::cout << "NAN entry: (" << ii << ", " << jj << ")" << std::endl;
+                    entry = 0.0;
+                }
+                if ( std::isinf(entry) )
+                {
+//                    std::cout << "INF entry: (" << ii << ", " << jj << ")" << std::endl;
+                    entry = 0.0;
+                }
+//                float q = (1.0 + (double)(rowidxs[ii]+colidxs[jj]));
+//                entry += 1.0e0 / (q*q); // Code segfaults without this
+//                entry = 1.0 / (q*q); // Code segfaults without this
+
+//                entry += 1.0e-12; // Code segfaults without this
+                matrix[ jj*nrow + ii ] = entry;
+
+//                matrix[ jj*nrow + ii ] = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
+//                matrix[ jj*nrow + ii ] += 1.0e-10 / (1.0 + (double)(ii+jj)); // Code segfaults without this
             }
         }
 

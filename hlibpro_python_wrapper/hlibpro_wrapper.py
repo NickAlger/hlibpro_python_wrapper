@@ -1276,7 +1276,7 @@ class HMatrixShiftedInverseInterpolator:
                  LM_eig: float = None,
                  spectrum_lower_bound: float = None,
                  gamma: float=-2.0, # -2.0 for flipping negative eigs, -1.0 to set them to zero
-                 fac_rtol: float = 1e-12,
+                 fac_rtol: float = 1e-8,
                  check_rtol: float = 1e-3, #1e-6,
                  display: bool=False,
                  ):

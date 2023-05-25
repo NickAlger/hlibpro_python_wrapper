@@ -267,6 +267,7 @@ std::shared_ptr<HLIB::TMatrix> build_hmatrix_from_coefffn(TCoeffFn<real_t> & coe
     TTruncAcc                 acc( tol, 0.0 );
     TPermCoeffFn< real_t >    permuted_coefffn( & coefffn, row_ct_ptr->perm_i2e(), col_ct_ptr->perm_i2e() );
     TACAPlus< real_t >        aca( & permuted_coefffn );
+//    TACA< real_t >            aca( & permuted_coefffn );
     TDenseMBuilder< real_t >  h_builder( & permuted_coefffn, & aca );
     h_builder.set_coarsening( false );
 

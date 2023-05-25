@@ -170,6 +170,15 @@ class DeflatedShiftedOperator:
         new_dd = np.concatenate([me.dd, dd2])
         return DeflatedShiftedOperator(me.apply_A, me.apply_B, me.sigma, me.solve_shifted_preconditioner, me.gamma, new_BU, new_dd)
 
+    # def update_deflation_with_reorthogonalization(me, U2: np.ndarray, dd2: np.ndarray) -> 'DeflatedShiftedOperator':
+    #     BU2 = np.zeros(U2.shape)
+    #     for k in range(BU2.shape[1]):
+    #         BU2[:,k] = me.apply_B(U2[:,k])
+    #     BU2_hat = BU2 - me.BU @ (me.BU.T @ U2)
+    #     new_BU = np.hstack([me.BU, BU2_hat])
+    #     new_dd = np.concatenate([me.dd, dd2])
+    #     return DeflatedShiftedOperator(me.apply_A, me.apply_B, me.sigma, me.solve_shifted_preconditioner, me.gamma, new_BU, new_dd)
+
 
 class CountedOperator:
     def __init__(me,
@@ -236,6 +245,8 @@ def deflate_negative_eigs_near_sigma(DSO: DeflatedShiftedOperator,
             dd = np.concatenate([dd, dd_new[good_inds]])
             DSO = DSO.update_deflation(
                 B_op.matmat(U_new[:, good_inds]), dd_new[good_inds])
+            # DSO = DSO.update_deflation_with_reorthogonalization(
+            #     U_new[:, good_inds], dd_new[good_inds])
 
         if len(dd_new) == 0 or np.any(dd_new >= threshold):
             break
@@ -417,7 +428,7 @@ def negative_eigenvalues_of_matrix_pencil(
         lanczos_maxiter=2,
         display=False,
         perturb_mu_factor: float=1e-3,
-        max_tries=100,
+        max_tries=20,
 ) -> typ.Tuple[np.ndarray, np.ndarray]: # (eigs, evecs)
     '''Get generalized eigenvalues of (A,B) in (range_min, range_max) < 0.
     Generalized eigenvalues of (A,B) may cluster at zero or positive numbers, but must not cluster at negative numbers
