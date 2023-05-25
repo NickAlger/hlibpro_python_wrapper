@@ -574,7 +574,7 @@ public:
 //                entry += 1.0e0 / (q*q); // Code segfaults without this
 //                entry = 1.0 / (q*q); // Code segfaults without this
 
-//                entry += 1.0e-12; // Code segfaults without this
+                entry += 1.0e-12; // Code segfaults without this
                 matrix[ jj*nrow + ii ] = entry;
 
 //                matrix[ jj*nrow + ii ] = eval_matrix_entry(rowidxs[ii], colidxs[jj]);
