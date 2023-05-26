@@ -6,6 +6,7 @@ from functools import cached_property
 
 
 _GMRES_TOL = 1e-10
+_CG_TOL = 1e-9
 
 vec2vec = typ.Callable[[np.ndarray], np.ndarray]
 
@@ -56,8 +57,6 @@ def solve_shifted_deflated(
     return solve_A_minus_sigma_B(b - BU @ (diag_Phi * (BU.T @ solve_A_minus_sigma_B(b))))
 
 
-
-
 @dataclass(frozen=True)
 class DeflatedShiftedOperator:
     '''A - sigma*B + gamma * B @ U @ diag(dd) @ U.T @ B
@@ -105,10 +104,14 @@ class DeflatedShiftedOperator:
         return me.apply_A(x) - me.sigma * me.apply_B(x)
 
     def solve_shifted(me, b: np.ndarray) -> np.ndarray: # b -> (A - sigma*B)^-1 @ b
+        return spla.cg(
+            spla.LinearOperator((me.N, me.N), matvec=me.apply_shifted), b,
+            M=spla.LinearOperator((me.N, me.N), matvec=me.solve_shifted_preconditioner),
+            tol=_CG_TOL)[0]
         # return me.solve_P(b)
-        return spla.gmres(spla.LinearOperator((me.N, me.N), matvec=me.apply_shifted), b,
-                          M=spla.LinearOperator((me.N, me.N), matvec=me.solve_shifted_preconditioner),
-                          tol=_GMRES_TOL)[0]
+        # return spla.gmres(spla.LinearOperator((me.N, me.N), matvec=me.apply_shifted), b,
+        #                   M=spla.LinearOperator((me.N, me.N), matvec=me.solve_shifted_preconditioner),
+        #                   tol=_GMRES_TOL)[0]
 
     def apply_deflated(me, x: np.ndarray): # x -> (A + gamma*B @ U @ diag(dd) @ U.T @ B) @ x
         return me.apply_A(x) + me.gamma * me.BU @ (me.dd * (me.BU.T @ x))
@@ -122,13 +125,18 @@ class DeflatedShiftedOperator:
         return me.apply_shifted(x) + me.gamma * me.BU @ (me.dd * (me.BU.T @ x))
 
     def solve_shifted_deflated(me, b: np.ndarray) -> np.ndarray: # b -> (A - sigma*B + gamma*B @ U @ diag(dd) @ U.T @ B)^-1 @ b
+        # solve_M = lambda z: solve_shifted_deflated(z, me.solve_shifted, me.sigma, me.gamma, me.dd, me.BU)
+        # return spla.cg(
+        #     spla.LinearOperator((me.N, me.N), matvec=me.apply_shifted_deflated), b,
+        #     M=spla.LinearOperator((me.N, me.N), matvec=solve_M),
+        #     tol=_CG_TOL)[0]
         return solve_shifted_deflated(b, me.solve_shifted, me.sigma, me.gamma, me.dd, me.BU)
         # return me.solve_shifted(b - me.BU @ (me.diag_Phi * (me.BU.T @ me.solve_shifted(b))))
 
     def solve_shifted_preconditioner_deflated(me, b: np.ndarray) -> np.ndarray: # b -> (A - sigma*B + gamma*B @ U @ diag(dd) @ U.T @ B)^-1 @ b
         return me.solve_shifted_preconditioner(b - me.BU @ (me.diag_Phi * (me.BU.T @ me.solve_shifted_preconditioner(b))))
 
-    def get_eigs_near_sigma(me, target_num_eigs=10, tol=1e-7, ncv_factor=None, maxiter=3, mode='cayley',
+    def get_eigs_near_sigma(me, target_num_eigs=10, tol=1e-12, ncv_factor=None, maxiter=3, mode='cayley',
                             preconditioner_only=False) -> typ.Tuple[np.ndarray, np.ndarray]: # (dd, U)
         if ncv_factor is None:
             ncv = None
@@ -279,9 +287,9 @@ def deflate_negative_eigenvalues(apply_A: vec2vec,
                                  make_OP: typ.Callable[[float], vec2vec], # Approximates sigma -> (v -> (A - sigma*B)^-1 @ v)
                                  threshold = -0.5,
                                  sigma_factor: float=7.0, # Sigma scaled up by this much above previous bound
-                                 chunk_size=50,
+                                 chunk_size=200,
                                  tol: float=1e-8,
-                                 ncv_factor=3,
+                                 ncv_factor=2,
                                  lanczos_maxiter=2,
                                  display=True,
                                  perturb_mu_factor: float=1e-3,
@@ -429,6 +437,7 @@ def negative_eigenvalues_of_matrix_pencil(
         display=False,
         perturb_mu_factor: float=1e-3,
         max_tries=20,
+        lanczos_tol: float=1e-12,
 ) -> typ.Tuple[np.ndarray, np.ndarray]: # (eigs, evecs)
     '''Get generalized eigenvalues of (A,B) in (range_min, range_max) < 0.
     Generalized eigenvalues of (A,B) may cluster at zero or positive numbers, but must not cluster at negative numbers
@@ -578,7 +587,7 @@ def negative_eigenvalues_of_matrix_pencil(
                              M=spla.LinearOperator((N,N), matvec=apply_B),
                              Minv=spla.LinearOperator((N,N), matvec=solve_B),
                              which='LM', return_eigenvectors=False,
-                             tol=tol)[0]
+                             tol=lanczos_tol)[0]
         printmaybe('LM_eig=', LM_eig)
         range_min = -np.abs(LM_eig)
 
@@ -607,7 +616,7 @@ def negative_eigenvalues_of_matrix_pencil(
             DSO, B_op,
             range_max, #band_lower,
             chunk_size,
-            ncv_factor, lanczos_maxiter, tol,
+            ncv_factor, lanczos_maxiter, lanczos_tol,
             max_tries=max_tries, preconditioner_only=True, display=display)
 
         dd = DSO.dd

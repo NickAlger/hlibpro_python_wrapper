@@ -37,7 +37,8 @@ double RBF_GAUSS_interpolate( const Eigen::VectorXd & function_at_rbf_points,
             }
         }
 
-        Eigen::VectorXd weights = M.lu().solve(function_at_rbf_points);
+//        Eigen::VectorXd weights = M.lu().solve(function_at_rbf_points);
+        VectorXd weights = M.colPivHouseholderQr().solve(function_at_rbf_points);
 
         Eigen::VectorXd rbfs_at_eval_point(N);
         for ( int ii=0; ii<N; ++ii )
