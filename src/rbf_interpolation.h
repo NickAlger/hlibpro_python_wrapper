@@ -10,7 +10,8 @@ using namespace Eigen;
 // Radial basis function interpolation with Gaussian kernel basis functions
 double RBF_GAUSS_interpolate( const Eigen::VectorXd & function_at_rbf_points,
                               const Eigen::MatrixXd & rbf_points,
-                              const Eigen::VectorXd & eval_point )
+                              const Eigen::VectorXd & eval_point,
+                              const double shape_parameter )
 {
     int N = rbf_points.cols();
 
@@ -25,7 +26,7 @@ double RBF_GAUSS_interpolate( const Eigen::VectorXd & function_at_rbf_points,
         Eigen::VectorXd min_pt  = rbf_points.rowwise().minCoeff();
 
         double diam_squared = (max_pt - min_pt).squaredNorm();
-        double sigma_squared = diam_squared / (3.0 * 3.0);
+        double sigma_squared = diam_squared / shape_parameter*shape_parameter;//(1.0 * 1.0);//(3.0 * 3.0);
 
         Eigen::MatrixXd M(N, N);
         for ( int jj=0; jj<N; ++jj )

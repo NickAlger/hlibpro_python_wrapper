@@ -901,6 +901,7 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
                        >())
         .def_readwrite("mean_shift", &ProductConvolutionKernelRBFColsOnly::mean_shift)
         .def_readwrite("vol_preconditioning", &ProductConvolutionKernelRBFColsOnly::vol_preconditioning)
+        .def_readwrite("shape_parameter", &ProductConvolutionKernelRBFColsOnly::shape_parameter)
         .def_readonly("row_coords", &ProductConvolutionKernelRBFColsOnly::row_coords)
         .def_readonly("col_coords", &ProductConvolutionKernelRBFColsOnly::col_coords)
         .def("eval_integral_kernel", &ProductConvolutionKernelRBFColsOnly::eval_integral_kernel)
@@ -948,7 +949,10 @@ PYBIND11_MODULE(hlibpro_bindings, m) {
 //        .def("cols", &HLIB::TRkMatrix::cols)
 //        .def("rank", &HLIB::TRkMatrix::rank);
 
-//    py::class_<HLIB::TPermutation, std::shared_ptr<TPermutation>>(m, "HLIB::TPermutation");
+//    py::class_<HLIB::TPermutation, std::shared_ptr<TPermutation>>(m, "HLIB::TPermutation")
+//    	.def("permute", static_cast<int (HLIB::TPermutation::*)(int) const>(&HLIB::TPermutation::permute), "permute one index");
+//    	.def("permute", &HLIB::TPermutation::permute);
+    	
 
     m.def("make_hlibpro_low_rank_matrix", &make_hlibpro_low_rank_matrix);
     m.def("make_permuted_hlibpro_low_rank_matrix", &make_permuted_hlibpro_low_rank_matrix);

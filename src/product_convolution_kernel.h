@@ -400,6 +400,7 @@ public:
     std::vector<Eigen::VectorXd> col_coords;
     bool                         mean_shift = true;
     bool                         vol_preconditioning = true;
+    double			shape_parameter = 3.0;
 
     thread_pool pool;
 
@@ -457,7 +458,7 @@ public:
                     F(jj)     = points_and_values[jj].second;
                 }
 //                kernel_value = tps_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1) );
-                kernel_value = RBF_GAUSS_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1) );
+                kernel_value = RBF_GAUSS_interpolate( F, P, Eigen::MatrixXd::Zero(dim,1), shape_parameter );
 
                 if ( std::isnan(kernel_value) )
                 {
